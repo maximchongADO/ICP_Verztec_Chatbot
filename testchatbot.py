@@ -39,7 +39,7 @@ def load_cleaned_texts(folder_path):
     return texts, metadatas
 
 # FAISS Vector Store Setup (Run Once)
-setup_faiss_vector_store()
+# setup_faiss_vector_store()
 
 # LLM and Retrieval Setup (Can be run multiple times)
 def query_faiss_llm(query):
