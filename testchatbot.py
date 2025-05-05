@@ -6,7 +6,7 @@ from langchain_community.chat_models import ChatOpenAI
 from langchain.chains import RetrievalQA
 from pathlib import Path
 
-root_dir = Path(__file__).parents
+root_dir = Path(__file__).parent
 data_dir = root_dir / "data"
 cleaned_dir = data_dir / "cleaned"
 
