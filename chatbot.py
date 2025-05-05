@@ -5,6 +5,10 @@ from langchain.embeddings import HuggingFaceEmbeddings
 from langchain_community.chat_models import ChatOpenAI
 from langchain.chains import RetrievalQA
 from pathlib import Path
+from dotenv import load_dotenv
+from langchain_groq import ChatGroq
+from langchain_core.output_parsers import StrOutputParser
+from langchain_community.document_loaders import TextLoader , PyPDFLoader
 
 # Load embedding model
 embedding_model = HuggingFaceEmbeddings(model_name="all-MiniLM-L6-v2")
@@ -22,16 +26,20 @@ def query_faiss_llm(query):
     # Load FAISS vector store
     vector_store = FAISS.load_local("verztec_vector_store", embedding_model, allow_dangerous_deserialization=True)
 
+    
     # Create retriever
     retriever = vector_store.as_retriever(search_type="similarity", k=3)
-
+ 
     # Load OpenRouter DeepSeek model into LangChain
-    llm = ChatOpenAI(
-        model_name="tngtech/deepseek-r1t-chimera:free",
-        temperature=0,
-        openai_api_key=os.environ["OPENAI_API_KEY"],
-        openai_api_base=os.environ["OPENAI_API_BASE"]
-    )
+    # llm = ChatOpenAI(
+    #     model_name="tngtech/deepseek-r1t-chimera:free",
+    #     temperature=0,
+    #     openai_api_key=os.environ["OPENAI_API_KEY"],
+    #     openai_api_base=os.environ["OPENAI_API_BASE"]
+    # )
+
+    model="deepseek-r1-distill-llama-70b"
+    deepseek = ChatGroq(api_key=api_key,model_name=model)
 
     # Build RetrievalQA chain
     qa_chain = RetrievalQA.from_chain_type(
@@ -48,7 +56,7 @@ def query_faiss_llm(query):
 
     # Now, invoke the LLM chain using the query and context
     response = qa_chain.invoke({"query": query, "context": context})
-
+    print(response)
     # Output the response and sources
     print("Answer:", response["result"])
     print("\nSources:")
