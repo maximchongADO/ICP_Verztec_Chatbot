@@ -11,7 +11,7 @@ data_dir = root_dir / "data"
 cleaned_dir = data_dir / "cleaned"
 
 # Set OpenRouter API details
-os.environ["OPENAI_API_KEY"] = "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"
+os.environ["OPENAI_API_KEY"] = "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"
 os.environ["OPENAI_API_BASE"] = "https://openrouter.ai/api/v1"
 
 # Load embedding model
