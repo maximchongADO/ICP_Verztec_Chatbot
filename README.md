@@ -7,6 +7,7 @@ Website Structure
 
 This follows a variant of the MVC pattern, but it's not strictly MVC. It most closely resembles a modular MVVM (Model-View-ViewModel) or MVC-like architecture, customized for a Python app like Streamlit.
 
+```text
 chatbot_app/
 ├── app.py                  # Main application entry point
 ├── config/
@@ -24,7 +25,6 @@ chatbot_app/
 │   └── sidebar_ui.py       # Sidebar UI components
 └── utils/
     └── session_helper.py   # Session state management helpers
-
 
 
 Install dependencies:
