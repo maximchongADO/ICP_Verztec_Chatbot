@@ -53,7 +53,7 @@ print(f"Retriever set up in {end_retriever - start_retriever:.2f} seconds")
 llm = ChatOpenAI(
     model_name="tngtech/deepseek-r1t-chimera:free",
     temperature=0.1, # randomness of response
-    openai_api_key="sk-or-v1-189b8b7afc43328f8cbebe03cf4e73955bb9bfefe7690f1e051f63e8c9f31758wh",
+    openai_api_key="",
     openai_api_base="https://openrouter.ai/api/v1"
 )
 
