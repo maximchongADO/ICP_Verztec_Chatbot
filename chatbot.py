@@ -28,7 +28,12 @@ deepseek_chain = deepseek | parser
 print(deepseek_chain.invoke("hello"))
 
 # Load embedding model
-embedding_model = HuggingFaceEmbeddings(model_name="all-MiniLM-L6-v2")
+embedding_model2 = HuggingFaceEmbeddings(
+    model_name = "BAAI/bge-large-en-v1.5",
+
+    encode_kwargs={'normalize_embeddings': True}  
+)
+# --- Step 1: Load FAISS Vector Store ---
 
 root_dir = Path(__file__).parent
 data_dir = root_dir / "data"
@@ -37,7 +42,7 @@ cleaned_dir = data_dir / "cleaned"
 # Query function to handle the data retrieval and LLM invocation
 def query_faiss_llm(query):
     # Load FAISS vector store
-    vector_store = FAISS.load_local("verztec_vector_store", embedding_model, allow_dangerous_deserialization=True)
+    vector_store = FAISS.load_local("faiss_index3", embedding_model2, allow_dangerous_deserialization=True)
 
     # Create retriever for fetching documents
     retriever = vector_store.as_retriever(search_type="similarity", k=3)
