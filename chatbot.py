@@ -1,10 +1,31 @@
 import os
+from dotenv import load_dotenv
+from langchain_groq import ChatGroq
+from langchain_core.output_parsers import StrOutputParser
+from langchain_community.document_loaders import TextLoader, PyPDFLoader
 from langchain.text_splitter import RecursiveCharacterTextSplitter
 from langchain.vectorstores import FAISS
 from langchain.embeddings import HuggingFaceEmbeddings
-from langchain_community.chat_models import ChatOpenAI
 from langchain.chains import RetrievalQA
 from pathlib import Path
+
+# Load environment variables
+load_dotenv()
+api_key = "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"
+model = "meta-llama/llama-4-scout-17b-16e-instruct"  # Update model as required
+deepseek = ChatGroq(api_key=api_key, model_name=model)
+
+# Print test message to verify Groq API
+print(deepseek.invoke("hello"))
+
+# Define the output parser for handling results
+parser = StrOutputParser()
+
+# Chain the Groq model with the parser
+deepseek_chain = deepseek | parser
+
+# Print the result from the chain
+print(deepseek_chain.invoke("hello"))
 
 # Load embedding model
 embedding_model = HuggingFaceEmbeddings(model_name="all-MiniLM-L6-v2")
@@ -13,29 +34,18 @@ root_dir = Path(__file__).parent
 data_dir = root_dir / "data"
 cleaned_dir = data_dir / "cleaned"
 
-# Set OpenRouter API details
-os.environ["OPENAI_API_KEY"] = "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"
-os.environ["OPENAI_API_BASE"] = "https://openrouter.ai/api/v1"
-
-#  LLM and Retrieval Setup (Can be run multiple times)
+# Query function to handle the data retrieval and LLM invocation
 def query_faiss_llm(query):
     # Load FAISS vector store
     vector_store = FAISS.load_local("verztec_vector_store", embedding_model, allow_dangerous_deserialization=True)
 
-    # Create retriever
+    # Create retriever for fetching documents
     retriever = vector_store.as_retriever(search_type="similarity", k=3)
 
-    # Load OpenRouter DeepSeek model into LangChain
-    llm = ChatOpenAI(
-        model_name="tngtech/deepseek-r1t-chimera:free",
-        temperature=0,
-        openai_api_key=os.environ["OPENAI_API_KEY"],
-        openai_api_base=os.environ["OPENAI_API_BASE"]
-    )
-
-    # Build RetrievalQA chain
+    # Now replace OpenAI API usage with the Groq model setup
+    # Build the retrieval QA chain using Groq model instead of OpenAI
     qa_chain = RetrievalQA.from_chain_type(
-        llm=llm,
+        llm=deepseek_chain,  # Use the Groq model chain here
         retriever=retriever,
         return_source_documents=True
     )
@@ -46,7 +56,7 @@ def query_faiss_llm(query):
     # Prepare the context from the retrieved documents
     context = "\n".join([doc.page_content for doc in docs])  # Concatenate text from all retrieved docs
 
-    # Now, invoke the LLM chain using the query and context
+    # Now, invoke the Groq chain using the query and context
     response = qa_chain.invoke({"query": query, "context": context})
 
     # Output the response and sources
