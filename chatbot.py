@@ -40,35 +40,29 @@ data_dir = root_dir / "data"
 cleaned_dir = data_dir / "cleaned"
 
 # Query function to handle the data retrieval and LLM invocation
-def query_faiss_llm(query):
-    # Load FAISS vector store
+def get_bot_reply(query):
+    # Load FAISS index from disk
     vector_store = FAISS.load_local("faiss_index3", embedding_model2, allow_dangerous_deserialization=True)
-
-    # Create retriever for fetching documents
+    
+    # Set up document retriever
     retriever = vector_store.as_retriever(search_type="similarity", k=3)
-
-    # Now replace OpenAI API usage with the Groq model setup
-    # Build the retrieval QA chain using Groq model instead of OpenAI
+    
+    # Create QA chain using retriever and Groq model
     qa_chain = RetrievalQA.from_chain_type(
-        llm=deepseek_chain,  # Use the Groq model chain here
+        llm=deepseek_chain,
         retriever=retriever,
         return_source_documents=True
     )
 
-    # Retrieve documents for context
+    # Get documents and build context
     docs = retriever.get_relevant_documents(query)
+    context = "\n".join([doc.page_content for doc in docs])
 
-    # Prepare the context from the retrieved documents
-    context = "\n".join([doc.page_content for doc in docs])  # Concatenate text from all retrieved docs
-
-    # Now, invoke the Groq chain using the query and context
+    # Generate reply from chain
     response = qa_chain.invoke({"query": query, "context": context})
+    
+    return response["result"]  # This is what you display in UI
 
-    # Output the response and sources
-    print("Answer:", response["result"])
-    print("\nSources:")
-    for doc in response["source_documents"]:
-        print("-", doc.metadata["source"])
 
 # Main interactive loop for user input
 def interactive_bot():
