@@ -17,7 +17,7 @@ from langchain.memory import ConversationBufferWindowMemory
 load_dotenv()
 os.environ['TF_ENABLE_ONEDNN_OPTS'] = '0'
 
-api_key = ''
+api_key = "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"
 model = "deepseek-r1-distill-llama-70b"  # Update model as required
 deepseek = ChatGroq(api_key=api_key, model_name=model)
 
@@ -39,20 +39,20 @@ embedding_model2 = HuggingFaceEmbeddings(
 root_dir = Path(__file__).parent
 data_dir = root_dir / "data"
 cleaned_dir = data_dir / "cleaned"
-chat_history = []  # Store (user, bot) message pairs
+#chat_history = []  # Store (user, bot) message pairs
 memory = ConversationBufferMemory(
     memory_key="chat_history",
     input_key="question",        # Input key in your chain
     output_key="answer",         # Explicit output key
     return_messages=True
 )
+vector_store = FAISS.load_local("faiss_index3", embedding_model2, allow_dangerous_deserialization=True)
 
 
 # Query function to handle the data retrieval and LLM invocation
-def query_faiss_llm(query):
+def query_faiss_llm(query,chat_history):
     # Load FAISS vector store
-    vector_store = FAISS.load_local("faiss_index3", embedding_model2, allow_dangerous_deserialization=True)
-
+    print ("Query provided to vector: "+query)
     # Retrieve documents with similarity scores
     docs_with_scores = vector_store.similarity_search_with_score(query, k=5)
 
@@ -63,7 +63,7 @@ def query_faiss_llm(query):
     print(f"Average score: {avgscore:.4f}")
 
     # Check if query is relevant based on score
-    if avgscore < 0.73:
+    if avgscore < 2.73:
         # Proceed with building the retriever and QA chain
         retriever = vector_store.as_retriever(search_type="similarity", k=3)
         
@@ -72,7 +72,7 @@ def query_faiss_llm(query):
             retriever=retriever,
             memory=memory,
             return_source_documents=True,
-            output_key="answer"
+            output_key="answer"  
         )
 
 
@@ -119,20 +119,22 @@ def query_faiss_llm(query):
     return chat_history
 
 # Main interactive loop for user input
-def interactive_bot():
+def interactive_bot(chat_history):
     print("Welcome to the Verztec Helpdesk Bot! You can ask questions anytime.")
     print("Type 'exit' to quit.")
 
-    chat_history = []
+    
 
     while True:
         query = input("Ask a question: ")
         if query.lower() == "exit":
             print("Goodbye!")
             break
-        chat_history=query_faiss_llm(query)
+        chat_history=query_faiss_llm(query,chat_history)
 
 
 # Start the interactive bot
 if __name__ == "__main__":
-    interactive_bot()
+    chat_history = []
+    interactive_bot(chat_history)
+    print(chat_history)
