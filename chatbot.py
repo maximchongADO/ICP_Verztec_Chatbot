@@ -1,23 +1,27 @@
 import os
+from dotenv import load_dotenv
+
+
 import re
+import numpy as np
 from dotenv import load_dotenv
 from langchain_groq import ChatGroq
 from langchain_core.output_parsers import StrOutputParser
-from langchain_community.document_loaders import TextLoader, PyPDFLoader
-from langchain.text_splitter import RecursiveCharacterTextSplitter
+#from langchain_community.document_loaders import TextLoader, PyPDFLoader
+#from langchain.text_splitter import RecursiveCharacterTextSplitter
 from langchain_community.vectorstores import FAISS
+import faiss
 from langchain_community.embeddings import HuggingFaceEmbeddings
 from langchain.chains import RetrievalQA
 from pathlib import Path
 from langchain.chains import ConversationalRetrievalChain
 from langchain.memory import ConversationBufferMemory
-from langchain.memory import ConversationBufferWindowMemory
+#from langchain.memory import ConversationBufferWindowMemory
 
 # Load environment variables
 load_dotenv()
 os.environ['TF_ENABLE_ONEDNN_OPTS'] = '0'
-
-api_key = "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"
+api_key = os.getenv("API_KEY")
 model = "deepseek-r1-distill-llama-70b"  # Update model as required
 deepseek = ChatGroq(api_key=api_key, model_name=model)
 
@@ -52,15 +56,56 @@ vector_store = FAISS.load_local("faiss_index3", embedding_model2, allow_dangerou
 # Query function to handle the data retrieval and LLM invocation
 def query_faiss_llm(query,chat_history):
     # Load FAISS vector store
-    print ("Query provided to vector: "+query)
+    
+    allqueries=''
+    count = 1
+    for conv in chat_history:
+        if count == 1:
+            allqueries=conv[0]
+        else:
+            allqueries = allqueries+". "+conv[0]
+        count+=1 
+    previous_queries= allqueries
+    allqueries=allqueries+" "+query
+    
     # Retrieve documents with similarity scores
     docs_with_scores = vector_store.similarity_search_with_score(query, k=5)
+    runningscore_docs=vector_store.similarity_search_with_score(allqueries, k=5)
+    print ("Query provided to vector: "+query)
+    print("Continuous query record: "+ allqueries)
 
     # Compute average score
     ttl_score = sum(score for _, score in docs_with_scores)
-    avgscore = ttl_score / len(docs_with_scores) if docs_with_scores else 1  # Default to 1 if no docs
-
+    running_score=sum( score for _, score in runningscore_docs)
+    avgscore = ttl_score / len(docs_with_scores) if docs_with_scores else 1
+    avgrunningscore = running_score / len(runningscore_docs) if runningscore_docs else 1# Default to 1 if no docs
     print(f"Average score: {avgscore:.4f}")
+    print(f"Running score: {avgrunningscore:.4f}")
+    
+    ## ------------------------ some things to check if topic change --------------------
+    previous_query=''
+    if len(chat_history) != 0:
+        previous_query = chat_history[len(chat_history)-1][0]
+        print("Previous query: "+previous_query)
+    query_vector = embedding_model2.embed_query(query)
+    allqueries_vector = embedding_model2.embed_query(previous_query)
+
+    # Convert to float32 and 2D for FAISS
+    query_vector = np.array([query_vector], dtype='float32')
+    allqueries_vector = np.array([allqueries_vector], dtype='float32')
+
+    # Create FAISS inner product index
+    index = faiss.IndexFlatIP(query_vector.shape[1])
+    index.add(allqueries_vector)
+
+    # Compare current query against continuous query
+    score, _ = index.search(query_vector, k=1)
+    dot_product = score[0][0]
+
+    print(f"Dot product between current query and continuous query: {dot_product:.4f}")
+
+
+   
 
     # Check if query is relevant based on score
     if avgscore < 2.73:
