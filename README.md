@@ -1,6 +1,30 @@
 # ICP_Verztec_Chatbot
 This repository contains the code for an AI-powered chatbot designed for internal helpdesk support. The chatbot handles frequently asked questions, provides automated responses, and assists users with various queries. It is built with a modular and scalable architecture, making it easy to customize and extend for different use cases.
 
+## Dependencies
+
+To run this project, you will need to install the following Python packages:
+
+- `pymupdf`
+- `re`
+- `ftfy`
+- `os`
+- `langchain`
+- `langchain_groq`
+- `langchain_core`
+- `langchain_community`
+- `dotenv`
+- `langchain_huggingface`
+- `langchain_community.chat_models`
+
+### Installation
+
+You can install all the required dependencies by running:
+
+```bash
+pip install -r requirements.txt
+'
+
 
 
 Website Structure
