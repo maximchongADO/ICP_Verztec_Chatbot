@@ -78,7 +78,7 @@ def query_faiss_llm(query,chat_history):
     ttl_score = sum(score for _, score in docs_with_scores)
     running_score=sum( score for _, score in runningscore_docs)
     avgscore = ttl_score / len(docs_with_scores) if docs_with_scores else 1
-    avgrunningscore = running_score / len(runningscore_docs) if runningscore_docs else 1# Default to 1 if no docs
+    avgrunningscore = running_score / len(runningscore_docs) if runningscore_docs else 1# Default to 1 if no docsp
     print(f"Average score: {avgscore:.4f}")
     print(f"Running score: {avgrunningscore:.4f}")
     
