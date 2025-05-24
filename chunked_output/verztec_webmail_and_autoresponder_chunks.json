@@ -1,0 +1,13 @@
+{
+  "source_file": "verztec_webmail_and_autoresponder.txt",
+  "chunk_style": "paragraph",
+  "chunks": [
+    {
+      "chunk_index": 0,
+      "chunk_text": "Verztec Webmail\n\nWhen you are not in the office, you may access Verztec Webmail at this URL:\n\nhttp://webmail.verztec.com Userid: your email address Password: your password\n\nThis is useful when you need to check emails from home/ outside to reply to your clients/ suppliers.\n\nPlease do check emails regularly when you are accessing Internet at home.\n\nDo take note of there will be email relay problems when you send out. As always, please put yourself as one of the recipients to ensure the email REALLY went out.\n\nVerztec SMTP mail Server for use in office MS Outlook:\n\nIncoming and outgoing: mail.verztec.com  Username: Your email address. \u000b** Note: If you download mails to your home PC using MS Outlook, you will not be able to download the same emails using your office PC - MS Outlook, so please use Webmail from home to keep a copy of the mails. Note that once you\u2019ve downloaded your emails to your Outlook, it will not keep a copy in the Webmail / Server anymore.\n\nIf you have problems sending out emails, please check your SMTP or Outgoing Mail Settings to mail.singnet.com.sg\n\nHow to set an Autoresponder:\n\nPlease set an Autoresponder for your email when you are away on leave.\n\nGo to SETTINGS( Auto- Responder  in Webmail, check the box on \u201cEnable Auto-responder\u201d, click on the tab \u201cAuto-responder Message\u201d and enter your Autoresponder Subject Title and Message.\n\nPlease remember to deactivate this option when you\u2019re back to work.",
+      "source_file": "verztec_webmail_and_autoresponder.txt",
+      "chunk_style": "paragraph",
+      "token_count": 324
+    }
+  ]
+}

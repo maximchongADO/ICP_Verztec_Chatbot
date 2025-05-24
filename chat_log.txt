@@ -1,0 +1,113 @@
+User: hi
+Bot: Hello! How can I assist you today?
+----------------------------------------
+User: what to do if i get fired
+Bot: I'm sorry, but I couldn't find any information related to "what to do if I get fired" in our company's provided documents. It's best to check with your department manager or HR for guidance on company-specific procedures. However, I can suggest some general steps you can consider:
+
+1. Stay calm and professional.
+2. Ask for feedback on your performance.
+3. Review your employment contract or company policies.
+4. Seek support from HR or a supervisor.
+
+For more detailed assistance, please consult with your department manager or HR representative.
+----------------------------------------
+User: what to do if i get laid off
+Bot: If you get laid off, you should follow the steps outlined in the "Offboarding Clean Desk and Digital Handover Policy" effective from 15th January 2025. 
+
+The key steps include:
+1. Removing personal belongings and ensuring the workspace is clear of personal and unnecessary items.
+2. Organizing work materials, including shredding or disposing of sensitive documents, and returning company property such as laptops, keyboards, employment cards, medical cards, and office keys.
+3. Backing up necessary digital files to a designated shared drive or cloud storage and handing over credentials for work-related systems, tools, or platforms.
+4. Deleting personal files from company devices and emptying the trash/recycle bin.
+5. Archiving important emails and sharing access with relevant team members, and seeking advice from your team manager to forward your emails to staff taking over.
+6. Scheduling a review with your supervisor or HR to confirm the handover of files and credentials, verify the return of company property, and conduct a final check of the workspace.
+
+Additionally, you will need to sign an Employment Clearance Form to confirm compliance with the policy and completion of all steps. 
+
+Please note that non-compliance with this policy may result in delays in the clearance process and potential withholding of final payments until all obligations are met. 
+
+It is essential to follow these steps to ensure a smooth transition and to fulfill your obligations as outlined in the company's policy.
+----------------------------------------
+User: what is the pantry rue\le
+Bot: The pantry rules at Verztec are:
+
+1. Keep the pantry clean and neat.
+2. Keep the sink area dry after washing.
+3. Clean the water dispenser surface if you spill coffee/tea on it.
+4. Dispose of unwanted items and tidy up the fridge.
+5. Dispose of leftover food, boxes, and plastic containers outside the office.
+6. Close the lid properly after disposal in the office bin.
+7. Clean up countertops or tables with a damp cloth after meals.
+8. Do not cut fruits or food items on the kitchen top; use available chopping boards.
+
+These rules aim to maintain a clean and insect-free pantry environment.
+----------------------------------------
+User: what is the 3rd rule
+Bot: Based on the provided company documents, I couldn't find a specific list of rules with a clear "3rd rule". However, I can try to help you identify a rule from a specific policy.
+
+If you're referring to the "Guidelines on Office Laptop and Computer", I found a list of actions for laptop and computer users:
+
+1. Power off your laptop and switch off/plug out the charger when not in use.
+2. Turn off your computer and screen(s) when not in use.
+
+The next action would be:
+3. All LCD screen monitors should be turned off to conserve power energy.
+
+If this isn't the policy you're referring to, please provide more context, and I'll try to help you find the 3rd rule.
+----------------------------------------
+User: wat are the pantrfy rule
+Bot: The user's question is: "What are the pantry rules?" 
+
+Based on the provided context, the answer to this question can be found in the section titled "VERZTEC PANTRY RULES". 
+
+The rules are as follows:
+1. Keep the pantry clean and neat.
+2. Keep the sink area dry after washing and clean the water dispenser surface if spills occur.
+3. Dispose of unwanted items and tidy up the fridge.
+4. Dispose of leftover food, boxes, and plastic containers outside the office.
+5. Close the lid properly after disposal when using the office bin.
+6. Clean up countertops or tables with a damp cloth after meals.
+7. Do not cut fruits or food items on the kitchen top; use available chopping boards.
+
+These rules are aimed at maintaining a clean and insect-free pantry environment. 
+
+Therefore, the answer to the user's question is:
+
+VERZTEC PANTRY RULES:
+1. Keep the pantry clean and neat.
+2. Keep the sink area dry after washing and clean the water dispenser surface if spills occur.
+3. Dispose of unwanted items and tidy up the fridge.
+4. Dispose of leftover food, boxes, and plastic containers outside the office.
+5. Close the lid properly after disposal when using the office bin.
+6. Clean up countertops or tables with a damp cloth after meals.
+7. Do not cut fruits or food items on the kitchen top; use available chopping boards.
+
+These rules are aimed at maintaining a clean and insect-free pantry environment.
+----------------------------------------
+User: what is the 3rd rule
+Bot: Based on the given context, I will review the provided information to find the third rule.
+
+The context provides several sections: 
+
+1. Transcription Quality & Accuracy Checklist
+2. Special Note to client
+3. Digital Meeting Etiquette Points to note for our internal meetings 
+4. Verztec Ownership Policy
+
+The "Digital Meeting Etiquette Points to note for our internal meetings" section lists several points:
+
+1. Respect the speakers 
+2. Turn Video on, so we know you are present & in the meeting. 
+There are more points listed, but I will stop here as I found the first two rules.
+
+The "Verztec Ownership Policy" section also lists several reasons and rules.
+
+However, I found another list with rules in "Digital Meeting Etiquette Points to note for our internal meetings":
+ 
+The third rule seems to be: 
+3. Please refrain from doing other work/tasks. Eg.Hands typing away on keyboard or on your phone. 
+
+So, the answer to the question "What is the third rule?" is:
+
+The third rule is: Please refrain from doing other work/tasks. Eg.Hands typing away on keyboard or on your phone.
+----------------------------------------
