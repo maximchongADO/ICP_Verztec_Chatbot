@@ -115,6 +115,11 @@ def interactive_chat(index, metadata):
 
         print("\n[Step 3] Final Answer:\n", answer)
         chat_history.append((user_query, answer))
+
+        # Save to chat_log.txt
+        with open("chat_log.txt", "a", encoding="utf-8") as f:
+            f.write(f"User: {user_query}\nBot: {answer}\n{'-'*40}\n")
+
         print("\n" + "-" * 80 + "\n")
 
 if __name__ == "__main__":

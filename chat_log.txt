@@ -111,3 +111,6 @@ So, the answer to the question "What is the third rule?" is:
 
 The third rule is: Please refrain from doing other work/tasks. Eg.Hands typing away on keyboard or on your phone.
 ----------------------------------------
+User: hi
+Bot: Hello! How can I assist you today?
+----------------------------------------
