@@ -21,7 +21,7 @@ from langchain.memory import ConversationBufferMemory
 # Load environment variables
 load_dotenv()
 os.environ['TF_ENABLE_ONEDNN_OPTS'] = '0'
-api_key = os.getenv("API_KEY")
+api_key = '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'
 model = "deepseek-r1-distill-llama-70b"  # Update model as required
 deepseek = ChatGroq(api_key=api_key, model_name=model)
 
