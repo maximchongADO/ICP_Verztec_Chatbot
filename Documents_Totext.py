@@ -4,7 +4,7 @@ import ftfy
 import os 
 from pathlib import Path
 from docx import Document
-
+from PIL import ImageGrab
 import win32com.client
 import mimetypes
 from pptx import Presentation
@@ -76,6 +76,7 @@ def process_pdf_with_images(file_path, image_output_dir, base_image_name):
     doc = fitz.open(file_path)
     text = ""
     image_count = 0
+    os.makedirs(image_output_dir, exist_ok=True)
 
     for page_num, page in enumerate(doc, start=1):
         text += f"\n--- Page {page_num} ---\n"
@@ -90,33 +91,26 @@ def process_pdf_with_images(file_path, image_output_dir, base_image_name):
             image_filename = f"{base_image_name}_page{page_num}_img{img_index}.{image_ext}"
             image_filename = image_filename.strip().replace("\n", "").replace("\r", "")
             image_path = image_output_dir / image_filename
-            verzy =is_verztec_logo(image_path, threshold=5)
-            print(f"[LOG] {image_filename} verztec logo: {verzy}")
-            
-            print(f'[LOG] {image_path}')
 
+            # Save temporarily to check
             with open(image_path, "wb") as f:
                 f.write(image_bytes)
 
-            # Insert image tag in text
+            # Check if it's a Verztec logo
+            verzy = is_verztec_logo(image_path, threshold=5)
+            print(f"[LOG] {image_filename} verztec logo: {verzy}")
+
+            if verzy:
+                os.remove(image_path)
+                continue  # Skip saving and tagging this image
+
+            # If passed, include image tag
             text += f"<|image_start|>{image_filename}<|image_end|>"
 
     doc.close()
     return text
 
-# NOT USED 
-def extract_text_from_docx(file_path):
-    doc = Document(file_path)
-    return '\n'.join([para.text for para in doc.paragraphs])
-# NOT USED 
-def extract_text_from_doc_using_word(file_path):
-    word = win32com.client.Dispatch("Word.Application")
-    word.Visible = False
-    doc = word.Documents.Open(file_path)
-    text = doc.Content.Text
-    doc.Close(False)
-    word.Quit()
-    return text
+
 
 
 def is_verztec_logo(image_path, threshold=5):
@@ -144,15 +138,7 @@ def is_verztec_logo(image_path, threshold=5):
     return False
 
 
-# NOT USED 
-def extract_text_from_pptx(file_path):
-    prs = Presentation(file_path)
-    text_runs = []
-    for slide in prs.slides:
-        for shape in slide.shapes:
-            if hasattr(shape, "text"):
-                text_runs.append(shape.text)
-    return "\n".join(text_runs)
+
 
 ## ALSO WITH IMAGES AND TAGS
 # USED 
@@ -160,37 +146,44 @@ def extract_text_and_images_from_doc(file_path, image_output_dir, base_image_nam
     word = win32com.client.Dispatch("Word.Application")
     word.Visible = False
     doc = word.Documents.Open(file_path)
-    
+
     text = ""
     image_count = 0
+    os.makedirs(image_output_dir, exist_ok=True)
 
     for i, inline_shape in enumerate(doc.InlineShapes):
-        image_count += 1
-        image_filename = f"{base_image_name}_img{image_count}.png"
-        image_path = image_output_dir / image_filename
-        verzy =is_verztec_logo(image_path, threshold=5)
-        print(f"[LOG] {image_filename} verztec logo: {verzy}")
-       
-
-        # Export the image
+        # Copy the inline image to clipboard
         inline_shape.Select()
         word.Selection.CopyAsPicture()
-        
-        # Save image via clipboard
+
         try:
-            from PIL import ImageGrab
             image = ImageGrab.grabclipboard()
             if image:
-                image.save(image_path)
-                text += f"<|image_start|>{image_filename}<|image_end|>"
-        except Exception as e:
-            print(f"Failed to extract image {image_count} from Word: {e}")
+                image_filename = f"{base_image_name}_img{image_count+1}.png"
+                image_path = image_output_dir / image_filename
 
+                # Save temporarily to check logo
+                image.save(image_path)
+                verzy = is_verztec_logo(image_path, threshold=5)
+                print(f"[LOG] {image_filename} verztec logo: {verzy}")
+
+                if verzy:
+                    os.remove(image_path)  # Remove unwanted logo image
+                    continue  # Skip adding to text or increasing count
+
+                # If passed, include in output
+                image_count += 1
+                text += f"<|image_start|>{image_filename}<|image_end|>"
+
+        except Exception as e:
+            print(f"Failed to extract image {i+1} from Word: {e}")
+
+    # Add the document's text content
     text += doc.Content.Text
+
     doc.Close(False)
     word.Quit()
     return text
-
 ## images for docx
 
 def extract_text_and_images_from_docx(file_path, image_output_dir, base_image_name):
@@ -235,6 +228,7 @@ def extract_text_and_images_from_pptx(file_path, image_output_dir, base_image_na
     prs = Presentation(file_path)
     content_lines = []
     image_count = 0
+    os.makedirs(image_output_dir, exist_ok=True)
 
     for slide_num, slide in enumerate(prs.slides, start=1):
         content_lines.append(f"\n--- Slide {slide_num} ---\n")
@@ -248,19 +242,27 @@ def extract_text_and_images_from_pptx(file_path, image_output_dir, base_image_na
                 image_format = shape.image.ext
                 image_filename = f"{base_image_name}_slide{slide_num}_img{image_count}.{image_format}"
                 image_path = image_output_dir / image_filename
-                verzy =is_verztec_logo(image_path, threshold=5)
-                print(f"[LOG] {image_filename} verztec logo: {verzy}")
 
-                # Save image
+                # Temporarily save image
                 with open(image_path, "wb") as img_file:
                     img_file.write(image_blob)
 
+                # Check for Verztec logo
+                verzy = is_verztec_logo(image_path, threshold=5)
+                print(f"[LOG] {image_filename} verztec logo: {verzy}")
+
+                if verzy:
+                    os.remove(image_path)
+                    continue  # Skip saving and referencing this image
+
+                # Only include image reference if not Verztec
                 content_lines.append(f"<|image_start|>{image_filename}<|image_end|>")
 
     return "\n\n".join(content_lines)
 
 # USED 
-def extract_inline_content(docx_path, image_dir="images", base_image_name=None):
+# also done 
+def extract_inline_content(docx_path, image_dir, base_image_name=None):
 
     # 1. Prepare image relationships mapping and save images to disk
     image_map = {}  # Map rId -> generated filename
@@ -282,18 +284,24 @@ def extract_inline_content(docx_path, image_dir="images", base_image_name=None):
                 image_count += 1
                 image_filename = f"{base_image_name}_img{image_count}{image_ext}"
                 image_path = os.path.join(image_dir, image_filename)
-                verzy =is_verztec_logo(image_path, threshold=5)
-                print(f"[LOG] {image_filename} verztec logo: {verzy}")
-                
 
-                # Save image
-                with open(image_path, "wb") as img_file:
-                    img_file.write(docx_zip.read(f"word/{target}"))
-                #print (image_filename)
+                # Read image data once
                 image_data = docx_zip.read(f"word/{target}")
 
+                # Temporarily save to disk to check
+                with open(image_path, "wb") as temp_file:
+                    temp_file.write(image_data)
 
-                image_map[r_id] = image_filename  # Always use generated consistent name
+                # Check if it's a Verztec logo
+                verzy = is_verztec_logo(image_path, threshold=5)
+                print(f"[LOG] {image_filename} verztec logo: {verzy}")
+
+                if verzy:
+                    os.remove(image_path)  # Delete temp file
+                    continue  # Skip this image entirely
+
+                # Image is allowed: keep file and register in image_map
+                image_map[r_id] = image_filename
 
     # 2. Load document for structure
     doc = Document(docx_path)
@@ -360,7 +368,7 @@ def extract_inline_content(docx_path, image_dir="images", base_image_name=None):
                 output_lines.append("\t".join(row_cells_text))
 
     return "\n".join(output_lines)
-
+## dont think iused 
 def extract_text_and_images_from_docx_inline(file_path, image_output_dir, base_image_name):
     document = Document(file_path)
     text = ""
@@ -499,7 +507,7 @@ for file_path in word_files:
     try:
         if ext == '.docx':
             
-            text=extract_inline_content(file_path,base_image_name=cleaned_filename)
+            text=extract_inline_content(file_path,images_dir,base_image_name=cleaned_filename)
            
         elif ext == '.doc':
             text = extract_text_and_images_from_doc(file_path, images_dir, image_filename)
@@ -559,4 +567,5 @@ for file_path in pptx_files:
         fail_count += 1
 
 print(f'[LOG] FAIL COUNT:{fail_count}')
+
 

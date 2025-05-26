@@ -40,7 +40,7 @@ def get_all_file_paths(directory, extensions=[".pdf", ".doc", ".docx", ".txt"]):
 fallback_splitter = RecursiveCharacterTextSplitter(chunk_size=250, chunk_overlap=50)
 bullet_pattern = r'(?m)(?:^\s*(\d+[\.\)]|[a-zA-Z][\.\)]|[-\u2022\*])\s+)(.*?)(?=^\s*(\d+[\.\)]|[a-zA-Z][\.\)]|[-\u2022\*])\s+|$)'
 
-def spacy_fallback_splitter(text, chunk_size=300, overlap=50):
+def spacy_fallback_splitter(text, chunk_size=400, overlap=50):
     doc = nlp(text)
     sentences = [sent.text.strip() for sent in doc.sents if sent.text.strip()]
     chunks, current_chunk = [], ""
@@ -64,12 +64,16 @@ def spacy_fallback_splitter(text, chunk_size=300, overlap=50):
     return chunks
 
 def split_text(text):
-    matches = list(re.finditer(bullet_pattern, text, flags=re.DOTALL | re.MULTILINE))
+    bullet_pattern = r'(?m)(^\s*(\d+[\.\)]|[a-zA-Z][\.\)]|[-\u2022\*])\s+.*(?:\n(?!^\s*(\d+[\.\)]|[a-zA-Z][\.\)]|[-\u2022\*])\s+).*)*)'
+    matches = list(re.finditer(bullet_pattern, text, flags=re.MULTILINE))
     chunks = [m.group(0).strip() for m in matches if len(m.group(0).strip()) > 5 and not m.group(0).strip().isdigit()]
+    
     final_chunks = []
     for chunk in chunks:
         final_chunks.extend(fallback_splitter.split_text(chunk) if len(chunk) > 600 else [chunk])
+    
     return final_chunks or spacy_fallback_splitter(text)
+
 
 def replace_image_tags_with_placeholders(text):
     pattern = r"<\|image_start\|>(.*?)<\|image_end\|>"
@@ -121,6 +125,7 @@ for file_path in cleaned_files:
     )
     raw_response = deepseek_chain.invoke(query)
     cleaned_response = re.sub(r"<think>.*?</think>", "", raw_response, flags=re.DOTALL).strip()
+    #cleaned_response=''
     description = cleaned_response
     print('------------------------------------------')
     print(description)
@@ -163,21 +168,13 @@ for file_path in cleaned_files:
         ))
 
     # Save FAISS index for individual file
-    indv_db = FAISS.from_documents(indv_chunks, embedding_model)
-    indv_db.save_local(f"indv_doc_faiss/{base_name}_index")
+    #indv_db = FAISS.from_documents(indv_chunks, embedding_model)
+    #indv_db.save_local(f"indv_doc_faiss/{base_name}_index")
 
-
+for chunk in all_chunks:
+    print (chunk.page_content)
+    print('--------------------------------------------------------------------------------------------------')
 # Save combined vector index
 global_db = FAISS.from_documents(all_chunks, embedding_model)
 global_db.save_local("faiss_index3")
 
-# Test similarity search
-query = "pantry rules"
-results = global_db.similarity_search_with_score(query, k=10)
-
-print('\n--- SIMILARITY SEARCH RESULTS ---')
-for doc, score in results:
-    print("\n---")
-    print(doc.page_content)
-    print(doc.metadata)
-    print(f"Score: {score}")

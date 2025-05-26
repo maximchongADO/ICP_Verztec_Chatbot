@@ -21,7 +21,7 @@ from langchain.memory import ConversationBufferMemory
 # Load environment variables
 load_dotenv()
 os.environ['TF_ENABLE_ONEDNN_OPTS'] = '0'
-api_key = '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'
+api_key = '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'
 model = "deepseek-r1-distill-llama-70b"  # Update model as required
 deepseek = ChatGroq(api_key=api_key, model_name=model)
 
@@ -34,10 +34,9 @@ deepseek_chain = deepseek | parser
 
 # Load embedding model
 embedding_model2 = HuggingFaceEmbeddings(
-    model_name = "BAAI/bge-large-en-v1.5",
-
-    encode_kwargs={'normalize_embeddings': True}  
-)
+    model_name="BAAI/bge-large-en-v1.5",
+    encode_kwargs={'normalize_embeddings': True}
+    )
 # --- Step 1: Load FAISS Vector Store ---
 
 root_dir = Path(__file__).parent
