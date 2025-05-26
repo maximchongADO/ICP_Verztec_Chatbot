@@ -1,3 +1,7 @@
+import os
+from dotenv import load_dotenv
+load_dotenv()
+os.environ['TF_ENABLE_ONEDNN_OPTS'] = '0'
 import faiss
 import json
 import numpy as np
@@ -17,9 +21,11 @@ import uuid
 embedding_model = SentenceTransformer('BAAI/bge-large-en-v1.5')
 
 # Initialize Groq LLM client
-api_key = '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'
+api_key = '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'
 model_name = "compound-beta"
-deepseek = ChatGroq(api_key=api_key, model_name=model_name)
+model = "deepseek-r1-distill-llama-70b" 
+deepseek = ChatGroq(api_key=api_key, model_name=model)
+compound =ChatGroq(api_key=api_key, model_name=model_name)
 
 def load_faiss_and_metadata(index_path, meta_path):
     index = faiss.read_index(index_path)
@@ -29,10 +35,10 @@ def load_faiss_and_metadata(index_path, meta_path):
 
 def refine_prompt(user_query: str) -> str:
     prompt = (
-        f"Your only job is to correct grammar and spelling mistakes and rephrase the prompt clearly for an internal helpdesk chatbot for a company:\n\n{user_query}"
+        f"Your only job is to correct grammar and spelling mistakes and rephrase the prompt clearly for an internal helpdesk chatbot for a company, You are to ONLY return the cleaned query. No explanation. IF there is no change to be made, return the original query:\n\n{user_query}"
     )
     messages = [HumanMessage(content=prompt)]
-    response = deepseek.generate([messages])
+    response = compound.generate([messages])
     refined_query = response.generations[0][0].text.strip()
     return refined_query
 
@@ -42,7 +48,9 @@ def search_faiss_and_get_context(refined_query, index, metadata, top_k=4):
     retrieved_chunks = [metadata[idx]['text'] for idx in indices[0]]
     return retrieved_chunks, distances[0]
 
-def generate_final_answer(original_query: str, context_chunks: list[str]) -> str:
+
+# This isint even used idiot vibe coder
+def wertyugenerate_final_answer(original_query: str, context_chunks: list[str]) -> str:
     context_text = "\n---\n".join(context_chunks)
     prompt = (
         "You are an internal company helpdesk chatbot for employees that answers questions "
@@ -61,7 +69,21 @@ def is_related_to_previous(current_query: str, previous_queries: list[str], thre
     if not previous_queries:
         return False
     current_vec = embedding_model.encode(current_query)
+    
     similarities = [dot(current_vec, embedding_model.encode(p)) / (norm(current_vec) * norm(embedding_model.encode(p))) for p in previous_queries]
+    
+    max_similarity = max(similarities)
+    print(f"[Debug] Max similarity to previous queries: {max_similarity:.4f}")
+    return max_similarity >= threshold
+
+
+def is_related_to_previous2(current_query: str, previous_queries: list[str], threshold: float = 0.9) -> bool:
+    if not previous_queries:
+        return False
+    
+    current_vec = embedding_model2.embed_query(current_query) 
+    
+    similarities = [dot(current_vec, embedding_model2.embed_query(current_query)) / (norm(current_vec) * norm(embedding_model2.embed_query(current_query))) for p in previous_queries]
     max_similarity = max(similarities)
     print(f"[Debug] Max similarity to previous queries: {max_similarity:.4f}")
     return max_similarity >= threshold
@@ -93,6 +115,7 @@ def interactive_chat(index, metadata):
         print(f"\n[Step 2] FAISS Avg Similarity Score: {avg_score:.4f}")
 
         if avg_score > 2.5:
+            print(['[DEBUG]'])
             fallback = (
                 f"The user's question is likely unrelated to internal company topics.\n"
                 f"Query: {clean_query}\n"
@@ -122,13 +145,103 @@ def interactive_chat(index, metadata):
         print("\n[Step 3] Final Answer:\n", answer)
         chat_history.append((user_query, answer))
 
-        # Store chat log in MySQL DB instead of file
+       # Store chat log in MySQL DB instead of file
         store_chat_log(user_message=user_query, bot_response=answer, session_id=session_id)
+
+        print("\n" + "-" * 80 + "\n")
+
+def interactive_chat2(index):
+    chat_history = []
+    print("Welcome to the Verztec Helpdesk Bot! Type 'exit' to quit.")
+
+    while True:
+        user_query = input("You: ")
+        if user_query.lower() == "exit":
+            print("Goodbye!")
+            break
+
+        # Step 1: Context linking
+        prev_queries = [q for q, _ in chat_history[-2:]]
+        is_related = is_related_to_previous2(user_query, prev_queries)
+        if is_related:
+            print('[LOG] query might not be related to previous query')
+        context_query = " ".join(prev_queries + [user_query]) if is_related else user_query
+        clean_query = refine_prompt(context_query)
+
+        print(f"\n[Step 1] Original Query: {user_query}")
+        print(f"[Step 1] Cleaned Query: {clean_query}")
+
+        # Step 2: Search top documents
+        results = index.similarity_search_with_score(clean_query, k=10)
+        context_chunks = [doc.page_content for doc, _ in results]
+        scores = [score for _, score in results]
+        avg_score = float(np.mean(scores)) if scores else 1.0
+
+        print("\n[Step 2] Retrieved Chunks:")
+        top_3_img=[]
+        for i, (doc, score) in enumerate(results, 1):
+            #snippet = doc.page_content[:300].replace('\n', ' ') + ('...' if len(doc.page_content) > 300 else '')
+            print(f"  Chunk {i} (Score: {score:.4f}): {doc.page_content}")
+            print(doc.metadata['images'])
+            if i < 3:
+                top_3_img.append(doc.metadata['images'])
+            print('\n-------------------------------------------------')
+        print(f"\n[Step 2] FAISS Avg Similarity Score: {avg_score:.4f}")
+
+        # Step 3: Generate Answer
+        if avg_score > 2.5:
+            print("[DEBUG] Low relevance. Generating fallback.")
+            fallback = (
+                f"The user's question is likely unrelated to internal company topics.\n"
+                f"Query: {clean_query}\n"
+                f"Please advise the user that this query is out of scope."
+            )
+            messages = [HumanMessage(content=fallback)]
+            response = deepseek.generate([messages])
+            answer = response.generations[0][0].text.strip()
+        else:
+            recent_history_text = ""
+            if is_related:
+                for q, a in chat_history[-2:]:
+                    recent_history_text += f"User: {q}\nBot: {a}\n"
+            recent_history_text += f"User: {user_query}\n"
+            combined_context = "\n---\n".join(context_chunks)
+
+            final_prompt = (
+                "You are an internal helpdesk chatbot answering questions ONLY based on the given company context.\n\n"
+                f"Conversation history:\n{recent_history_text}\n"
+                f"Company documents:\n{combined_context}\n\n"
+                f"Question: {clean_query}\n"
+                "Please provide a clear and concise answer, include refrences to the images."
+            )
+            messages = [HumanMessage(content=final_prompt)]
+            response = deepseek.generate([messages])
+            answer = response.generations[0][0].text.strip()
+
+        print("\n[Step 3] Final Answer:\n", answer)
+        for i in top_3_img:
+            print (f'Associated document: {i}')
+        chat_history.append((user_query, answer))
+
+        # Log conversation
+        with open("chat_log.txt", "a", encoding="utf-8") as f:
+            f.write(f"User: {user_query}\nBot: {answer}\n{'-'*40}\n")
 
         print("\n" + "-" * 80 + "\n")
 
 if __name__ == "__main__":
     faiss_index_path = "faiss_local_BAAI.idx"
     faiss_meta_path = "faiss_local_BAAI_meta.json"
-    index, metadata = load_faiss_and_metadata(faiss_index_path, faiss_meta_path)
-    interactive_chat(index, metadata)
+    #index, metadata = load_faiss_and_metadata(faiss_index_path, faiss_meta_path)
+    embedding_model2 = HuggingFaceEmbeddings(
+    model_name="BAAI/bge-large-en-v1.5",
+    encode_kwargs={'normalize_embeddings': True}
+    )
+    global_db = FAISS.load_local(
+        "faiss_index3",
+        embedding_model2,
+        allow_dangerous_deserialization=True
+    )
+    
+    interactive_chat2(global_db)
+    

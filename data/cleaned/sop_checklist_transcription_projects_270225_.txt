@@ -1,0 +1,34 @@
+Transcription Quality & Accuracy Checklist
+
+1. Pre-Transcription Assessment
+Check audio quality: Background noise, distortions, low volume?
+Identify number of speakers & their clarity (accents, speech pace, overlapping)
+ Determine if there’s industry-specific jargon, slang, or acronyms. 
+Review any provided reference materials (glossaries, style guides, previous transcripts).
+2. Handling Unclear or Inaudible Parts
+Use [inaudible hh:mm:ss] for completely unintelligible sections.
+If uncertain, provide the best guess with (?) (e.g., "data migration (?)").
+Timestamp difficult sections for easier review (e.g., [unclear 00:02:15]).
+If multiple speakers are unclear, use [Speaker A], [Speaker B], etc.
+3. Context & Consistency Checks
+Does the transcription make logical sense in context?
+ Are repeated terms consistent (e.g., names, key terms, abbreviations)?
+Cross-check unclear words with any available resources (e.g., company website, industry articles).
+4. Formatting & Compliance
+Follow client’s style guide (verbatim vs. clean transcription, filler words, etc.).
+Maintain proper punctuation, capitalization, and speaker labels.
+Ensure time codes, headers, and notes are placed according to instructions.
+5. Final Review & Client Clarifications
+Highlight sections that need confirmation or additional context.
+List key terms or names requiring verification.
+Request clarification from the client if guidance is insufficient.
+
+
+
+Special Note to client:
+
+Thank you for entrusting us with this transcription/translation project. Due to the challenging audio quality, we will complete the work to the best of our ability. Any segments that are inaudible will be marked with timecodes for easy reference.
+As we were not present during the recording and do not have additional context, we seek your understanding that there may be some limitations in interpreting certain utterances. For instance, homophones (words that sound the same but have different meanings) may not always be distinguishable.
+To ensure the highest accuracy, we kindly request any relevant reference materials, preferred spellings, speaker names, or specific terminology before we begin. Your guidance will be greatly appreciated in achieving the best possible outcome.
+Please let us know if you have any questions or additional instructions. We look forward to working on this project.
+
