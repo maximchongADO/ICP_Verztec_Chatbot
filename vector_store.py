@@ -10,13 +10,14 @@ from langchain_community.embeddings import HuggingFaceEmbeddings
 from langchain.schema import Document as langDocument
 from langchain_groq import ChatGroq
 from langchain_core.output_parsers import StrOutputParser
+from MySQLDatabase.Inserting_data import insert_knowledge_chunks
 
 # Load environment variables and spaCy model
 load_dotenv()
 nlp = spacy.load("en_core_web_sm")
 
 # Initialize models
-api_key = "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"  # Set in your .env file
+api_key = "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"  # Set in your .env file
 model = "deepseek-r1-distill-llama-70b"
 deepseek = ChatGroq(api_key=api_key, model_name=model)
 deepseek_chain = deepseek | StrOutputParser()
@@ -175,6 +176,7 @@ for chunk in all_chunks:
     print (chunk.page_content)
     print('--------------------------------------------------------------------------------------------------')
 # Save combined vector index
+insert_knowledge_chunks(all_chunks)
 global_db = FAISS.from_documents(all_chunks, embedding_model)
 global_db.save_local("faiss_index3")
 

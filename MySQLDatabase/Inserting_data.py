@@ -1,8 +1,7 @@
 import os
 import mysql.connector
 from datetime import datetime
-
-
+import json 
 DB_CONFIG = {
     'host': 'localhost',
     'user': 'chatbot_user',
@@ -88,6 +87,41 @@ def insert_image_blob(conn, image_path, linked_chunk_id=None):
     conn.commit()
     cursor.close()
     print(f"Inserted image {os.path.basename(image_path)} successfully.")
+
+def insert_knowledge_chunks(chunks):
+    """
+    Insert a list of langchain Document chunks into knowledge_chunks table.
+    
+    Args:
+        chunks (List[langDocument]): List of chunk documents to insert.
+    """
+    conn = mysql.connector.connect(**DB_CONFIG)
+    cursor = conn.cursor()
+
+    insert_query = '''
+    INSERT INTO knowledge_chunks (chunk_id, text, source, images, created_at)
+    VALUES (%s, %s, %s, %s, %s) AS new_values
+    ON DUPLICATE KEY UPDATE
+        text = new_values.text,
+        source = new_values.source,
+        images = new_values.images,
+        created_at = new_values.created_at
+    '''
+
+    for chunk in chunks:
+        chunk_id = chunk.metadata.get('chunk_id')
+        text = chunk.page_content
+        source = chunk.metadata.get('source', '')
+        images = chunk.metadata.get('images', [])
+        images_json = json.dumps(images)
+        created_at = datetime.utcnow()
+
+        cursor.execute(insert_query, (chunk_id, text, source, images_json, created_at))
+
+    conn.commit()
+    cursor.close()
+    conn.close()
+    print(f"Inserted/Updated {len(chunks)} knowledge chunks.")
 # def main():
 
 #     conn = mysql.connector.connect(**DB_CONFIG)
