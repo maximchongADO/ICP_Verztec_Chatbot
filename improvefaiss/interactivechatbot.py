@@ -10,6 +10,8 @@ from langchain_groq import ChatGroq
 from langchain.schema import HumanMessage
 import re
 from numpy import dot
+from langchain_community.embeddings import HuggingFaceEmbeddings
+from langchain_community.vectorstores import FAISS
 from numpy.linalg import norm
 import sys
 import os
