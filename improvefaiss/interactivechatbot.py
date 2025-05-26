@@ -7,12 +7,17 @@ from langchain.schema import HumanMessage
 import re
 from numpy import dot
 from numpy.linalg import norm
+import sys
+import os
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+from MySQLDatabase.Inserting_data import store_chat_log
+import uuid 
 
 # Initialize embedding model
 embedding_model = SentenceTransformer('BAAI/bge-large-en-v1.5')
 
 # Initialize Groq LLM client
-api_key = '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'
+api_key = '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'
 model_name = "compound-beta"
 deepseek = ChatGroq(api_key=api_key, model_name=model_name)
 
@@ -63,6 +68,7 @@ def is_related_to_previous(current_query: str, previous_queries: list[str], thre
 
 def interactive_chat(index, metadata):
     chat_history = []
+    session_id = str(uuid.uuid4())  # Unique session ID for this chat session
     print("Welcome to the Verztec Helpdesk Bot! Type 'exit' to quit.")
     while True:
         user_query = input("You: ")
@@ -116,9 +122,8 @@ def interactive_chat(index, metadata):
         print("\n[Step 3] Final Answer:\n", answer)
         chat_history.append((user_query, answer))
 
-        # Save to chat_log.txt
-        with open("chat_log.txt", "a", encoding="utf-8") as f:
-            f.write(f"User: {user_query}\nBot: {answer}\n{'-'*40}\n")
+        # Store chat log in MySQL DB instead of file
+        store_chat_log(user_message=user_query, bot_response=answer, session_id=session_id)
 
         print("\n" + "-" * 80 + "\n")
 
