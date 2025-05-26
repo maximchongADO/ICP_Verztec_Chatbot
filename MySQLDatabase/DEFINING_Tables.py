@@ -36,14 +36,14 @@ def create_tables():
     ''',
 
     '''
-    CREATE TABLE IF NOT EXISTS images (
+    CREATE TABLE if not exists images (
         image_id INT AUTO_INCREMENT PRIMARY KEY,
         filename VARCHAR(255),
-        filepath VARCHAR(500),
+        image_data LONGBLOB,
         linked_chunk_id INT,
         uploaded_at DATETIME,
         FOREIGN KEY (linked_chunk_id) REFERENCES knowledge_chunks(chunk_id) ON DELETE SET NULL
-    )
+    );
     ''',
 
     '''

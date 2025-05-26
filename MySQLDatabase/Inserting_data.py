@@ -75,6 +75,19 @@ def store_chat_log(user_message, bot_response, session_id):
 
     cursor.close()
     conn.close()
+
+def insert_image_blob(conn, image_path, linked_chunk_id=None):
+    with open(image_path, 'rb') as file:
+        binary_data = file.read()
+
+    cursor = conn.cursor()
+    cursor.execute('''
+        INSERT INTO images (filename, image_data, linked_chunk_id, uploaded_at)
+        VALUES (%s, %s, %s, %s)
+    ''', (os.path.basename(image_path), binary_data, linked_chunk_id, datetime.utcnow()))
+    conn.commit()
+    cursor.close()
+    print(f"Inserted image {os.path.basename(image_path)} successfully.")
 # def main():
 
 #     conn = mysql.connector.connect(**DB_CONFIG)
