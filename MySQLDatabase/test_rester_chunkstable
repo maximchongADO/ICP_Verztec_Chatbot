@@ -1,0 +1,33 @@
+import mysql.connector
+
+DB_CONFIG = {
+    'host': 'localhost',
+    'user': 'chatbot_user',
+    'password': 'strong_password',
+    'database': 'chatbot_db',
+    'raise_on_warnings': True
+}
+
+def recreate_knowledge_chunks_table():
+    conn = mysql.connector.connect(**DB_CONFIG)
+    cursor = conn.cursor()
+
+
+    # Create table with images JSON column
+    create_table_query = '''
+    CREATE TABLE knowledge_chunks (
+        chunk_id VARCHAR(255) PRIMARY KEY,
+        text LONGTEXT,
+        source VARCHAR(255),
+        images JSON,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    );
+    '''
+    cursor.execute(create_table_query)
+    conn.commit()
+    cursor.close()
+    conn.close()
+    print("Recreated knowledge_chunks table with 'images' column.")
+
+if __name__ == "__main__":
+    recreate_knowledge_chunks_table()

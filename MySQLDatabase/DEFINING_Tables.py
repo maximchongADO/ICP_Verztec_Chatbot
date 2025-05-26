@@ -25,14 +25,13 @@ def create_tables():
     )
     ''',
     '''
-    CREATE TABLE IF NOT EXISTS knowledge_chunks (
-        chunk_id INT AUTO_INCREMENT PRIMARY KEY,
+    CREATE TABLE knowledge_chunks (
+        chunk_id VARCHAR(255) PRIMARY KEY,
         text LONGTEXT,
         source VARCHAR(255),
-        doc_type VARCHAR(20),
-        faiss_vector_id INT UNIQUE,
-        created_at DATETIME
-    )
+        images JSON,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    );
     ''',
 
     '''
