@@ -12,7 +12,7 @@ from numpy.linalg import norm
 embedding_model = SentenceTransformer('BAAI/bge-large-en-v1.5')
 
 # Initialize Groq LLM client
-api_key = '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'
+api_key = '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'
 model_name = "compound-beta"
 deepseek = ChatGroq(api_key=api_key, model_name=model_name)
 
