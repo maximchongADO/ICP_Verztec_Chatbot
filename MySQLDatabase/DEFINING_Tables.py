@@ -35,17 +35,6 @@ def create_tables():
     ''',
 
     '''
-    CREATE TABLE if not exists images (
-        image_id INT AUTO_INCREMENT PRIMARY KEY,
-        filename VARCHAR(255),
-        image_data LONGBLOB,
-        linked_chunk_id INT,
-        uploaded_at DATETIME,
-        FOREIGN KEY (linked_chunk_id) REFERENCES knowledge_chunks(chunk_id) ON DELETE SET NULL
-    );
-    ''',
-
-    '''
     CREATE TABLE IF NOT EXISTS chat_logs (
         log_id INT AUTO_INCREMENT PRIMARY KEY,
         timestamp DATETIME,
@@ -97,10 +86,10 @@ def create_tables():
     c.close()
     conn.close()
 
-def main():
-    # Create tables once
-    create_tables()
+# def main():
+#     # Create tables once
+#     create_tables()
 
-if __name__ == '__main__':
-    main()
+# if __name__ == '__main__':
+#     main()
 
