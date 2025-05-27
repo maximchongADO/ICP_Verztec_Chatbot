@@ -121,12 +121,14 @@ for file_path in cleaned_files:
 
     # Generate semantic description with LLM
     query = (
-        'The following is an internal document for Verztec, a consulting company. '
-        'Provide a 45-word description mentioning its contents, use, and potential queries it can answer: ' + text
+    "Summarize this internal document from Verztec in 50 words. "
+    "Describe its purpose, main contents, and the types of internal questions it can help answer. your response should help an embedding model retreive the relevant chunks "
+    "Respond concisely and in a single paragraph:\n\n" + text
     )
+
     raw_response = deepseek_chain.invoke(query)
     cleaned_response = re.sub(r"<think>.*?</think>", "", raw_response, flags=re.DOTALL).strip()
-    #cleaned_response=''
+    #cleaned_response='' 
     description = cleaned_response
     print('------------------------------------------')
     print(description)
@@ -176,7 +178,8 @@ for chunk in all_chunks:
     print (chunk.page_content)
     print('--------------------------------------------------------------------------------------------------')
 # Save combined vector index
-insert_knowledge_chunks(all_chunks)
+
 global_db = FAISS.from_documents(all_chunks, embedding_model)
 global_db.save_local("faiss_index3")
-
+# saving chunks in sql 
+insert_knowledge_chunks(all_chunks)

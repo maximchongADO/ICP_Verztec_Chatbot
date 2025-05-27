@@ -1207,3 +1207,358 @@ To mark unclear parts in the transcript, follow these guidelines from the compan
 
 These guidelines are detailed in the company's transcription quality and accuracy checklist, specifically in section 2.
 ----------------------------------------
+User: what are the pantry rules
+Bot: The pantry rules at Verztec are as follows:
+
+1. Be considerate and keep the sink area dry after washing. Clean the water dispenser surface if you spill coffee or tea on it.
+2. Dispose of any unwanted items and tidy up the fridge.
+3. Dispose of leftover food, boxes, or plastic containers outside the office. When using the office bin, close the lid properly.
+4. Clean the countertops or tables with a damp cloth after your meal in the office and tidy up.
+
+These rules promote cleanliness and courtesy, ensuring a pleasant workspace.
+----------------------------------------
+User: & C:/ProgramData/anaconda3/python.exe "c:/Users/Jacobs laptop/ICP_Verztec_Chatbot-1/improvefaiss/interactivechatbot.py"
+Bot: I don't know the answer to that question.
+----------------------------------------
+User: what are the pantry rules
+Bot: The pantry rules at Verztec are as follows:
+
+1. **Clean Up After Washing**: Keep the sink area dry after washing and clean the water dispenser surface if you spill coffee or tea.
+
+2. **Fridge Maintenance**: Dispose of unwanted items and tidy up the fridge regularly.
+
+3. **Proper Disposal**: Dispose of leftover food, boxes, and plastic containers outside the office. When using the office bin, ensure the lid is closed properly after disposal.
+
+4. **Countertop Cleanliness**: After eating in the office, clean the countertops or tables with a damp cloth and tidy up considerately.
+
+These rules aim to maintain a clean and courteous environment in the pantry.
+----------------------------------------
+User: what are the pntry rules
+Bot: The pantry rules at Verztec are designed to maintain a clean and considerate environment. They include:
+
+1. Dispose of unwanted items and keep the fridge tidy.
+2. Dispose of leftovers and containers outside the office, and close the bin lid properly.
+3. Keep the sink area dry and clean the water dispenser after spills.
+4. Clean countertops with a damp cloth after meals and tidy up.
+
+These rules promote hygiene and courtesy, ensuring a pleasant workspace for everyone.
+----------------------------------------
+User: what are the pantry rules
+Bot: The pantry rules are designed to maintain a clean and considerate environment. They include:
+
+1. Dispose of unwanted items and tidy up the fridge regularly.
+2. Dispose of leftover food and containers outside the office and close the bin lid properly.
+3. Keep the sink area dry after washing and clean up spills on the water dispenser.
+4. Clean countertops or tables with a damp cloth after meals and tidy up.
+
+These rules promote a hygienic and pleasant workspace.
+----------------------------------------
+User: what are the pantry rules
+Bot: The pantry rules at Verztec are designed to maintain a clean and courteous environment. They include:
+
+1. Dispose of unwanted items and tidy up the fridge regularly.
+2. Dispose of leftover food, boxes, and plastic containers outside the office, and ensure the bin lid is closed properly after use.
+3. Keep the sink area dry after washing and clean the water dispenser if you spill coffee or tea on it.
+4. Clean the countertops or tables with a damp cloth after meals and tidy up, showing consideration for others.
+
+These rules emphasize proper disposal, cleaning up after use, and being considerate of others to ensure a hygienic and pleasant workspace.
+----------------------------------------
+User: & C:/ProgramData/anaconda3/python.exe "c:/Users/Jacobs laptop/ICP_Verztec_Chatbot-1/improvefaiss/interactivechatbot.py"
+Bot: <think>
+
+I'm encountering issues when running the following command: `& C:/ProgramData/anaconda3/python.exe "c:/Users/Jacobs laptop/ICP_Verztec_Chatbot-1/improvefaiss/interactivechatbot.py"`
+----------------------------------------
+User: what are the pantry rules 
+Bot: The pantry rules at Verztec are as follows:
+
+1. Dispose of any unwanted items and keep the fridge tidy.
+2. Dispose of leftover food and containers outside the office, ensuring the bin lid is closed properly after use.
+3. After using the sink, keep the area dry and clean any spills on the water dispenser.
+4. Clean the countertops and tables with a damp cloth after meals and tidy up the space.
+
+These rules aim to maintain a clean, considerate, and hygienic environment in the pantry area.
+----------------------------------------
+User: what are the pantry rules
+Bot: The pantry rules at Verztec are designed to maintain a clean and considerate environment. They are as follows:
+
+1. Dispose of any unwanted items and tidy up the fridge regularly.
+2. Dispose of leftover food, boxes, and plastic containers outside the office. Ensure the office bin lid is closed properly after use.
+3. Keep the sink area dry after washing and clean the water dispenser if you spill coffee or tea on it.
+4. Clean up countertops or tables with a damp cloth after meals and tidy up to maintain a pleasant workspace.
+
+These rules emphasize cleanliness, proper waste disposal, and consideration for others.
+----------------------------------------
+User: what are the pantry rueles
+Bot: The pantry rules at Verztec are designed to maintain a clean and considerate environment. They include:
+
+1. Dispose of unwanted items and keep the fridge tidy.
+2. Dispose of leftovers and containers outside the office, and ensure the bin lid is closed.
+3. Clean up after washing and wipe spills on the water dispenser.
+4. Wipe down countertops and tables after eating and tidy up.
+
+These rules promote hygiene and courtesy, ensuring a pleasant workspace for everyone.
+----------------------------------------
+User: whaf do i do if i get fired
+Bot: I don't know the answer to that question. The provided documents focus on telephone skills and handling business calls, not on procedures or advice regarding termination of employment.
+----------------------------------------
+User: what do i do if i have been let go 
+Bot: I don't know the answer to that question.
+----------------------------------------
+User: they fired me :/
+Bot: If you were terminated from your position, here are some steps you can take:
+
+1. **Stay Calm and Process Your Emotions**: Take time to process the news and manage your emotions before making any decisions.
+
+2. **Understand the Reason for Termination**: If possible, seek clarity on why the termination occurred. This can help you understand the situation better and prepare for future opportunities.
+
+3. **Review Your Severance Package**: If you were offered a severance package, review it carefully to understand the terms, including any continuation of pay, benefits, or outplacement services.
+
+4. **Ask Questions**: If there are any uncertainties about the termination, such as final pay, benefits, or references, ask your employer for clarification.
+
+5. **File for Unemployment Benefits**: If you are eligible, apply for unemployment benefits to receive financial support while you are looking for a new job.
+
+6. **Update Your Job Search Materials**: Review and update your resume, LinkedIn profile, and any other job search materials to ensure they are current and highlight your skills and experience.
+
+7. **Network and Seek New Opportunities**: Reach out to your professional network, including former colleagues, friends, and industry contacts, to let them know you are looking for new opportunities. Start applying for jobs that match your skills and interests.
+
+8. **Learn and Grow**: Use this experience as an opportunity to reflect on your career and identify areas for personal and professional growth.
+
+9. **Seek Legal Advice if Necessary**: If you believe your termination was wrongful or discriminatory, consider consulting with an employment lawyer to explore your options.
+
+10. **Take Care of Your Finances**: Review your budget and manage your finances carefully during this transition period to ensure you can meet your financial obligations.
+
+By taking these steps, you can navigate the transition and work towards finding new opportunities.
+----------------------------------------
+User: leave policy?
+Bot: What is the company's leave policy?
+----------------------------------------
+User: what is the leave policy 
+Bot: The company's leave policy includes several types of leave: sick, urgent, annual, and bereavement. The process for applying and approving leave involves advance notice, medical documentation where required, and adherence to specific restrictions. Excessive absences can negatively impact performance reviews and bonuses. Employees are advised not to make any travel arrangements until they receive full approval from management. Additionally, up to four days of annual leave can be carried forward each year, and employees are encouraged to plan their leave in coordination with their team and inform their manager in advance.
+----------------------------------------
+User: & C:/ProgramData/anaconda3/python.exe "c:/Users/Jacobs laptop/ICP_Verztec_Chatbot-1/vector_store.py"
+Bot: To run the `vector_store.py` script in the Verztec Chatbot project, follow these steps:
+
+1. **Verify Python Installation**: Open a terminal or command prompt and type `python --version` to ensure Python is installed.
+
+2. **Check Anaconda Path**: Confirm that the Anaconda Python executable is in your system's PATH. If not, you may need to provide the full path to the Python executable.
+
+3. **Navigate to Script Directory**: Use the command prompt to change directories to where `vector_store.py` is located:
+   ```bash
+   cd c:/Users/Jacob's\ laptop/ICP_Verztec_Chatbot-1/
+   ```
+
+4. **Run the Script**: Execute the script using Python:
+   ```bash
+   python vector_store.py
+   ```
+
+5. **Handle Dependencies**: Install any required packages using pip if necessary. For example:
+   ```bash
+   pip install numpy
+   ```
+
+6. **Consult Documentation**: Check the project's README or documentation for specific instructions or environment setups.
+
+7. **Activate Virtual Environment (if applicable)**: If using a virtual environment, activate it before running the script to manage dependencies effectively.
+
+8. **Troubleshoot Errors**: If errors occur, review error messages for clues such as missing modules or path issues, and address them accordingly.
+
+By following these steps, you should be able to successfully run the `vector_store.py` script in your project environment.
+----------------------------------------
+User: leave policy?
+Bot: The company's leave policy includes the following key points:
+
+1. **Carry Forward Limitation**: Employees can carry forward a maximum of 4 days of annual leave each year. Any unused leave beyond this limit will be forfeited.
+
+2. **Advance Planning and Coordination**: Employees are expected to plan their leave utilization properly and coordinate with their team to ensure adequate coverage during their absence. They must inform their team manager in advance.
+
+3. **Approval Process**: Management approval for leave is not guaranteed. Employees should not make any travel arrangements or commitments until they have received full approval from management.
+
+4. **Consequences of Excessive Absences**: Excessive absences may negatively impact performance reviews and bonuses, emphasizing the importance of adhering to the leave policy.
+
+These guidelines ensure that leave is managed effectively, balancing employee needs with business requirements.
+----------------------------------------
+User: what are the pantry rule
+Bot: The pantry rules are as follows:
+
+1. Be considerate and keep the sink area dry after washing. Clean the water dispenser surface if you spill coffee or tea on it.
+2. Dispose of any unwanted items and tidy up the fridge.
+3. Dispose of leftover food, boxes, or plastic containers outside the office. When using the office bin, close the lid properly after disposal.
+4. Clean up the countertops or tables with a damp cloth after your meal in the office and tidy up considerately.
+----------------------------------------
+User: what about the leave rules
+Bot: Verztec's leave policy includes the following key points:
+
+1. **Carry Forward Rule**: Employees can carry forward a maximum of 4 days of annual leave each year. Any unused leave beyond this limit will be forfeited.
+
+2. **Leave Approval Process**: Approval for leave is not guaranteed. Employees should not make any travel arrangements or bookings until their leave has been fully approved by management.
+
+3. **Booking During Busy Periods**: If applying for leave during a period where many others have also applied, there is only a 50% chance of approval. In such cases, employees may be asked to choose another date.
+
+4. **Advance Planning**: Teams are encouraged to plan their leave utilization properly and inform their manager in advance to ensure smooth operations.
+
+5. **Impact on Performance**: Excessive absences can negatively impact performance reviews and bonuses, so employees should plan their leaves responsibly.
+
+These guidelines help ensure that leave usage is managed fairly and efficiently across the company.
+----------------------------------------
+User: what su the pantry policy
+Bot: The pantry policy at Verztec is designed to maintain a clean and considerate environment. It includes:
+
+1. Disposing of unwanted items and tidying up the fridge.
+2. Throwing away leftover food and containers outside the office, and ensuring the office bin lid is closed properly.
+3. Keeping the sink area dry after washing and cleaning up spills on the water dispenser.
+4. Cleaning countertops and tables with a damp cloth after meals and tidying up.
+
+These rules aim to promote hygiene and courtesy, ensuring a pleasant workspace for all.
+----------------------------------------
+User: what is the pantry rules
+Bot: The pantry rules at Verztec are as follows:
+
+1. Dispose of any unwanted items and tidy up the fridge regularly.
+2. Dispose of leftover food, boxes, and plastic containers outside the office. When using the office bin, ensure the lid is closed properly after disposal.
+3. Keep the sink area dry after washing and clean the water dispenser surface if you spill coffee or tea on it.
+4. Clean the countertops or tables with a damp cloth after your meal and tidy up to maintain a clean environment.
+----------------------------------------
+User: what are the pantry rules
+Bot: The pantry rules are as follows:
+
+1. Be considerate and keep the sink area dry after washing. Clean the water dispenser surface if you spill coffee or tea on it.
+2. Dispose of any unwanted items and tidy up the fridge.
+3. Dispose of leftover food, boxes, or plastic containers outside the office. When using the office bin, please close the lid properly after disposal.
+4. Clean up the countertops or tables with a damp cloth after you have your meal in the office. Be considerate by tidying up.
+----------------------------------------
+User: what are rhe pantru rules
+Bot: The pantry rules are as follows:
+
+1. Dispose of unwanted items and keep the fridge tidy.
+2. Dispose of leftovers and containers outside the office, and close the bin lid properly.
+3. Use chopping boards for cutting food to maintain a clean environment.
+4. Keep the sink area dry after washing and clean up spills on the water dispenser.
+
+These rules aim to maintain a clean, hygienic, and considerate shared space.
+----------------------------------------
+User: what are the pantry rules
+Bot: The pantry rules are as follows:
+
+1. Dispose of unwanted items and tidy up the fridge.
+2. Dispose of leftover food and containers outside the office, and close the bin lid properly after use.
+3. Use chopping boards for cutting fruits or other food items to maintain a clean and insect-free environment.
+4. Keep the sink area dry after washing and clean any spills on the water dispenser.
+
+These rules aim to maintain a clean, tidy, and hygienic pantry environment.
+----------------------------------------
+User: what are the pantry rules
+Bot: The pantry rules are as follows:
+
+1. Keep the sink area dry after washing and clean any spills on the water dispenser.
+2. Dispose of unwanted items and tidy up the fridge.
+3. Dispose of leftover food and containers outside the office, and ensure the bin lid is closed properly.
+4. Clean the countertops with a damp cloth after meals.
+5. Use chopping boards for cutting food to maintain a clean and insect-free environment.
+
+These rules help maintain a clean and considerate pantry area.
+----------------------------------------
+User: what are the panrty rules
+Bot: The party rule is that staff must apply one day of annual leave if they are unable to attend the Xmas party for valid reasons such as maternity leave, paternity leave, or being on holiday with annual leave applied in advance.
+----------------------------------------
+User: wgast are the pantry rule
+Bot: The pantry rules at Verztec are as follows:
+
+1. Dispose of any unwanted items and keep the fridge tidy.
+2. Keep the sink area dry after washing and clean any spills on the water dispenser.
+3. Dispose of leftovers and containers outside the office, and ensure the office bin lid is closed.
+4. Clean countertops or tables with a damp cloth after meals and tidy up.
+5. Use chopping boards for cutting fruits or food; avoid cutting on the kitchen top.
+
+These rules aim to maintain a clean and hygienic pantry environment.
+----------------------------------------
+User: whatt is the third rule about
+Bot: The third rule about the pantry is to dispose of leftover food, boxes, or plastic containers outside the office. When using the office bin, please ensure the lid is closed properly after disposal.
+----------------------------------------
+User: wwhat are the pantry rules
+Bot: The pantry rules at Verztec are as follows:
+
+1. Dispose of any unwanted items and keep the fridge tidy.
+2. After washing, keep the sink area dry and clean any spills on the water dispenser.
+3. Dispose of leftovers and containers outside the office, ensuring the bin lid is closed properly.
+4. Clean countertops or tables with a damp cloth after meals and tidy up.
+5. Use chopping boards for cutting fruits or food; avoid using the kitchen top.
+
+These rules help maintain a clean, hygienic, and insect-free pantry environment.
+----------------------------------------
+User: NIGGA  IGGGGA 
+Bot: <think>
+Okay, so I need to figure out how to rephrase the follow-up question to be a standalone question in its original language. Let me start by understanding the problem.
+
+The user provided a conversation between a Human and an Assistant. The Human asked, "What are the pantry rules?" The Assistant didn't respond, and then there's a follow-up input that seems a bit jumbled: "NIGGA IGGGGA". The user then provided a response, but it's unclear.
+
+I think the goal is to take the follow-up input and turn it into a clear, standalone question in its original language, which I assume is English. The original question was about pantry rules, so maybe the follow-up is trying to ask something related but got messed up.
+
+Looking at the follow-up input, "NIGGA IGGGGA", it seems like it might be a typo or a misspelling. Perhaps the user meant to ask something else but made a mistake. Maybe it's supposed to be "What are the pantry rules again?" or something similar.
+
+Since the original language is English, I need to take whatever the follow-up input was and rephrase it into a clear, standalone question. Given the context, it's likely that the user is asking for clarification or repeating the initial question about pantry rules.
+
+I should ignore any extraneous or unclear parts and focus on making a coherent question. So, if the follow-up was trying to ask again about the pantry rules, the rephrased question would be, "What are the pantry rules?" or maybe "Can you clarify the pantry rules?"
+
+Alternatively, if the follow-up was intended to be a different question but got jumbled, I might need to infer based on context. Since the initial question was about pantry rules, it's safe to assume the follow-up is related.
+
+In summary, the follow-up input was unclear, but considering the context, the most logical standalone question in its original language would be asking again about the pantry rules.
+
+---
+
+**Final Answer:**
+What are the pantry rules again?
+----------------------------------------
+User: what are the pantry rules
+Bot: The pantry rules at Verztec are as follows:
+
+1. After washing, keep the sink area dry and clean the water dispenser if you spill coffee or tea.
+2. Dispose of unwanted items and tidy up the fridge regularly.
+3. Dispose of leftover food outside the office or use the office bin with the lid closed properly.
+4. Clean the countertops with a damp cloth after meals and tidy up.
+5. Use chopping boards for cutting fruits or other food items; avoid cutting directly on the kitchen top.
+
+These rules help maintain a clean and hygienic pantry environment.
+----------------------------------------
+User: NIGGA IGGGGA
+Bot: Can you provide more details or examples for each of the pantry rules you mentioned?
+----------------------------------------
+User: gffuwefwe
+Bot: I'm sorry, but the question provided is unclear. Could you please provide more details or clarify what you're asking? I'll do my best to assist you with the information you've provided.
+----------------------------------------
+User: erftybunm
+Bot: <think>
+To ensure high-quality transcriptions when dealing with unclear audio, follow these steps:
+
+1. **Pre-Assessment**: Evaluate the audio for background noise, distortions, and speaker clarity. Identify the number of speakers and their accents or speech pace.
+
+2. **Handling Unclear Parts**: Use tags like [inaudible hh:mm:ss] for unintelligible sections. For uncertain parts, provide your best guess with a question mark, e.g., "data migration (?)". Timestamp difficult sections for easier review.
+
+3. **Context and Consistency**: Ensure the transcription makes logical sense. Use available resources like company websites or industry articles to cross-check unclear words. Maintain consistency in repeated terms, names, and abbreviations.
+
+4. **Formatting and Compliance**: Adhere to the client's style guide, ensuring proper punctuation, capitalization, and speaker labels. Place time codes, headers, and notes as instructed.
+
+5. **Final Review and Client Clarifications**: Highlight sections needing confirmation. List key terms or names for verification and request clarification from the client if necessary.
+
+For forming an effective scrum team for a data science project:
+
+1. **Define Roles**: Include a Product Owner, Scrum Master, and Development Team. The Product Owner manages the backlog, the Scrum Master facilitates processes, and the Development Team includes data scientists, engineers, and analysts.
+
+2. **Sprint Planning**: Collaborate to plan sprints, defining goals and selecting backlog items. Ensure the team commits to achievable objectives.
+
+3. **Daily Stand-ups**: Conduct brief meetings to discuss progress, plans, and obstacles. This maintains transparency and alignment.
+
+4. **Sprint Review and Retrospective**: Present deliverables to stakeholders and reflect on the sprint to identify improvements.
+
+To improve telephone communication skills:
+
+1. **Verbal Clarity**: Enunciate clearly, speak at a moderate pace, and avoid filler words.
+
+2. **Active Listening**: Pay attention, ask clarifying questions, and paraphrase to ensure understanding.
+
+3. **Non-Verbal Communication**: Use a positive tone, show empathy, and stay engaged without distractions.
+
+4. **Closing the Call**: Summarize key points, confirm next steps, and thank the caller to ensure a professional conclusion.
+
+These strategies can enhance transcription quality, team effectiveness, and communication skills.
+----------------------------------------
