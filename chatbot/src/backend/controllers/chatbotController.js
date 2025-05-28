@@ -1,95 +1,76 @@
 const fetch = require('node-fetch');
 
-const PYTHON_CHATBOT_URL = process.env.PYTHON_CHATBOT_URL || 'http://localhost:8000';
+const PYTHON_CHATBOT_URL = process.env.PYTHON_CHATBOT_URL || 'http://localhost:3000';
 
 const callPythonChatbot = async (message, userId = null, chatHistory = []) => {
     try {
+        console.log('Calling Python chatbot with:', { message, userId, chatHistory });
+        
         const response = await fetch(`${PYTHON_CHATBOT_URL}/chat`, {
             method: 'POST',
             headers: {
-                'Content-Type': 'application/json'
+                'Content-Type': 'application/json',
+                'Accept': 'application/json'
             },
             body: JSON.stringify({
                 message: message,
                 user_id: userId,
-                chat_history: chatHistory
-            }),
-            timeout: 30000 // 30 second timeout
+                chat_history: chatHistory || []
+            })
         });
 
         if (!response.ok) {
-            console.error(`Python API error: ${response.status} ${response.statusText}`);
-            return {
-                success: false,
-                error: `API request failed with status ${response.status}`,
-                message: 'I\'m sorry, I couldn\'t process your request at the moment.'
-            };
+            const errorText = await response.text();
+            console.error('Python API error:', errorText);
+            throw new Error(`API request failed with status ${response.status}`);
         }
 
         const result = await response.json();
+        console.log('Python API response:', result);
         return result;
 
     } catch (error) {
         console.error('Python API call error:', error);
-        
-        if (error.code === 'ECONNREFUSED') {
-            return {
-                success: false,
-                error: 'Python chatbot service is not running',
-                message: 'I\'m sorry, the chatbot service is currently unavailable. Please ensure the Python API is running on port 8000.'
-            };
-        }
-
-        return {
-            success: false,
-            error: error.message,
-            message: 'I\'m sorry, I couldn\'t connect to the chatbot service.'
-        };
+        throw error;
     }
 };
 
 const processMessage = async (req, res) => {
     try {
         const { message } = req.body;
-        const userId = req.user?.userId; // From JWT token
-        const chatHistory = req.session.chatHistory || [];
-
-        // Validate input
-        if (!message || message.trim() === '') {
+        if (!message?.trim()) {
             return res.status(400).json({
                 success: false,
                 error: 'Message is required'
             });
         }
 
-        // Call Python script
+        const userId = req.user?.userId;
+        const chatHistory = req.session?.chatHistory || [];
+
         const response = await callPythonChatbot(message, userId, chatHistory);
         
-        if (response.success !== false) {
-            // Update chat history in session
-            if (!req.session.chatHistory) {
-                req.session.chatHistory = [];
-            }
-            req.session.chatHistory.push(message);
-            
-            // Keep only last 10 messages for context
-            if (req.session.chatHistory.length > 10) {
-                req.session.chatHistory = req.session.chatHistory.slice(-10);
-            }
+        // Update session chat history
+        if (!req.session.chatHistory) {
+            req.session.chatHistory = [];
         }
+        req.session.chatHistory.push({
+            message,
+            timestamp: new Date().toISOString()
+        });
 
         res.json({
-            success: response.success !== false,
+            success: true,
             message: response.message,
-            timestamp: new Date().toISOString(),
-            ...response
+            timestamp: new Date().toISOString()
         });
+
     } catch (error) {
-        console.error('Chatbot controller error:', error);
+        console.error('Error processing message:', error);
         res.status(500).json({
             success: false,
             error: 'Internal server error',
-            message: 'I\'m sorry, I encountered an error while processing your request.'
+            message: 'Sorry, I encountered an error processing your request.'
         });
     }
 };

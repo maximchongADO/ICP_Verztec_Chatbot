@@ -34,7 +34,7 @@ const getUserById = async (req, res) => {
         res.status(200).json(user);
     } catch (error) {
         console.error('Error fetching user:', error);
-        res.status(500).json({ message: 'Internal server error' });
+        res.status(500).json({ message: 'User Internal server error' });
     }
 }
 
@@ -78,7 +78,7 @@ const loginUser = async (req, res) => {
         console.error('Error logging in:', error);
         res.status(500).json({ 
             success: false, 
-            message: 'Internal server error' 
+            message: 'Test Internal server error' 
         });
     }
 }

@@ -1,4 +1,4 @@
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from typing import List, Optional
@@ -13,16 +13,20 @@ import re
 from numpy import dot
 from numpy.linalg import norm
 import os
-from langchain.memory import ConversationBufferMemory
+from langchain.memory import ConversationBufferMemory  # Updated import
 from langchain.chains import ConversationalRetrievalChain
 from langchain_core.output_parsers import StrOutputParser
-
+from langchain_huggingface import HuggingFaceEmbeddings  # Updated import
+from langchain_community.vectorstores import FAISS
+import logging
+from datetime import datetime
+from fastapi.responses import JSONResponse
 app = FastAPI()
 
 # Add CORS middleware
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000"],  # Express.js server
+    allow_origins=["http://localhost:3000"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -32,21 +36,19 @@ app.add_middleware(
 embedding_model = SentenceTransformer('BAAI/bge-large-en-v1.5')
 
 # Initialize Groq LLM client
-api_key = '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'
+api_key = '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'
 model_name = "compound-beta"
 model = "deepseek-r1-distill-llama-70b" 
 deepseek = ChatGroq(api_key=api_key, model=model)
 compound =ChatGroq(api_key=api_key, model=model_name)
 
 ## setting up memory
-# global memmory for now, once we have user auth, we can set this to be user specific
 memory = ConversationBufferMemory(
-        memory_key="chat_history",
-        input_key="question",        # Input key in your chain
-        output_key="answer",         # Explicit output key
-        return_messages=True
-    )
-
+    memory_key="chat_history",
+    input_key="question",
+    output_key="answer",
+    return_messages=True
+)
 
 # Request/Response models
 class ChatRequest(BaseModel):
@@ -66,18 +68,47 @@ class ChatResponse(BaseModel):
     
     
 
+# Set up logging
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(levelname)s - %(message)s'
+)
+logger = logging.getLogger(__name__)
+
+@app.exception_handler(Exception)
+async def global_exception_handler(request: Request, exc: Exception):
+    logger.error(f"Global error handler: {str(exc)}", exc_info=True)
+    return JSONResponse(
+        status_code=500,
+        content=ChatResponse(
+            message="An internal server error occurred",
+            timestamp=datetime.utcnow().isoformat(),
+            success=False,
+            error=str(exc)
+        ).dict()
+    )
+
 # Load FAISS index and metadata on startup
 try:
     script_dir = os.path.dirname(os.path.abspath(__file__))
-    faiss_index_path = os.path.join(script_dir, "faiss_local_BAAI.idx")
-    faiss_meta_path = os.path.join(script_dir, "faiss_local_BAAI_meta.json")
+    chatbot_root = os.path.abspath(os.path.join(script_dir, '..','..', '..', '..'))
+    faiss_index_path = os.path.join(chatbot_root, "faiss_index3")
     
-    index = faiss.read_index(faiss_index_path)
-    with open(faiss_meta_path, 'r', encoding='utf-8') as f:
-        metadata = json.load(f)
-    print("FAISS index and metadata loaded successfully")
+    if not os.path.exists(faiss_index_path):
+        raise FileNotFoundError(f"FAISS index not found at {faiss_index_path}")
+    
+    embedding_model2 = HuggingFaceEmbeddings(
+        model_name="BAAI/bge-large-en-v1.5",
+        encode_kwargs={'normalize_embeddings': True}
+    )
+    index = FAISS.load_local(
+        faiss_index_path,
+        embedding_model2,
+        allow_dangerous_deserialization=True
+    )
+    logger.info("FAISS index and metadata loaded successfully")
 except Exception as e:
-    print(f"Failed to load FAISS index: {str(e)}")
+    logger.error(f"Failed to load FAISS index: {str(e)}", exc_info=True)
     index = None
     metadata = None
 
@@ -171,23 +202,28 @@ async def chat_endpoint(request: ChatRequest):
         if not request.message.strip():
             raise HTTPException(status_code=400, detail="Message cannot be empty")
         
+        if index is None:
+            raise HTTPException(status_code=503, detail="Search index is not available")
+        
         # Generate response using chatbot logic
         response_message = generate_answer(request.message, memory)
         
         return ChatResponse(
             message=response_message,
             user_id=request.user_id,
-            timestamp="2024-01-01T12:00:00Z",
+            timestamp=datetime.utcnow().isoformat(),
             success=True
         )
         
+    except HTTPException as he:
+        logger.warning(f"HTTP error: {str(he)}")
+        raise he
     except Exception as e:
-        print(f"Error processing chat request: {str(e)}")
-        print(traceback.format_exc())
+        logger.error(f"Error processing chat request: {str(e)}", exc_info=True)
         return ChatResponse(
-            message="I'm sorry, I encountered an error while processing your request.",
+            message="An error occurred while processing your request. Please try again later.",
             user_id=request.user_id,
-            timestamp="2024-01-01T12:00:00Z",
+            timestamp=datetime.utcnow().isoformat(),
             success=False,
             error=str(e)
         )
@@ -202,6 +238,22 @@ async def clear_chat_history():
         print(f"Error clearing chat history: {str(e)}")
         raise HTTPException(status_code=500, detail="Failed to clear chat history")
 
+def find_available_port(start_port: int = 8000, max_attempts: int = 10) -> int:
+    import socket
+    for port in range(start_port, start_port + max_attempts):
+        try:
+            with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+                s.bind(('0.0.0.0', port))
+                return port
+        except OSError:
+            continue
+    raise RuntimeError(f"Could not find an available port after {max_attempts} attempts")
+
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=3000)
+    try:
+        port = 3000  # Set fixed port instead of dynamic
+        print(f"Starting server on port {port}")
+        uvicorn.run(app, host="0.0.0.0", port=3000)
+    except Exception as e:
+        print(f"Failed to start server: {e}")
