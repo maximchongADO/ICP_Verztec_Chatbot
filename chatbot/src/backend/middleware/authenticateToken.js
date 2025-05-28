@@ -5,10 +5,24 @@ const authenticateToken = (req,res,next) => {
     //get token and check if its valid
     const authHeader = req.headers["authorization"];
     const token = authHeader && authHeader.split(" ")[1];
-    if (token == null) return res.sendStatus(401);
+    console.log(token)
+    if (!token) {
+        console.log('No token provided');
+        return res.status(403).json({ 
+            success: false, 
+            message: 'No authentication token provided' 
+        });
+    }
+
     //verify token
     jwt.verify(token, process.env.ACCESS_TOKEN_SECRET || process.env.JWT_SECRET || 'fallback-secret-key', (err,user) => {
-        if (err) return res.sendStatus(403);
+        if (err) {
+            console.log('Token verification failed:', err.message);
+            return res.status(403).json({ 
+                success: false, 
+                message: 'Invalid or expired token' 
+            });
+        }
 
 
         const authorizedRoles = {

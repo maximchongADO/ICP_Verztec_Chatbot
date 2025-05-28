@@ -81,5 +81,5 @@ def inspect_faiss_index(folder_path):
 # Example usage
 if __name__ == "__main__":
     # Use the folder name instead of file paths
-    faiss_folder = "faiss_index2"
+    faiss_folder = r"C:\Users\ethan\OneDrive\Desktop\ICP_Verztec_Chatbot-6\chatbot\src\backend\python\faiss_index2"
     inspect_faiss_index(faiss_folder)
