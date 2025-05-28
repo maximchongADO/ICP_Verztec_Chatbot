@@ -24,7 +24,7 @@ from datetime import datetime
 from fastapi.responses import JSONResponse
 app = FastAPI()
 
-# Add CORS middleware
+# Update CORS middleware to allow all origins in development
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["http://localhost:3000"],
@@ -37,7 +37,7 @@ app.add_middleware(
 embedding_model = SentenceTransformer('BAAI/bge-large-en-v1.5')
 
 # Initialize Groq LLM client
-api_key = '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'
+api_key = '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'
 model_name = "compound-beta"
 model = "deepseek-r1-distill-llama-70b" 
 deepseek = ChatGroq(api_key=api_key, model=model)
@@ -194,10 +194,21 @@ def generate_answer(user_query: str, chat_history: ConversationBufferMemory) -> 
 
 @app.get("/health")
 async def health_check():
-    return {"status": "healthy", "message": "Chatbot API is running"}
+    try:
+        return JSONResponse(
+            content={"status": "healthy", "message": "Chatbot API is running"},
+            status_code=200
+        )
+    except Exception as e:
+        logger.error(f"Health check failed: {str(e)}")
+        return JSONResponse(
+            content={"status": "unhealthy", "error": str(e)},
+            status_code=500
+        )
 
-@app.post("/chat", response_model=ChatResponse)
+@app.post("/chatbot")
 async def chat_endpoint(request: ChatRequest):
+    logger.info(f"Received chat request: {request}")
     try:
         if not request.message.strip():
             raise HTTPException(status_code=400, detail="Message cannot be empty")
@@ -207,6 +218,7 @@ async def chat_endpoint(request: ChatRequest):
         
         # Generate response using chatbot logic
         response_message = generate_answer(request.message, memory)
+        logger.info(f"Generated response: {response_message}")
         
         return ChatResponse(
             message=response_message,
@@ -215,9 +227,6 @@ async def chat_endpoint(request: ChatRequest):
             success=True
         )
         
-    except HTTPException as he:
-        logger.warning(f"HTTP error: {str(he)}")
-        raise he
     except Exception as e:
         logger.error(f"Error processing chat request: {str(e)}", exc_info=True)
         return ChatResponse(
@@ -252,8 +261,7 @@ def find_available_port(start_port: int = 8000, max_attempts: int = 10) -> int:
 if __name__ == "__main__":
     import uvicorn
     try:
-        port = 3000  # Set fixed port instead of dynamic
-        print(f"Starting server on port {port}")
-        uvicorn.run(app, host="0.0.0.0", port=3000)
+        print("Starting server on port 3000")
+        uvicorn.run(app, host="0.0.0.0", port=3000, log_level="debug")
     except Exception as e:
         print(f"Failed to start server: {e}")

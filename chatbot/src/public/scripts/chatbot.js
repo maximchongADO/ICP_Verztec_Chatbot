@@ -34,17 +34,17 @@ function sendMessage() {
   // Show typing indicator
   showTypingIndicator();
 
-  // Call real chatbot API
+  // Call chatbot API
   callChatbotAPI(message)
     .then((response) => {
       // Remove typing indicator
       hideTypingIndicator();
 
       // Add bot response
-      if (response.success !== false) {
+      if (response && response.message) {
         addMessage(response.message, "bot");
       } else {
-        addMessage(response.message || "Sorry, I encountered an error.", "bot");
+        addMessage("Sorry, I received an invalid response. Please try again.", "bot");
       }
     })
     .catch((error) => {
@@ -54,7 +54,7 @@ function sendMessage() {
 
       // Add error message
       addMessage(
-        "Sorry, I'm having trouble responding right now. Please try again.",
+        "Sorry, I'm having trouble connecting to the server. Please try again later.",
         "bot"
       );
     })
@@ -65,38 +65,40 @@ function sendMessage() {
 }
 
 async function callChatbotAPI(message) {
-  // Get chat history from session storage
   const chatHistory = JSON.parse(sessionStorage.getItem("chatHistory") || "[]");
 
-  const response = await fetch("/api/chatbot/message", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${token}`,
-    },
-    body: JSON.stringify({
-      message: message,
-      chat_history: chatHistory,
-    }),
-  });
+  try {
+    const response = await fetch("http://localhost:3000/chatbot", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${token}`,
+      },
+      body: JSON.stringify({
+        message: message,
+        chat_history: chatHistory,
+      }),
+      credentials: 'include'
+    });
 
-  if (!response.ok) {
-    throw new Error(`HTTP error! status: ${response.status}`);
-  }
-
-  const result = await response.json();
-
-  // Update chat history in session storage
-  if (result.success) {
-    chatHistory.push(message);
-    // Keep only last 10 messages for context
-    if (chatHistory.length > 10) {
-      chatHistory.splice(0, chatHistory.length - 10);
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error("API Error Response:", errorText);
+      throw new Error(`HTTP error! status: ${response.status}`);
     }
-    sessionStorage.setItem("chatHistory", JSON.stringify(chatHistory));
-  }
 
-  return result;
+    const result = await response.json();
+    console.log("API Response:", result);
+
+    if (!result.success) {
+      throw new Error(result.message || "Failed to get response from chatbot");
+    }
+
+    return result;
+  } catch (error) {
+    console.error("Chatbot API Error:", error);
+    throw error;
+  }
 }
 
 // Add function to clear chat history

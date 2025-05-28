@@ -2,14 +2,19 @@ const express = require("express");
 const session = require("express-session");
 const app = express();
 const cors = require("cors");
-const PORT = process.env.PORT || 3000;
+const PORT = process.env.PORT || 8000;
 const dbConfig = require("./backend/database/dbConfig.js");
 const mysql = require("mysql2/promise");
 const route = require("./backend/routes/routes.js");
 const bodyParser = require("body-parser");
 const path = require("path");
 
-app.use(cors());
+app.use(cors({
+  origin: ['http://localhost:8000', 'http://localhost:3000'],
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE'],
+  allowedHeaders: ['Content-Type', 'Authorization']
+}));
 
 const staticMiddleware = express.static("public");
 app.use(staticMiddleware);
