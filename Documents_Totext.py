@@ -39,7 +39,6 @@ cleaned_dir=data_dir/ "cleaned"
 vertztec_collection= data_dir/ "verztec_logo"
 
 
-# USING 
 def get_all_file_paths(directory, extensions=[".pdf", ".doc", ".docx",".txt",".pptx"]):
     file_paths = []
     for root, dirs, files in os.walk(directory):
@@ -50,8 +49,8 @@ def get_all_file_paths(directory, extensions=[".pdf", ".doc", ".docx",".txt",".p
                 file_paths.append(absolute_path)
     return file_paths
 
-## cleaning file names
-## USING 
+
+
 def clean_filename_for_embedding(file_path):
     filename = str(os.path.splitext(os.path.basename(file_path)))
 
@@ -62,7 +61,6 @@ def clean_filename_for_embedding(file_path):
     return filename.lower()
 
 
-# NOT USED
 def process_pdf(file_path):
     doc = pymupdf.open(file_path)
     text = ""
@@ -71,7 +69,6 @@ def process_pdf(file_path):
     return text
 
 
-# USED 
 def process_pdf_with_images(file_path, image_output_dir, base_image_name):
     doc = fitz.open(file_path)
     text = ""
@@ -111,8 +108,6 @@ def process_pdf_with_images(file_path, image_output_dir, base_image_name):
     return text
 
 
-
-
 def is_verztec_logo(image_path, threshold=5):
     """
     Compare an image against all images in a folder.
@@ -138,10 +133,6 @@ def is_verztec_logo(image_path, threshold=5):
     return False
 
 
-
-
-## ALSO WITH IMAGES AND TAGS
-# USED 
 def extract_text_and_images_from_doc(file_path, image_output_dir, base_image_name):
     word = win32com.client.Dispatch("Word.Application")
     word.Visible = False
@@ -184,7 +175,6 @@ def extract_text_and_images_from_doc(file_path, image_output_dir, base_image_nam
     doc.Close(False)
     word.Quit()
     return text
-## images for docx
 
 def extract_text_and_images_from_docx(file_path, image_output_dir, base_image_name):
     document = Document(file_path)
@@ -260,8 +250,6 @@ def extract_text_and_images_from_pptx(file_path, image_output_dir, base_image_na
 
     return "\n\n".join(content_lines)
 
-# USED 
-# also done 
 def extract_inline_content(docx_path, image_dir, base_image_name=None):
 
     # 1. Prepare image relationships mapping and save images to disk
@@ -368,63 +356,7 @@ def extract_inline_content(docx_path, image_dir, base_image_name=None):
                 output_lines.append("\t".join(row_cells_text))
 
     return "\n".join(output_lines)
-## dont think iused 
-def extract_text_and_images_from_docx_inline(file_path, image_output_dir, base_image_name):
-    document = Document(file_path)
-    text = ""
-    image_count = 0
-    image_map = {}
 
-    # Step 1: Extract image files from the .docx ZIP
-    with zipfile.ZipFile(file_path, 'r') as docx_zip:
-        for name in docx_zip.namelist():
-            if name.startswith("word/media/"):
-                image_ext = os.path.splitext(name)[-1]
-                image_count += 1
-                image_filename = f"{base_image_name}_img{image_count}{image_ext}"
-                image_path = image_output_dir / image_filename
-                verzy =is_verztec_logo(image_path, threshold=5)
-                print(f"[LOG] {image_filename} verztec logo: {verzy}")
-
-                with open(image_path, 'wb') as f:
-                    f.write(docx_zip.read(name))
-
-                image_map[name.split('/')[-1]] = image_filename  # Store mapping: original -> new name
-
-    image_count = 0  # Reset for ordering inline
-
-    # Step 2: Walk through text and insert image markers inline
-    for para in document.paragraphs:
-        for run in para.runs:
-            run_text = run.text.strip()
-            if run_text:
-                text += run_text + " "
-
-            # Check for image inside the run
-            drawing = run._element.find(".//w:drawing", namespaces=run._element.nsmap)
-            if drawing is not None:
-                blip = drawing.find(".//a:blip", namespaces=drawing.nsmap)
-                if blip is not None:
-                    embed_rel_id = blip.get(qn("r:embed"))
-                    image_part = document.part.related_parts[embed_rel_id]
-                    original_filename = os.path.basename(image_part.partname)
-                    if original_filename in image_map:
-                        image_filename = image_map[original_filename]
-                        text += f"<|image_start|>{image_filename}<|image_end|> "
-
-        text += "\n"
-
-    # Step 3: Include table text (not inline, just append after paragraphs)
-    for table_index, table in enumerate(document.tables, start=1):
-        text += f"\n<|table_start|>Table_{table_index}<|table_end|>\n"
-        for row in table.rows:
-            row_text = " | ".join(cell.text.strip().replace("\n", " ") for cell in row.cells)
-            text += row_text + "\n"
-        text += f"<|table_break|>\n"
-
-    return text.strip()
-
-    
 
 # === Main function to process a single file ===
 def process_single_file(file_path, images_dir, cleaned_dir, vertztec_collection):
@@ -615,9 +547,6 @@ def process_single_file(file_path, images_dir, cleaned_dir, vertztec_collection)
 # 
 # print(f'[LOG] FAIL COUNT:{fail_count}')
 # 
-
-
-
 
 
 # === Example usage ===
