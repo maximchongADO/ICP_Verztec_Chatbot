@@ -1,4 +1,4 @@
-
+cd chatbot first
 1. cd src
 2. npm install - > only need for first time or when adding new packages
 3. npm run seed - > only need for first time or when updating database 
