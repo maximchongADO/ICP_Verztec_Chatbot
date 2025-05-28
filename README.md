@@ -16,8 +16,34 @@ To run this project, you will need to install the following Python packages:
 - `dotenv`
 - `langchain_huggingface`
 - `langchain_community.chat_models`
+### Installation (chatbot) *updated*
 
-### Installation
+Website structure
+chatbot/
+├── index.html                   # Frontend UI entry point
+├── app.js, view.js              # Frontend logic and rendering
+├── model.js, controller.js      # Chatbot state and controller logic
+├── styles.css                   # Chat UI styling
+├── main.py                      # FastAPI backend server
+├── chatbot_backend.py           # Python chatbot logic (FAISS + Groq)
+├── faiss_local_BAAI.idx         # FAISS vector index file
+├── faiss_local_BAAI_meta.json   # Metadata corresponding to FAISS index
+├── requirements.txt             # Python dependencies
+├── __pycache__                 # Python cache files (can be ignored)
+
+Install dependencies:
+pip install -r requirements.txt
+
+
+How to run the application:
+1. change directory of project to chatbot folder (cd chatbot) in terminal
+2. "uvicorn main:app --reload" within terminal to start the FastAPI backend server
+3. double click "index.html" file or go live using live server extension
+
+
+
+
+### Installation (website_proto_2) *outdated*
 
 You can install all the required dependencies by running:
 
@@ -66,3 +92,5 @@ You can use these accounts to test the application:
 Username: user1, Password: password1
 Username: user2, Password: password2
 Username: admin, Password: admin123
+
+
