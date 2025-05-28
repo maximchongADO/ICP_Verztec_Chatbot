@@ -198,11 +198,96 @@ def load_single_file(file_path, embedding_model, faiss_index_path=None):
 
     return faiss_db
 
-
+#-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 from Documents_Totext import process_single_file
 
-# Example usage for a single file (updating the FAISS index)
-file_to_process = r"C:\Users\ethan\OneDrive\Desktop\ICP_Verztec_Chatbot-6\data\cleaned\3_offboarding_process_on_clean_desk_policy_150125_.txt"
-result = process_single_file(file_to_process, images_dir, cleaned_dir, vertztec_collection)
-existing_faiss_index = "faiss_index2"  # Path to existing FAISS index
-faiss_index = load_single_file(file_to_process, embedding_model, faiss_index_path=existing_faiss_index)
+def unified_document_pipeline(file_path, images_dir, cleaned_dir, vertztec_collection, faiss_index_path, embedding_model):
+    """
+    Unified pipeline to process documents and update FAISS index:
+    1. Extract and clean document content
+    2. Process images and text
+    3. Generate embeddings and update FAISS index
+    
+    Args:
+        file_path: Path to input document
+        images_dir: Directory for extracted images
+        cleaned_dir: Directory for cleaned text
+        vertztec_collection: Directory with Verztec logos
+        faiss_index_path: Path to FAISS index
+        embedding_model: HuggingFace embedding model
+    
+    Returns:
+        dict: Processing results including FAISS update status
+    """
+    try:
+        # Step 1: Process document and extract content
+        processing_result = process_single_file(
+            file_path=file_path,
+            images_dir=images_dir,
+            cleaned_dir=cleaned_dir,
+            vertztec_collection=vertztec_collection
+        )
+        
+        if not processing_result["success"]:
+            print(f"[ERROR] Document processing failed: {processing_result['error']}")
+            return processing_result
+
+        # Step 2: Update FAISS index with processed content
+        cleaned_text_path = processing_result["cleaned_text_path"]
+        faiss_db = load_single_file(
+            file_path=cleaned_text_path,
+            embedding_model=embedding_model,
+            faiss_index_path=faiss_index_path
+        )
+        
+        if faiss_db is None:
+            processing_result["success"] = False
+            processing_result["error"] = "Failed to update FAISS index"
+            return processing_result
+
+        # Add FAISS information to result
+        processing_result["faiss_db"] = faiss_db
+        processing_result["faiss_index_path"] = faiss_index_path
+        
+        print(f"""
+[SUCCESS] Document processed and indexed
+- Original file: {processing_result['original_path']}
+- Cleaned file: {processing_result['cleaned_text_path']}
+- FAISS index: {faiss_index_path}
+""")
+        
+        return processing_result
+
+    except Exception as e:
+        error_msg = f"Pipeline failed: {str(e)}"
+        print(f"[ERROR] {error_msg}")
+        return {
+            "original_path": file_path,
+            "cleaned_text_path": None,
+            "success": False,
+            "error": error_msg,
+            "faiss_db": None
+        }
+
+# Example usage:
+if __name__ == "__main__":
+    # File to process
+    file_to_process = r"C:\Users\ethan\OneDrive\Desktop\ICP_Verztec_Chatbot-6\data\pdf\example.pdf"
+    
+    # FAISS index path
+    existing_faiss_index = "faiss_index2"
+    
+    # Process document and update FAISS index
+    result = unified_document_pipeline(
+        file_path=file_to_process,
+        images_dir=images_dir,
+        cleaned_dir=cleaned_dir,
+        vertztec_collection=vertztec_collection,
+        faiss_index_path=existing_faiss_index,
+        embedding_model=embedding_model
+    )
+    
+    if result["success"]:
+        print(f"Pipeline completed successfully!")
+    else:
+        print(f"Pipeline failed: {result['error']}")
