@@ -70,15 +70,16 @@ async function callChatbotAPI(message) {
   try {
     const response = await fetch("http://localhost:3000/chatbot", {
       method: "POST",
+      credentials: 'include',
       headers: {
         "Content-Type": "application/json",
+        "Accept": "application/json",
         "Authorization": `Bearer ${token}`,
       },
       body: JSON.stringify({
         message: message,
         chat_history: chatHistory,
       }),
-      credentials: 'include'
     });
 
     if (!response.ok) {
