@@ -48,17 +48,15 @@ const createTablesSQL = {
     )`,
     
   users: `
-    CREATE TABLE IF NOT EXISTS users (
-      user_id INT AUTO_INCREMENT PRIMARY KEY,
-      username VARCHAR(100) UNIQUE NOT NULL,
-      password_hash VARCHAR(255) NOT NULL,
-      email VARCHAR(255) UNIQUE NOT NULL,
-      role_id INT,
-      department VARCHAR(100),
-      country VARCHAR(100),
-      FOREIGN KEY (role_id) REFERENCES roles(role_id)
+    CREATE TABLE IF NOT EXISTS Users (
+      id INT AUTO_INCREMENT,
+      username VARCHAR(40) NOT NULL,
+      email VARCHAR(50) NOT NULL UNIQUE,
+      password VARCHAR(100) NOT NULL,
+      role ENUM('student', 'admin') NOT NULL,
+      PRIMARY KEY (id)
     )`
-};
+  };
 
 async function createTables(connection) {
   try {
@@ -134,20 +132,16 @@ async function insertExtractedTexts(connection, folderPath) {
 
 async function insertInitialData(connection) {
   try {
-    // Insert roles first
-    await connection.execute(`INSERT INTO roles (role_name) VALUES ('admin'), ('user'), ('manager')`);
-    console.log('Roles inserted successfully');
-
-    // Insert users with role references
+    // Insert users directly without role references
     const hashedPassword1 = await bcrypt.hash('password1234', 10);
     const hashedPassword2 = await bcrypt.hash('maximchong1', 10);
     
-    const insertUserSQL = `
-      INSERT INTO users (username, email, password_hash, role_id) 
-      SELECT ?, ?, ?, role_id FROM roles WHERE role_name = ?`;
+    const insertSQL = `
+      INSERT INTO Users (username, email, password, role) 
+      VALUES (?, ?, ?, ?)`;
     
-    await connection.execute(insertUserSQL, ['Toby', 'toby@gmail.com', hashedPassword1, 'user']);
-    await connection.execute(insertUserSQL, ['Maxim', 'maxim@gmail.com', hashedPassword2, 'admin']);
+    await connection.execute(insertSQL, ['Toby', 'toby@gmail.com', hashedPassword1, 'student']);
+    await connection.execute(insertSQL, ['Maxim', 'maxim@gmail.com', hashedPassword2, 'admin']);
     console.log('Users inserted successfully');
     
     // Update data directory path to be relative to project root
