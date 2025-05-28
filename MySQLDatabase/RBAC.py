@@ -104,33 +104,33 @@ def check_permission(user_info, action, target_department=None, target_country=N
 
     return False
 
-# test scenario
+# #pitest scenario
 # if __name__ == "__main__":
 #     #Only need to do once unless there is a new role
 #     insert_roles()
-    # Create a new user
-    #create_user('alice', 'securepassword', 'alice@example.com', 'MANAGER', 'Sales', 'Singapore')
-    # users_to_create = [
-    #     # Admin user
-    #     ('admin_user', 'AdminPass123', 'admin@example.com', 'ADMIN', 'Management', 'Singapore'),
+#     #Create a new user
+#     create_user('alice', 'securepassword', 'alice@example.com', 'MANAGER', 'Sales', 'Singapore')
+#     users_to_create = [
+#         # Admin user
+#         ('admin_user', 'AdminPass123', 'admin@example.com', 'ADMIN', 'Management', 'Singapore'),
 
-    #     # Managers
-    #     ('manager_sales', 'ManagerPass123', 'salesmgr@example.com', 'MANAGER', 'Sales', 'Singapore'),
-    #     ('manager_hr', 'ManagerPass123', 'hrmgr@example.com', 'MANAGER', 'HR', 'Singapore'),
+#         # Managers
+#         ('manager_sales', 'ManagerPass123', 'salesmgr@example.com', 'MANAGER', 'Sales', 'Singapore'),
+#         ('manager_hr', 'ManagerPass123', 'hrmgr@example.com', 'MANAGER', 'HR', 'Singapore'),
 
-    #     # Users from different departments
-    #     ('user_sales1', 'UserPass123', 'salesuser1@example.com', 'USER', 'Sales', 'Singapore'),
-    #     ('user_hr1', 'UserPass123', 'hruser1@example.com', 'USER', 'HR', 'Singapore'),
-    #     ('user_it1', 'UserPass123', 'ituser1@example.com', 'USER', 'IT', 'Singapore'),
-    # ]
+#         # Users from different departments
+#         ('user_sales1', 'UserPass123', 'salesuser1@example.com', 'USER', 'Sales', 'Singapore'),
+#         ('user_hr1', 'UserPass123', 'hruser1@example.com', 'USER', 'HR', 'Singapore'),
+#         ('user_it1', 'UserPass123', 'ituser1@example.com', 'USER', 'IT', 'Singapore'),
+#     ]
 
-    # for user in users_to_create:
-    #     create_user(*user)
-    # Authenticate a user
-    # user = authenticate_user('alice', 'securepassword')
-    # if user:
-    #     print(f"User authenticated: {user}")
+#     for user in users_to_create:
+#         create_user(*user)
+#     #Authenticate a user
+#     user = authenticate_user('alice', 'securepassword')
+#     if user:
+#         print(f"User authenticated: {user}")
 
-    #     # Check permission for some action
-    #     can_upload = check_permission(user, 'upload', target_department='Sales', target_country='Singapore')
-    #     print("Permission to upload:", can_upload)
+#         # Check permission for some action
+#         can_upload = check_permission(user, 'upload', target_department='Sales', target_country='Singapore')
+#         print("Permission to upload:", can_upload)
