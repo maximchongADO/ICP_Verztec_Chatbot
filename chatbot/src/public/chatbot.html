@@ -1,0 +1,185 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Chat | AI Assistant Pro</title>
+    <link rel="stylesheet" href="/styles/main.css" />
+    <link rel="stylesheet" href="/styles/chatbot.css" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap"
+      rel="stylesheet"
+    />
+  </head>
+  <body>
+    <div class="app-container">
+      <!-- Hamburger Menu Button -->
+      <button class="hamburger-menu" onclick="toggleSidebar()">
+        <svg viewBox="0 0 24 24">
+          <path
+            d="M3 12h18M3 6h18M3 18h18"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+          />
+        </svg>
+      </button>
+
+      <!-- Sidebar Overlay for mobile -->
+      <div class="sidebar-overlay" onclick="toggleSidebar()"></div>
+
+      <!-- Sidebar -->
+      <div class="sidebar" id="sidebar">
+        <div class="sidebar-header">
+          <div class="ai-avatar">AI</div>
+          <h1>AI Assistant</h1>
+          <p>Your intelligent companion</p>
+        </div>
+
+        <nav class="sidebar-nav">
+          <div class="nav-item" onclick="clearChatHistory()">
+            <svg viewBox="0 0 24 24">
+              <path
+                d="M3 6h18M8 6V4a2 2 0 012-2h4a2 2 0 012 2v2m3 0v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6h14zM10 11v6M14 11v6"
+              />
+            </svg>
+            Clear Chat
+          </div>
+
+          <div class="nav-item" onclick="exportChat()">
+            <svg viewBox="0 0 24 24">
+              <path
+                d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M17 8l-5-5-5 5M12 3v12"
+              />
+            </svg>
+            Export Chat
+          </div>
+
+          <div
+            class="nav-item"
+            onclick="document.getElementById('fileInput').click()"
+          >
+            <svg viewBox="0 0 24 24">
+              <path
+                d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8zM14 2v6h6M16 13H8M16 17H8M10 9H8"
+              />
+            </svg>
+            File Upload
+          </div>
+
+          <div class="nav-item" onclick="logout()">
+            <svg viewBox="0 0 24 24">
+              <path
+                d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4M16 17l5-5-5-5M21 12H9"
+              />
+            </svg>
+            Logout
+          </div>
+        </nav>
+      </div>
+
+      <!-- Main Chat Area -->
+      <div class="chat-container">
+        <div class="chat-header">
+          <div class="chat-title">Chat Session</div>
+        </div>
+
+        <div class="chat-messages" id="chatMessages">
+          <div class="welcome-message">
+            <h2>Welcome to AI Assistant</h2>
+            <p>
+              I'm here to help you with any questions or tasks you might have.
+              Feel free to ask me anything!
+            </p>
+            <div class="suggestions">
+              <div
+                class="suggestion"
+                onclick="sendSuggestion('How can I reset my password?')"
+              >
+                How can I reset my password?
+              </div>
+              <div
+                class="suggestion"
+                onclick="sendSuggestion('What are the office hours?')"
+              >
+                What are the office hours?
+              </div>
+              <div
+                class="suggestion"
+                onclick="sendSuggestion('How do I submit a support ticket?')"
+              >
+                How do I submit a support ticket?
+              </div>
+              <div
+                class="suggestion"
+                onclick="sendSuggestion('Where can I find company policies?')"
+              >
+                Where can I find company policies?
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="chat-input-container">
+          <div class="input-wrapper">
+            <textarea
+              class="chat-input"
+              id="messageInput"
+              placeholder="Type your message here..."
+              rows="1"
+              onkeydown="handleKeyPress(event)"
+              oninput="autoResize(this)"
+            ></textarea>
+            <button class="send-button" id="sendButton" onclick="sendMessage()">
+              <svg class="send-icon" viewBox="0 0 24 24">
+                <path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z" />
+              </svg>
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Hidden file input for uploads -->
+    <input
+      type="file"
+      id="fileInput"
+      style="display: none"
+      onchange="handleFileUpload(event)"
+      multiple
+    />
+
+    <script src="/scripts/chatbot.js"></script>
+    <script>
+      // Auto-resize textarea
+      function autoResize(textarea) {
+        textarea.style.height = "auto";
+        textarea.style.height = Math.min(textarea.scrollHeight, 128) + "px";
+      }
+
+      // Export chat functionality
+      function exportChat() {
+        const messages = document.querySelectorAll(".message");
+        let chatText = "AI Assistant Chat Export\n\n";
+
+        messages.forEach((message) => {
+          const isBot = message.classList.contains("bot-message");
+          const content = message.querySelector(".message-content").textContent;
+          chatText += `${isBot ? "AI" : "You"}: ${content}\n\n`;
+        });
+
+        const blob = new Blob([chatText], { type: "text/plain" });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = `chat-export-${
+          new Date().toISOString().split("T")[0]
+        }.txt`;
+        a.click();
+        URL.revokeObjectURL(url);
+      }
+    </script>
+  </body>
+</html>
