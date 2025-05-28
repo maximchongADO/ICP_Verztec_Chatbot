@@ -563,6 +563,8 @@ def chunk_and_index_text(text: str, base_name: str, faiss_index_path: str = None
     return global_db
 
 
+
+##RUN
 file_path = r"C:\Users\ethan\OneDrive\Desktop\ICP_Verztec_Chatbot-4\data\pdf\3_Offboarding Process on Clean Desk Policy_150125.pdf"
 result = process_single_file(file_path)
 
