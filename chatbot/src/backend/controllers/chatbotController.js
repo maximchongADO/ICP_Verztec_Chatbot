@@ -41,7 +41,7 @@ const processMessage = async (req, res) => {
         if (!message?.trim()) {
             return res.status(400).json({
                 success: false,
-                error: 'Message is required'
+                message: 'Message is required'
             });
         }
 
@@ -50,6 +50,10 @@ const processMessage = async (req, res) => {
 
         const response = await callPythonChatbot(message, userId, chatHistory);
         
+        if (!response || !response.message) {
+            throw new Error('Invalid response from Python chatbot');
+        }
+
         // Update session chat history
         if (!req.session.chatHistory) {
             req.session.chatHistory = [];
@@ -69,8 +73,8 @@ const processMessage = async (req, res) => {
         console.error('Error processing message:', error);
         res.status(500).json({
             success: false,
-            error: 'Internal server error',
-            message: 'Sorry, I encountered an error processing your request.'
+            message: 'Sorry, I encountered an error processing your request.',
+            error: error.message
         });
     }
 };
