@@ -287,17 +287,17 @@ function exportChat() {
 
 // Handle file upload (placeholder function)
 function handleFileUpload(event) {
-  const files = event.target.files;
-  if (files.length > 0) {
-    // Add your file upload logic here
-    console.log("Files selected:", files);
-    // For now, just show a message
-    addMessage(
-      `File(s) selected: ${Array.from(files)
-        .map((f) => f.name)
-        .join(", ")}`,
-      "bot"
-    );
+  const file = event.target.files[0]; // Only take the first file
+
+  if (file) {
+    console.log("File selected:", file);
+
+    addMessage(`File selected: ${file.name}`, "bot");
+
+    // Optional: Reset the input to allow re-upload of the same file later
+    event.target.value = null;
+  } else {
+    addMessage("No file selected.", "bot");
   }
 }
 
