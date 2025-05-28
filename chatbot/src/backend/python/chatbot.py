@@ -16,7 +16,8 @@ import os
 from langchain.memory import ConversationBufferMemory  # Updated import
 from langchain.chains import ConversationalRetrievalChain
 from langchain_core.output_parsers import StrOutputParser
-from langchain_community.embeddings import HuggingFaceEmbeddings  # Updated import
+from langchain.embeddings import HuggingFaceEmbeddings
+ # Updated import
 from langchain_community.vectorstores import FAISS
 import logging
 from datetime import datetime
@@ -26,7 +27,7 @@ app = FastAPI()
 # Update CORS middleware to allow all origins in development
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:8000", "http://localhost:4000", "http://127.0.0.1:8000"],
+    allow_origins=["http://localhost:3000"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
