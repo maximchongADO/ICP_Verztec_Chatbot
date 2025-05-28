@@ -83,19 +83,20 @@ async function callChatbotAPI(message) {
     });
 
     if (!response.ok) {
-      const errorText = await response.text();
-      console.error("API Error Response:", errorText);
       throw new Error(`HTTP error! status: ${response.status}`);
     }
 
-    const result = await response.json();
-    console.log("API Response:", result);
+    const data = await response.json();
+    console.log("API Response:", data);
 
-    if (!result.success) {
-      throw new Error(result.message || "Failed to get response from chatbot");
+    if (data && data.message) {
+      return {
+        success: true,
+        message: data.message
+      };
+    } else {
+      throw new Error("Invalid response format from chatbot");
     }
-
-    return result;
   } catch (error) {
     console.error("Chatbot API Error:", error);
     throw error;
@@ -203,7 +204,34 @@ function sendSuggestion(text) {
   }
 }
 
+// Update the speakMessage function
+function speakMessage(text) {
+  if (!text || !text.trim()) return;
+  
+  const avatar = document.getElementById('chatbotAvatar');
+  const avatarOpen = document.getElementById('avatarOpen');
+  
+  if (responsiveVoice && !isMuted) {
+    avatar.classList.add('speaking');
+    responsiveVoice.speak(text, "UK English Female", {
+      pitch: 1,
+      rate: 1,
+      onstart: () => {
+        avatar.classList.add('speaking');
+      },
+      onend: () => {
+        avatar.classList.remove('speaking');
+      }
+    });
+  }
+}
+
 function addMessage(text, sender) {
+  if (!text || !text.trim()) {
+    console.error("Empty message received");
+    return;
+  }
+
   const chatMessages = document.getElementById("chatMessages");
   const messageDiv = document.createElement("div");
 
@@ -222,12 +250,14 @@ function addMessage(text, sender) {
         ${escapeHtml(text)}
       </div>
     `;
+    
+    // Only trigger speech for bot messages after the message is added
+    setTimeout(() => speakMessage(text), 100);
   }
 
   chatMessages.appendChild(messageDiv);
   chatMessages.scrollTop = chatMessages.scrollHeight;
-
-  return messageDiv; // Return the element for potential removal
+  return messageDiv;
 }
 
 // Helper function to escape HTML to prevent XSS
@@ -328,3 +358,16 @@ window.addEventListener("resize", function () {
     }
   }
 });
+
+// Add mute toggle functionality
+let isMuted = false;
+
+function toggleMute() {
+  isMuted = !isMuted;
+  if (isMuted) {
+    responsiveVoice.cancel();
+    document.getElementById('chatbotAvatar').classList.add('muted');
+  } else {
+    document.getElementById('chatbotAvatar').classList.remove('muted');
+  }
+}
