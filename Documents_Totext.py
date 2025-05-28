@@ -426,146 +426,206 @@ def extract_text_and_images_from_docx_inline(file_path, image_output_dir, base_i
 
     
 
+# === Main function to process a single file ===
+def process_single_file(file_path, images_dir, cleaned_dir, vertztec_collection):
+    file_path = Path(file_path)
+    ext = file_path.suffix.lower()
+    base_filename = file_path.stem
+    cleaned_filename = clean_filename_for_embedding(base_filename).strip().replace("\n", "")
+    cleaned_text_path = cleaned_dir / (cleaned_filename + ".txt")
+    try:
+        os.makedirs(images_dir, exist_ok=True)
+        os.makedirs(cleaned_dir, exist_ok=True)
+        if ext == ".pdf":
+            text = process_pdf_with_images(file_path, images_dir, cleaned_filename)
+        elif ext == ".docx":
+            text = extract_inline_content(file_path, images_dir, base_image_name=cleaned_filename)
+        elif ext == ".doc":
+            text = extract_text_and_images_from_doc(file_path, images_dir, cleaned_filename)
+        elif ext == ".pptx":
+            text = extract_text_and_images_from_pptx(file_path, images_dir, cleaned_filename)
+        elif ext == ".txt":
+            with open(file_path, "r", encoding="utf-8") as f:
+                text = f.read()
+        else:
+            raise ValueError(f"Unsupported file type: {ext}")
+        # Clean text content
+        text = ftfy.fix_text(text)
+        text = re.sub(r'\s+', ' ', text).strip()
+        text = re.sub(r'\s*(\d+\.)', r'\n\1', text)
+        # Save cleaned text
+        with open(cleaned_text_path, "w", encoding="utf-8") as out_file:
+            out_file.write(text)
+        print(f"[INFO] Processed and saved: {cleaned_text_path}")
+        return {
+            "original_path": file_path,
+            "cleaned_text_path": cleaned_text_path,
+            "filename": base_filename,
+            "cleaned_filename": cleaned_filename,
+            "text_content": text,
+            "success": True,
+            "error": None,
+        }
+    except Exception as e:
+        print(f"[ERROR] Failed to process {file_path}: {e}")
+        return {
+            "original_path": file_path,
+            "cleaned_text_path": None,
+            "filename": base_filename,
+            "cleaned_filename": cleaned_filename,
+            "text_content": None,
+            "success": False,
+            "error": str(e),
+        }
 
-
-
-
-
+# 
 #PDF file cleaning 
-pdf_files = get_all_file_paths(pdf_dir)
-word_files= get_all_file_paths(docx_dir)
-pptx_files= get_all_file_paths(pptx_dir)
-print(f"[LOG] Number of pdf files  : {len(pdf_files)}")
-print(f"[LOG] Number of word files : {len(word_files)}")
-print(f"[LOG] Number of pptx files : {len(pptx_files)}")
+# pdf_files = get_all_file_paths(pdf_dir)
+# word_files= get_all_file_paths(docx_dir)
+# pptx_files= get_all_file_paths(pptx_dir)
+# print(f"[LOG] Number of pdf files  : {len(pdf_files)}")
+# print(f"[LOG] Number of word files : {len(word_files)}")
+# print(f"[LOG] Number of pptx files : {len(pptx_files)}")
 # Counters
-success_count = 0
-fail_count = 0
-print('[LOG] starting PDF files')
-for file_path in pdf_files:
+# success_count = 0
+# fail_count = 0
+# print('[LOG] starting PDF files')
+# for file_path in pdf_files:
    
     
     # Clean filename for embedding
-    cleaned_filename = clean_filename_for_embedding(file_path)
-    base_filename = os.path.splitext(os.path.basename(file_path))[0]
+    # cleaned_filename = clean_filename_for_embedding(file_path)
+    # base_filename = os.path.splitext(os.path.basename(file_path))[0]
 
     # Clean filename for both embedding and image naming
-    cleaned_filename = clean_filename_for_embedding(base_filename)
-    cleaned_filename = cleaned_filename.strip().replace("\n", "")
+    # cleaned_filename = clean_filename_for_embedding(base_filename)
+    # cleaned_filename = cleaned_filename.strip().replace("\n", "")
 
     # This is safe to use for image filenames
-    image_filename = cleaned_filename
+    # image_filename = cleaned_filename
 
 
     
     # Process the file (either PDF or DOCX)
-    text =process_pdf_with_images(file_path, images_dir, image_filename)
+    # text =process_pdf_with_images(file_path, images_dir, image_filename)
     
     # Apply text cleaning
-    text = ftfy.fix_text(text)  # Fix broken encoding from PDFs or DOCX
-    text = re.sub(r'\s+', ' ', text).strip()  # Remove extra line breaks and normalize spaces
-    text = re.sub(r'\s*(\d+\.)', r'\n\1', text)  # Clean up bullet numbers
+    # text = ftfy.fix_text(text)  # Fix broken encoding from PDFs or DOCX
+    # text = re.sub(r'\s+', ' ', text).strip()  # Remove extra line breaks and normalize spaces
+    # text = re.sub(r'\s*(\d+\.)', r'\n\1', text)  # Clean up bullet numbers
 
     # Output file path for saving cleaned content
-    file_address = cleaned_dir / (cleaned_filename + ".txt")
+    # file_address = cleaned_dir / (cleaned_filename + ".txt")
    
 
     # Write the extracted text into the cleaned text file
-    with open(file_address, "w", encoding="utf-8") as out:
-        out.write(text)
+    # with open(file_address, "w", encoding="utf-8") as out:
+        # out.write(text)
+    # 
+    # print(f"[INFO] Finished processing and saved to: {file_address}")
+
+
+# print('[LOG] starting WORD files')
+# for file_path in word_files:
+    # mime_type, _ = mimetypes.guess_type(file_path)
+    # ext = os.path.splitext(file_path)[-1].lower()
     
-    print(f"[INFO] Finished processing and saved to: {file_address}")
-
-
-print('[LOG] starting WORD files')
-for file_path in word_files:
-    mime_type, _ = mimetypes.guess_type(file_path)
-    ext = os.path.splitext(file_path)[-1].lower()
-    #print(file_path)
-    base_filename = os.path.basename(file_path)
-    #print(base_filename)
-    filename_without_ext = os.path.splitext(base_filename)[0]
-    #print(filename_without_ext)
+    # base_filename = os.path.basename(file_path)
+    
+    # filename_without_ext = os.path.splitext(base_filename)[0]
+    
 
     # Now fully clean the filename
-    modified_filename = clean_filename_for_embedding(filename_without_ext)
-    #print(modified_filename)
-    file_address = cleaned_dir / (modified_filename+ ".txt")
-    base_filename = os.path.splitext(os.path.basename(file_path))[0]
+    # modified_filename = clean_filename_for_embedding(filename_without_ext)
+    
+    # file_address = cleaned_dir / (modified_filename+ ".txt")
+    # base_filename = os.path.splitext(os.path.basename(file_path))[0]
 
     # Clean filename for both embedding and image naming
-    cleaned_filename = clean_filename_for_embedding(base_filename)
-    cleaned_filename = cleaned_filename.strip().replace("\n", "")
+    # cleaned_filename = clean_filename_for_embedding(base_filename)
+    # cleaned_filename = cleaned_filename.strip().replace("\n", "")
 
     # This is safe to use for image filenames
-    image_filename = cleaned_filename
-    #print (file_address)
-    #print(f"[DEBUG] base_filename = '{base_filename}'")
-    #print(f"[DEBUG] cleaned_filename = '{cleaned_filename}'")
-
-   
-    try:
-        if ext == '.docx':
-            
-            text=extract_inline_content(file_path,images_dir,base_image_name=cleaned_filename)
-           
-        elif ext == '.doc':
-            text = extract_text_and_images_from_doc(file_path, images_dir, image_filename)
-            #text=extract_inline_content(file_path)
-            
-        else:
-            print(f"[WARN] Skipped non-Word file: {file_path} (type: {mime_type})")
-            fail_count += 1
-            continue
-
+    # image_filename = cleaned_filename
+    # 
+    # print(f"[DEBUG] cleaned_filename = '{cleaned_filename}'")
+# 
+#    
+    # try:
+        # if ext == '.docx':
+            # 
+            # text=extract_inline_content(file_path,images_dir,base_image_name=cleaned_filename)
+        #    
+        # elif ext == '.doc':
+            # text = extract_text_and_images_from_doc(file_path, images_dir, image_filename)
+            # text=extract_inline_content(file_path)
+            # # 
+        # else:
+            # print(f"[WARN] Skipped non-Word file: {file_path} (type: {mime_type})")
+            # fail_count += 1
+            # continue
+# 
         #print(f"--- Content from {os.path.basename(file_path)} ---")
         
-        out = open(file_address, "wb") # create a text output
-        
-        out.write(text.encode("utf8")) # write text of page encoded in utf-8
-        
-        out.write(bytes((12,))) # write page delimiter (form feed 0x0C)
-        out.close()
-    
-        
-      
-        success_count += 1
-        print(f"[INFO] Finished processing and saved to: {file_address}")
+        # out = open(file_address, "wb") # create a text output
+        # 
+        # out.write(text.encode("utf8")) # write text of page encoded in utf-8
+        # 
+        # out.write(bytes((12,))) # write page delimiter (form feed 0x0C)
+        # out.close()
+    # 
+        # 
+    #   
+        # success_count += 1
+        # print(f"[INFO] Finished processing and saved to: {file_address}")
+# 
+    # except Exception as e:
+        # print(f"[WARN] Failed to extract from {file_path}: {e}")
+        # fail_count += 1
+        # 
+# 
+# print('[LOG] starting PPTX files')
+# for file_path in pptx_files:
+    # mime_type, _ = mimetypes.guess_type(file_path)
+    # ext = os.path.splitext(file_path)[-1].lower()
+    # base_filename = os.path.basename(file_path)
+    # filename_without_ext = os.path.splitext(base_filename)[0]
+# 
+    # modified_filename = clean_filename_for_embedding(filename_without_ext)
+    # file_address = cleaned_dir / (modified_filename + ".txt")
+# 
+    # try:
+        # if ext == '.pptx':
+            # text = extract_text_and_images_from_pptx(file_path, images_dir, modified_filename)
+        # else:
+            # print(f"[WARN] Skipped non-PPTX file: {file_path} (type: {mime_type})")
+            # fail_count += 1
+            # continue
+# 
+        # with open(file_address, "wb") as out:
+            # out.write(text.encode("utf8"))
+            # out.write(bytes((12,)))  # Optional delimiter
+# 
+        # success_count += 1
+        # print(f"[INFO] Finished processing and saved to: {file_address}")
+# 
+    # except Exception as e:
+        # print(f"[WARN] Failed to extract from {file_path}: {e}")
+        # fail_count += 1
+# 
+# print(f'[LOG] FAIL COUNT:{fail_count}')
+# 
 
-    except Exception as e:
-        print(f"[WARN] Failed to extract from {file_path}: {e}")
-        fail_count += 1
-        
-
-print('[LOG] starting PPTX files')
-for file_path in pptx_files:
-    mime_type, _ = mimetypes.guess_type(file_path)
-    ext = os.path.splitext(file_path)[-1].lower()
-    base_filename = os.path.basename(file_path)
-    filename_without_ext = os.path.splitext(base_filename)[0]
-
-    modified_filename = clean_filename_for_embedding(filename_without_ext)
-    file_address = cleaned_dir / (modified_filename + ".txt")
-
-    try:
-        if ext == '.pptx':
-            text = extract_text_and_images_from_pptx(file_path, images_dir, modified_filename)
-        else:
-            print(f"[WARN] Skipped non-PPTX file: {file_path} (type: {mime_type})")
-            fail_count += 1
-            continue
-
-        with open(file_address, "wb") as out:
-            out.write(text.encode("utf8"))
-            out.write(bytes((12,)))  # Optional delimiter
-
-        success_count += 1
-        print(f"[INFO] Finished processing and saved to: {file_address}")
-
-    except Exception as e:
-        print(f"[WARN] Failed to extract from {file_path}: {e}")
-        fail_count += 1
-
-print(f'[LOG] FAIL COUNT:{fail_count}')
 
 
+
+
+# === Example usage ===
+if __name__ == "__main__":
+    file_to_process = r"C:\Users\ethan\OneDrive\Desktop\ICP_Verztec_Chatbot-4\data\pdf\3_Offboarding Process on Clean Desk Policy_150125.pdf"
+    result = process_single_file(file_to_process, images_dir, cleaned_dir, vertztec_collection)
+    if result["success"]:
+        print(f"Successfully processed '{result['filename']}'")
+        print(f"Cleaned text saved at: {result['cleaned_text_path']}")
+    else:
+        print(f"Failed to process '{result['filename']}': {result['error']}")
