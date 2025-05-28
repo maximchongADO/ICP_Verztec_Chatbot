@@ -16,7 +16,8 @@ import os
 from langchain.memory import ConversationBufferMemory  # Updated import
 from langchain.chains import ConversationalRetrievalChain
 from langchain_core.output_parsers import StrOutputParser
-from langchain_huggingface import HuggingFaceEmbeddings  # Updated import
+from langchain.embeddings import HuggingFaceEmbeddings
+ # Updated import
 from langchain_community.vectorstores import FAISS
 import logging
 from datetime import datetime
