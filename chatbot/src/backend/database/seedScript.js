@@ -53,7 +53,7 @@ const createTablesSQL = {
       username VARCHAR(40) NOT NULL,
       email VARCHAR(50) NOT NULL UNIQUE,
       password VARCHAR(100) NOT NULL,
-      role ENUM('student', 'admin') NOT NULL,
+      role ENUM('user', 'admin','manager') NOT NULL,
       PRIMARY KEY (id)
     )`
   };
@@ -140,7 +140,7 @@ async function insertInitialData(connection) {
       INSERT INTO Users (username, email, password, role) 
       VALUES (?, ?, ?, ?)`;
     
-    await connection.execute(insertSQL, ['Toby', 'toby@gmail.com', hashedPassword1, 'student']);
+    await connection.execute(insertSQL, ['Toby', 'toby@gmail.com', hashedPassword1, 'user']);
     await connection.execute(insertSQL, ['Maxim', 'maxim@gmail.com', hashedPassword2, 'admin']);
     console.log('Users inserted successfully');
     
