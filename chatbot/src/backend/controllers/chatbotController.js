@@ -6,7 +6,7 @@ const callPythonChatbot = async (message, userId = null, chatHistory = []) => {
     try {
         console.log('Calling Python chatbot with:', { message, userId, chatHistory });
         
-        const response = await fetch(`${PYTHON_CHATBOT_URL}/chat`, {
+        const response = await fetch(`${PYTHON_CHATBOT_URL}/chatbot`, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
