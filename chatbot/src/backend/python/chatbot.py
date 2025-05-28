@@ -92,8 +92,7 @@ async def global_exception_handler(request: Request, exc: Exception):
 # Load FAISS index and metadata on startup
 try:
     script_dir = os.path.dirname(os.path.abspath(__file__))
-    chatbot_root = os.path.abspath(os.path.join(script_dir, '..','..', '..', '..'))
-    faiss_index_path = os.path.join(chatbot_root, "faiss_index3")
+    faiss_index_path = os.path.join(script_dir, "faiss_index3")
     
     if not os.path.exists(faiss_index_path):
         raise FileNotFoundError(f"FAISS index not found at {faiss_index_path}")
