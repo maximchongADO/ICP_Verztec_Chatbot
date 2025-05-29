@@ -15,6 +15,9 @@ from chatbot import (
     index
 )
 from fileUpload import process_upload
+from fastapi.staticfiles import StaticFiles
+app = FastAPI()
+app.mount("/images", StaticFiles(directory="data/images"), name="images")
 
 app = FastAPI()
 
@@ -40,6 +43,7 @@ class ChatResponse(BaseModel):
     timestamp: str
     success: bool
     error: Optional[str] = None
+    images: Optional[List[str]] = None  # Add images field
 
 @app.exception_handler(Exception)
 async def global_exception_handler(request: Request, exc: Exception):
@@ -78,14 +82,15 @@ async def chat_endpoint(request: ChatRequest):
         if index is None:
             raise HTTPException(status_code=503, detail="Search index is not available")
         
-        response_message = generate_answer(request.message, memory)
+        response_message, image_list = generate_answer(request.message, memory)
         logger.info(f"Generated response: {response_message}")
         
         return ChatResponse(
             message=response_message,
             user_id=request.user_id,
             timestamp=datetime.utcnow().isoformat(),
-            success=True
+            success=True,
+            images=image_list
         )
         
     except Exception as e:

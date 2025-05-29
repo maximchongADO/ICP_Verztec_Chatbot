@@ -249,6 +249,15 @@ def clean_with_grammar_model(user_query: str) -> str:
     outputs = model.generate(inputs, max_length=128, num_beams=5, early_stopping=True)
     corrected = tokenizer.decode(outputs[0], skip_special_tokens=True)
     return corrected
+def clean_with_grammar_model(user_query: str) -> str:
+    """
+    Uses a GEC-tuned model to clean up grammar, spelling, and clarity issues from user input.
+    """
+    input_text = f"gec: {user_query}"  # GEC = Grammar Error Correction instruction
+    inputs = tokenizer.encode(input_text, return_tensors="pt", max_length=128, truncation=True)
+    outputs = model.generate(inputs, max_length=128, num_beams=5, early_stopping=True)
+    corrected = tokenizer.decode(outputs[0], skip_special_tokens=True)
+    return user_query
 
 ## clean query and ensure it is suitable for processing
 def refine_prompt(user_query: str) -> str:
@@ -301,7 +310,10 @@ def get_avg_score(index, embedding_model, query, k=10):
 AVG_SCORE_THRESHOLD = 0.967
 
 
-def generate_answer(user_query: str, chat_history: ConversationBufferMemory) -> str:
+def generate_answer(user_query: str, chat_history: ConversationBufferMemory):
+    """
+    Returns a tuple: (answer_text, image_list)
+    """
     try:
         parser = StrOutputParser()
         
@@ -346,10 +358,15 @@ def generate_answer(user_query: str, chat_history: ConversationBufferMemory) -> 
         avg_score = float(np.mean(scores)) if scores else 1.0
         
         ## retrieving images from top 3 chunks (if any)
-        top_3_img=[]
+        # Retrieve images from top 3 chunks (if any)
+        top_3_img = []
         for i, (doc, score) in enumerate(results, 1):
             if len(top_3_img) < 3:
-                top_3_img.append(doc.metadata['images'])
+                images = doc.metadata.get('images', None)
+                if images:
+                    top_3_img.extend(images)  # Ensures a flat list of strings
+        top_3_img = list(set(top_3_img))  # Remove duplicates
+        logger.info(f"Top 3 images: {top_3_img}")
 
 
        
@@ -387,7 +404,7 @@ def generate_answer(user_query: str, chat_history: ConversationBufferMemory) -> 
             # Remove <think> block if present
             think_block_pattern = re.compile(r"<think>.*?</think>", flags=re.DOTALL)
             cleaned_fallback = think_block_pattern.sub("", raw_fallback).strip()
-            return cleaned_fallback
+            return cleaned_fallback, top_3_img
         logger.info("QA chain activated for query processing.")
         # Step 4: Prepare full prompt and return LLM output
         modified_query = "You are a  HELPFUL AND NICE verztec helpdesk assistant. You will only use the provided documents in your response. If the query is out of scope, say so.\n\n" + clean_query
@@ -423,6 +440,6 @@ def generate_answer(user_query: str, chat_history: ConversationBufferMemory) -> 
         # Remove all block tags
         cleaned_answer = block_tag_pattern.sub("", raw_answer).strip()
         
-        return cleaned_answer
+        return cleaned_answer, top_3_img
     except Exception as e:
-        return f"I encountered an error while processing your request: {str(e)}"
+        return f"I encountered an error while processing your request: {str(e)}", []

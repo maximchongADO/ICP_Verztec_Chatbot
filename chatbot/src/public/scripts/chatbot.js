@@ -42,7 +42,7 @@ function sendMessage() {
 
       // Add bot response
       if (response && response.message) {
-        addMessage(response.message, "bot");
+        addMessage(response, "bot"); // Pass the whole response object
       } else {
         addMessage("Sorry, I received an invalid response. Please try again.", "bot");
       }
@@ -226,7 +226,25 @@ function speakMessage(text) {
   }
 }
 
-function addMessage(text, sender) {
+function addMessage(textOrResponse, sender) {
+  let text = textOrResponse;
+  let images = [];
+
+  // If an object with a 'message' property is passed, extract the message and images
+  if (typeof textOrResponse === "object" && textOrResponse !== null && "message" in textOrResponse) {
+    text = textOrResponse.message;
+    images = textOrResponse.images || [];
+    if (Array.isArray(images) && images.length > 0) {
+      console.log("AI response images:", images.map(src => {
+        try {
+          return src.split('/').pop();
+        } catch {
+          return src;
+        }
+      }));
+    }
+  }
+
   if (!text || !text.trim()) {
     console.error("Empty message received");
     return;
@@ -244,13 +262,25 @@ function addMessage(text, sender) {
     `;
   } else {
     messageDiv.className = "message message-ai";
+    let imagesHtml = "";
+    if (Array.isArray(images) && images.length > 0) {
+      // Only print the image names (filenames) as a list
+      imagesHtml = `<div class="ai-message-images">` +
+      images.map(src => {
+        const filename = escapeHtml(src.split('/').pop() || src);
+        return `<img src="/data/images/${filename}" alt="${filename}" class="chat-image" />`;
+      }).join("") +
+      `</div>`;
+
+      console.log("AI response images:", images.map(src => src.split('/').pop() || src));
+    }
     messageDiv.innerHTML = `
       <div class="ai-message-avatar">AI</div>
       <div class="message-content ai-message">
         ${escapeHtml(text)}
+        ${imagesHtml}
       </div>
     `;
-    
     // Only trigger speech for bot messages after the message is added
     setTimeout(() => speakMessage(text), 100);
   }

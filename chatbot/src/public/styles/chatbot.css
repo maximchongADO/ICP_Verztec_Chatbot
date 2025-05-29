@@ -172,6 +172,7 @@ body {
 /* Messages */
 .message {
   margin-bottom: 25px;
+  margin-top: 0px;
   animation: fadeInUp 0.4s ease-out;
 }
 
@@ -200,11 +201,13 @@ body {
 
 .message-content {
   max-width: 75%;
-  padding: 16px 20px;
+  padding: 10px 15px;
   border-radius: 18px;
   font-size: 15px;
   line-height: 1.5;
-  word-wrap: break-word;
+  overflow-wrap: break-word;
+  white-space: pre-line;
+
 }
 
 .user-message {
