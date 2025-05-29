@@ -15,6 +15,12 @@ from langchain_core.output_parsers import StrOutputParser
 from langchain.embeddings import HuggingFaceEmbeddings
 from langchain_community.vectorstores import FAISS
 import logging
+#from better_profanity import profanity
+import spacy
+from spacy.matcher import PhraseMatcher
+
+
+from transformers import AutoModelForSeq2SeqLM, AutoTokenizer
 
 # Set up logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -25,8 +31,8 @@ embedding_model = SentenceTransformer('BAAI/bge-large-en-v1.5')
 api_key = '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'
 model_name = "compound-beta"
 model = "deepseek-r1-distill-llama-70b" 
-deepseek = ChatGroq(api_key=api_key, model=model)
-compound = ChatGroq(api_key=api_key, model=model_name)
+deepseek = ChatGroq(api_key=api_key, model=model) # type: ignore
+compound = ChatGroq(api_key=api_key, model=model_name) # type: ignore
 
 # Initialize memory
 memory = ConversationBufferMemory(
@@ -68,8 +74,11 @@ try:
     casual_phrases = ["hi", "hello", "thanks", "thank you", "good morning", "goodbye", "hey", "yo", "sup"]
     matcher = PhraseMatcher(nlp.vocab, attr="LOWER")
     patterns = [nlp.make_doc(text) for text in casual_phrases]
+    tokenizer = AutoTokenizer.from_pretrained("prithivida/grammar_error_correcter_v1")
+    model = AutoModelForSeq2SeqLM.from_pretrained("prithivida/grammar_error_correcter_v1")
     matcher.add("CASUAL", patterns)
     logger.info("SpaCy model and matcher initialized successfully")
+    
 except Exception as e:
     logger.error(f"Failed to load spacymodel:  {str(e)}", exc_info=True)
     
@@ -116,15 +125,131 @@ def is_query(text: str) -> bool:
         return False
 
 
-profanity.load_censor_words()
+def is_query(text: str) -> bool:
+    try:
+        # Normalize text
+        normalized = text.lower().strip()
+        normalized = re.sub(r'[^\w\s]', '', normalized)  # remove punctuation
 
-def is_profane(text: str) -> bool:
-    return profanity.contains_profanity(text)
+        # 1. Refusal or non-query phrases (LLM-like outputs or conversational redirections)
+        refusal_phrases = [
+            "i won't engage", "i will not engage", "not a question", "this isn't a question",
+            "is there something else", "can i help you with something else", "i'm unable to answer",
+            "i cannot help with that", "i'm sorry", "as an ai", "i do not understand",
+            "this is unclear", "this seems incomplete", "please clarify", "please rephrase",
+            "i don't have an answer", "i cannot provide", "that's outside my scope",
+            "no comment", "n/a", "not applicable", "i'm just an ai", "not relevant"
+        ]
+        if any(phrase in normalized for phrase in refusal_phrases):
+            return False
+
+        # 2. Casual conversational small talk — not queries
+        casual_talk = [
+            "how are you", "what's up", "good morning", "hello", "hi", "are you there", "thanks", "okay"
+        ]
+        if normalized in casual_talk:
+            return False
+
+        # 3. If it ends with a question mark, it’s *very likely* a question
+        if text.strip().endswith("?"):
+            return True
+
+        # 4. Use spaCy parsing to find question intent
+        doc = nlp(text)
+
+        # Question starters like: what, how, why, where...
+        question_words = {"what", "why", "who", "where", "when", "how", "which", "whom"}
+        if any(token.lower_ in question_words for token in doc):
+            return True
+
+        # Imperative: "Tell me", "Explain", "Show me", etc.
+        imperative_verbs = {"tell", "explain", "show", "list", "describe", "give", "find", "fetch"}
+        if any(token.lemma_ in imperative_verbs and token.pos_ == "VERB" for token in doc):
+            return True
+
+        # Auxiliary verbs indicating a query
+        query_aux_verbs = {"can", "could", "would", "do", "does", "did", "is", "are", "will", "should"}
+        if any(token.lemma_ in query_aux_verbs and token.tag_ in {"MD", "VB", "VBP", "VBZ"} for token in doc):
+            return True
+
+        # Heuristic fallback: is it short and not informative?
+        if len(normalized.split()) <= 2:
+            return False
+
+        return False
+
+    except Exception as e:
+        print(f"[Error in is_query]: {e}")
+        return False
+def is_query_score(text: str) -> float:
+    try:
+        score = 0.0
+        normalized = text.lower().strip()
+        normalized = re.sub(r'[^\w\s]', '', normalized)
+
+        # 1. Refusal or AI-like responses (strong negative)
+        refusal_phrases = [
+            "i won't engage", "i will not engage", "not a question", "this isn't a question",
+            "is there something else", "can i help you with something else", "i'm unable to answer",
+            "i cannot help with that", "i'm sorry", "as an ai", "i do not understand",
+            "this is unclear", "this seems incomplete", "please clarify", "please rephrase",
+            "i don't have an answer", "i cannot provide", "that's outside my scope",
+            "no comment", "n/a", "not applicable", "i'm just an ai", "not relevant"
+        ]
+        if any(phrase in normalized for phrase in refusal_phrases):
+            return 0.0  # Immediate disqualifier
+
+        # 2. Casual phrases (low query likelihood)
+        casual_talk = [
+            "how are you", "what's up", "good morning", "hello", "hi", "are you there", "thanks", "okay"
+        ]
+        if normalized in casual_talk:
+            score += 0.1
+
+        # 3. Ends with a question mark (strong signal)
+        if text.strip().endswith("?"):
+            score += 0.4
+
+        # 4. Use spaCy to analyze structure
+        doc = nlp(text)
+
+        question_words = {"what", "why", "who", "where", "when", "how", "which", "whom"}
+        if any(token.lower_ in question_words for token in doc):
+            score += 0.3
+
+        imperative_verbs = {"tell", "explain", "show", "list", "describe", "give", "find", "fetch"}
+        if any(token.lemma_ in imperative_verbs and token.pos_ == "VERB" for token in doc):
+            score += 0.2
+
+        query_aux_verbs = {"can", "could", "would", "do", "does", "did", "is", "are", "will", "should"}
+        if any(token.lemma_ in query_aux_verbs and token.tag_ in {"MD", "VB", "VBP", "VBZ"} for token in doc):
+            score += 0.2
+
+        # Slight penalty if it's too short
+        if len(normalized.split()) <= 2:
+            score -= 0.2
+
+        # Clamp between 0 and 1
+        return max(0.0, min(score, 1.0))
+
+    except Exception as e:
+        print(f"[Error in is_query_score]: {e}")
+        return 0.0
+
+
+
+
+def clean_with_grammar_model(user_query: str) -> str:
+    input_text = f"gec: {user_query}"
+    inputs = tokenizer.encode(input_text, return_tensors="pt", max_length=128, truncation=True)
+    outputs = model.generate(inputs, max_length=128, num_beams=5, early_stopping=True)
+    corrected = tokenizer.decode(outputs[0], skip_special_tokens=True)
+    return corrected
 
 ## clean query and ensure it is suitable for processing
 def refine_prompt(user_query: str) -> str:
-    is_profane_query = is_profane(user_query)
-    logger.info(f"Is Profane: {is_profane_query}")
+    #is_profane_query = is_profane(user_query)
+    #logger.info(f"Is Profane: {is_profane_query}")
     logger.info(f"User Query: {user_query}")
     is_casual = is_query(user_query)
     logger.info(f"Is Question: {is_casual}")
@@ -134,8 +259,10 @@ def refine_prompt(user_query: str) -> str:
         f"Input:\n{user_query}"
     )
     messages = [HumanMessage(content=prompt2)]
-    response = compound.generate([messages])
-    refined_query = response.generations[0][0].text.strip()
+    #response = compound.generate([messages]) # type: ignore
+    
+    #refined_query = response.generations[0][0].text.strip()
+    refined_query = clean_with_grammar_model(user_query)
     logger.info(f"User Query cleaned: {refined_query}")
 
     # Safety net
@@ -167,29 +294,7 @@ def get_avg_score(index, embedding_model, query, k=10):
     return avg_score
 
 
-AVG_SCORE_THRESHOLD = 0.98
-
-
-class CustomPromptRetriever(VectorStoreRetriever):
-    def __init__(self, base_retriever, modify_query_fn):
-        self.base_retriever = base_retriever
-        self.modify_query_fn = modify_query_fn
-
-    def get_relevant_documents(self, query: str):
-        modified = self.modify_query_fn(query)
-        return self.base_retriever.get_relevant_documents(modified)
-
-    async def aget_relevant_documents(self, query: str):
-        modified = self.modify_query_fn(query)
-        return await self.base_retriever.aget_relevant_documents(modified)
-def simplify_for_retrieval(query: str) -> str:
-    # Example: strip out casual or irrelevant context
-    query = query.lower().strip()
-    if "please" in query:
-        query = query.replace("please", "")
-    if query.endswith("?"):
-        query = query[:-1]
-    return query
+AVG_SCORE_THRESHOLD = 0.967
 
 
 def generate_answer(user_query: str, chat_history: ConversationBufferMemory) -> str:
@@ -218,6 +323,7 @@ def generate_answer(user_query: str, chat_history: ConversationBufferMemory) -> 
             return_source_documents=True,
             output_key="answer"
         )
+        logger.info(memory)
         
       
 
@@ -242,21 +348,13 @@ def generate_answer(user_query: str, chat_history: ConversationBufferMemory) -> 
                 top_3_img.append(doc.metadata['images'])
 
 
-        if avg_score > 2.5:
-            fallback = (
-                f"The user's question is likely unrelated to internal company topics.\n"
-                f"Query: {clean_query}\n"
-                f"Please advise the user that this query is out of scope."
-            )
-            messages = [HumanMessage(content=fallback)]
-            response = deepseek.generate([messages])
-            return response.generations[0][0].text.strip()
+       
         is_task_query = is_query(user_query)
         
         logger.info(f"Clean Query at qa chain: {clean_query}")
-        if not is_task_query and avg_score >= AVG_SCORE_THRESHOLD:
+        if is_task_query<0.4 and avg_score >= AVG_SCORE_THRESHOLD:
             logger.info("Bypassing QA chain for non-query with weak retrieval.")
-            fallback_prompt = f"The user said: \"{clean_query}\". Respond appropriately as a polite assistant."
+            fallback_prompt = f"The user said: \"{clean_query}\". Respond appropriately as a polite VERZTEC assustant, without"
             messages = [HumanMessage(content=fallback_prompt)]
             response = deepseek.generate([messages])
             raw_fallback = response.generations[0][0].text.strip()
@@ -265,9 +363,11 @@ def generate_answer(user_query: str, chat_history: ConversationBufferMemory) -> 
             think_block_pattern = re.compile(r"<think>.*?</think>", flags=re.DOTALL)
             cleaned_fallback = think_block_pattern.sub("", raw_fallback).strip()
             return cleaned_fallback
-
+        logger.info("QA chain activated for query processing.")
         # Step 4: Prepare full prompt and return LLM output
-        response = qa_chain.invoke({"question": clean_query})
+        modified_query = "You are a verztec helpdesk assistant. You will only use the provided documents in your response. If the query is out of scope, say so.\n\n" + clean_query
+        response = qa_chain.invoke({"question": modified_query})
+        #response = qa_chain.invoke({"question": clean_query})
         raw_answer = response['answer']
         logger.info(f"Full response before cleanup: {raw_answer}")
 
@@ -288,6 +388,15 @@ def generate_answer(user_query: str, chat_history: ConversationBufferMemory) -> 
             cleaned_answer = think_block_pattern.sub("", raw_answer_retry).strip()
         else:
             logger.info("Full <think> block found and removed successfully")
+        block_tag_pattern = re.compile(r"<([a-zA-Z0-9_]+)>.*?</\1>", flags=re.DOTALL)
+
+        # Check if there are any block tags at all
+        has_any_block_tag = bool(block_tag_pattern.search(raw_answer))
+        if has_any_block_tag:
+            logger.info("Block tags found in response, cleaning them up")
+
+        # Remove all block tags
+        cleaned_answer = block_tag_pattern.sub("", raw_answer).strip()
         
         return cleaned_answer
     except Exception as e:
