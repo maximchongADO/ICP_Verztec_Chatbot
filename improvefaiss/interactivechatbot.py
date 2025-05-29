@@ -373,9 +373,9 @@ if __name__ == "__main__":
     faiss_meta_path = "faiss_local_BAAI_meta.json"
     #index, metadata = load_faiss_and_metadata(faiss_index_path, faiss_meta_path)
     embedding_model2 = HuggingFaceEmbeddings(
-    model_name="BAAI/bge-large-en-v1.5",
-    encode_kwargs={'normalize_embeddings': True}
-    )
+        model_name="BAAI/bge-large-en-v1.5",
+        encode_kwargs={'normalize_embeddings': True}
+        )
     global_db = FAISS.load_local(
         "faiss_index3",
         embedding_model2,
