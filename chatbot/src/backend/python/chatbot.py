@@ -74,8 +74,8 @@ try:
     casual_phrases = ["hi", "hello", "thanks", "thank you", "good morning", "goodbye", "hey", "yo", "sup"]
     matcher = PhraseMatcher(nlp.vocab, attr="LOWER")
     patterns = [nlp.make_doc(text) for text in casual_phrases]
-    tokenizer = AutoTokenizer.from_pretrained("prithivida/grammar_error_correcter_v1")
-    model = AutoModelForSeq2SeqLM.from_pretrained("prithivida/grammar_error_correcter_v1")
+    tokenizer = AutoTokenizer.from_pretrained("pszemraj/flan-t5-large-grammar-synthesis")
+    model = AutoModelForSeq2SeqLM.from_pretrained("pszemraj/flan-t5-large-grammar-synthesis")
     matcher.add("CASUAL", patterns)
     logger.info("SpaCy model and matcher initialized successfully")
     
@@ -182,55 +182,59 @@ def is_query(text: str) -> bool:
         print(f"[Error in is_query]: {e}")
         return False
 def is_query_score(text: str) -> float:
+    """
+    Returns a score:
+        1.0 = Strong task query
+        0.5 = Possibly a question, but ambiguous
+        0.0 = Casual chatter or not a valid query
+    """
     try:
-        score = 0.0
         normalized = text.lower().strip()
         normalized = re.sub(r'[^\w\s]', '', normalized)
 
-        # 1. Refusal or AI-like responses (strong negative)
+        # 1. AI-like or filler responses
         refusal_phrases = [
-            "i won't engage", "i will not engage", "not a question", "this isn't a question",
-            "is there something else", "can i help you with something else", "i'm unable to answer",
-            "i cannot help with that", "i'm sorry", "as an ai", "i do not understand",
-            "this is unclear", "this seems incomplete", "please clarify", "please rephrase",
-            "i don't have an answer", "i cannot provide", "that's outside my scope",
-            "no comment", "n/a", "not applicable", "i'm just an ai", "not relevant"
+            "i'm sorry", "as an ai", "i cannot answer", "i do not understand", "outside my scope",
+            "not a question", "not relevant", "i cannot help", "please clarify", "not applicable"
         ]
         if any(phrase in normalized for phrase in refusal_phrases):
-            return 0.0  # Immediate disqualifier
+            return 0.0
 
-        # 2. Casual phrases (low query likelihood)
-        casual_talk = [
-            "how are you", "what's up", "good morning", "hello", "hi", "are you there", "thanks", "okay"
-        ]
-        if normalized in casual_talk:
-            score += 0.1
+        # 2. Casual or conversational messages
+        casual_phrases = {
+            "hi", "hello", "hey", "how are you", "whats up", "thanks", "thank you",
+            "good morning", "good evening", "ok", "okay", "yo", "sup"
+        }
+        if normalized in casual_phrases:
+            return 0.0
 
-        # 3. Ends with a question mark (strong signal)
+        # 3. Explicit question mark = strong signal
         if text.strip().endswith("?"):
-            score += 0.4
+            return 1.0
 
-        # 4. Use spaCy to analyze structure
+        # 4. Use spaCy to analyze query structure
         doc = nlp(text)
 
+        # WH- question words
         question_words = {"what", "why", "who", "where", "when", "how", "which", "whom"}
         if any(token.lower_ in question_words for token in doc):
-            score += 0.3
+            return 1.0
 
-        imperative_verbs = {"tell", "explain", "show", "list", "describe", "give", "find", "fetch"}
-        if any(token.lemma_ in imperative_verbs and token.pos_ == "VERB" for token in doc):
-            score += 0.2
+        # Task verbs: imperative or command style (e.g. "List the steps to...")
+        task_verbs = {"tell", "explain", "show", "list", "describe", "give", "find", "fetch", "upload", "reset"}
+        if any(token.lemma_ in task_verbs and token.pos_ == "VERB" for token in doc):
+            return 1.0
 
-        query_aux_verbs = {"can", "could", "would", "do", "does", "did", "is", "are", "will", "should"}
-        if any(token.lemma_ in query_aux_verbs and token.tag_ in {"MD", "VB", "VBP", "VBZ"} for token in doc):
-            score += 0.2
+        # Modal auxiliaries suggesting a request
+        aux_verbs = {"can", "could", "would", "should", "will", "do", "does", "did"}
+        if any(token.lower_ in aux_verbs for token in doc):
+            return 0.9
 
-        # Slight penalty if it's too short
-        if len(normalized.split()) <= 2:
-            score -= 0.2
+        # Default fallback if it looks like a statement but unclear intent
+        if len(normalized.split()) >= 4:
+            return 0.5
 
-        # Clamp between 0 and 1
-        return max(0.0, min(score, 1.0))
+        return 0.0  # too short or vague
 
     except Exception as e:
         print(f"[Error in is_query_score]: {e}")
@@ -270,7 +274,7 @@ def refine_prompt(user_query: str) -> str:
     isquery = is_query(refined_query)
     logger.warning(f'New query is a question: {isquery}')
     if not isquery:
-        refined_query = user_query
+        #refined_query = user_query
         logger.warning(f"Refined query was not a valid question, reverting to original: {refined_query}")
     
     
@@ -349,12 +353,33 @@ def generate_answer(user_query: str, chat_history: ConversationBufferMemory) -> 
 
 
        
-        is_task_query = is_query(user_query)
+        is_task_query = is_query_score(user_query)
+        logger.info(f"Query Score: {is_task_query}")
+        logger.info(f"Average Score: {avg_score}")
+        
+        soft_threshold = 0.7
+        SOFT_QUERY_THRESHOLD = 0.5
+        STRICT_QUERY_THRESHOLD = 0.2
+        HARD_AVG_SCORE_THRESHOLD = 1.05
+        
         
         logger.info(f"Clean Query at qa chain: {clean_query}")
-        if is_task_query<0.4 and avg_score >= AVG_SCORE_THRESHOLD:
+        if (
+            (is_task_query < SOFT_QUERY_THRESHOLD and avg_score >= soft_threshold) or
+            avg_score >= HARD_AVG_SCORE_THRESHOLD or
+            is_task_query < STRICT_QUERY_THRESHOLD
+        ):
             logger.info("Bypassing QA chain for non-query with weak retrieval.")
-            fallback_prompt = f"The user said: \"{clean_query}\". Respond appropriately as a polite VERZTEC assustant, without"
+            fallback_prompt = f"The user said, this query is out of scope: \"{clean_query}\". Respond appropriately as a POLITELY VERZTEC assistant, and ask how else you can help"
+            fallback_prompt = (
+                f'The user said: "{clean_query}". '
+                'As a helpful and friendly Verztec helpdesk assistant, respond with a light-hearted or polite reply — '
+                'even if the message is small talk or out of scope (e.g., "how are you", "do you like pizza"). '
+                'Keep it human and warm (e.g., "I’m doing great, thanks for asking!"), then ***gently guide the user back to Verztec-related helpdesk topics***.'
+            )
+
+            #modified_query = "You are a verztec helpdesk assistant. You will only use the provided documents in your response. If the query is out of scope, say so.\n\n" + clean_query
+            #messages = [HumanMessage(content=fallback_prompt)]
             messages = [HumanMessage(content=fallback_prompt)]
             response = deepseek.generate([messages])
             raw_fallback = response.generations[0][0].text.strip()
@@ -365,7 +390,7 @@ def generate_answer(user_query: str, chat_history: ConversationBufferMemory) -> 
             return cleaned_fallback
         logger.info("QA chain activated for query processing.")
         # Step 4: Prepare full prompt and return LLM output
-        modified_query = "You are a verztec helpdesk assistant. You will only use the provided documents in your response. If the query is out of scope, say so.\n\n" + clean_query
+        modified_query = "You are a  HELPFUL AND NICE verztec helpdesk assistant. You will only use the provided documents in your response. If the query is out of scope, say so.\n\n" + clean_query
         response = qa_chain.invoke({"question": modified_query})
         #response = qa_chain.invoke({"question": clean_query})
         raw_answer = response['answer']
