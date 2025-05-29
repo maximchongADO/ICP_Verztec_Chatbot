@@ -25,66 +25,6 @@ function cancelSpeech() {
     avatar.classList.remove('speaking');
     avatarOpen.classList.add('avatar-hidden');
 }
-function sendMessage() {
-  const input = document.getElementById("messageInput");
-  const message = input.value.trim();
-
-  if (!message) return;
-
-  // Clear welcome message on first message
-  clearWelcomeContent();
-
-  // Disable send button
-  const sendButton = document.getElementById("sendButton");
-  sendButton.disabled = true;
-
-  // Add user message to chat
-  addMessage(message, "user");
-
-  // Clear input and reset height
-  input.value = "";
-  input.style.height = "auto";
-
-  // Show typing indicator
-  showTypingIndicator();
-
-  // Call chatbot API
-  callChatbotAPI(message)
-    .then((response) => {
-      // Remove typing indicator
-      hideTypingIndicator();
-
-      // Add bot response
-      if (response) {
-        addMessage(response.message, "bot"); 
-        if (Array.isArray(response.images) && response.images.length > 1) {
-          addMessage(response.images[1], "bot"); // optional: specify sender
-          
-        }
-        else {
-          addMessage("No additional images available.", "bot");
-        }
-        //addMessage(response.images[1])// Pass the whole response object
-      } else {
-        addMessage("Sorry, I received an invalid response. Please try again.", "bot");
-      }
-    })
-    .catch((error) => {
-      console.error("Chatbot API error:", error);
-      // Remove typing indicator
-      hideTypingIndicator();
-
-      // Add error message
-      addMessage(
-        error,
-        "bot"
-      );
-    })
-    .finally(() => {
-      // Re-enable send button
-      sendButton.disabled = false;
-    });
-}
 
 
 
@@ -137,7 +77,7 @@ function sendMessage() {
       // Add error message
       addMessage(
         error,
-        "bot"
+        "bot" 
       );
     })
     .finally(() => {

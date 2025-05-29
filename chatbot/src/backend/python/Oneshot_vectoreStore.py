@@ -1,16 +1,14 @@
 import os
 import re
-import mimetypes
-import zipfile
 import xml.etree.ElementTree as ET
 from pathlib import Path
 
 import ftfy
 import fitz  # pymupdf
 import spacy
-import win32com.client
+
 from PIL import Image, ImageGrab
-import imagehash
+
 from pptx import Presentation
 from docx import Document
 from docx.oxml.ns import qn
@@ -19,7 +17,7 @@ from dotenv import load_dotenv
 
 from langchain.text_splitter import RecursiveCharacterTextSplitter
 from langchain_community.vectorstores import FAISS
-from langchain_community.document_loaders import TextLoader, PyPDFLoader
+
 from langchain_huggingface import HuggingFaceEmbeddings
 
 from langchain.schema import Document as langDocument
@@ -283,21 +281,14 @@ def unified_document_pipeline_multi(
 
     # First, process all documents and collect their chunks
     for file_path in file_paths:
+        print(f"\n[INFO] Processing document: {file_path}")
         try:
-            processing_result = process_single_file(
-                file_path=file_path,
-                images_dir=images_dir,
-                cleaned_dir=cleaned_dir,
-                vertztec_collection=vertztec_collection
-            )
+            
 
-            if not processing_result["success"]:
-                print(f"[ERROR] Document processing failed for {file_path}: {processing_result['error']}")
-                results.append(processing_result)
-                continue
+            
 
             # Process the cleaned text into chunks without creating individual FAISS indexes
-            with open(processing_result["cleaned_text_path"], 'r', encoding='utf-8') as f:
+            with open(file_path, 'r', encoding='utf-8') as f:
                 text = f.read().lower()
 
             # Generate document description
@@ -336,10 +327,7 @@ def unified_document_pipeline_multi(
                     "images": image_list
                 })
 
-            results.append({
-                **processing_result,
-                "chunks_processed": len(restored_chunks)
-            })
+            
 
         except Exception as e:
             error_msg = f"Pipeline failed for {file_path}: {str(e)}"
@@ -381,6 +369,8 @@ if __name__ == "__main__":
     )
 
     images_dir = Path("chatbot/src/backend/python/data/images")
+    
+    
     cleaned_dir = Path("chatbot/src/backend/python/data/cleaned")
     vertztec_collection = Path("chatbot/src/backend/python/data/verztec_logo")
 
