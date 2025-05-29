@@ -311,9 +311,9 @@ body {
 }
 
 .input-wrapper {
-  flex: 1;
-  position: relative;
-  margin-right: 20px;
+    flex: 1;
+    position: relative;
+    margin-right: 80px; /* Increased margin to make room for audio controls */
 }
 
 /* Avatar styles */
@@ -482,6 +482,36 @@ body {
 .sidebar-overlay.active {
   display: block;
 }
+.audio-controls {
+    position: fixed;
+    top: 20px;
+    right: 20px;
+    z-index: 1000;
+    display: flex;
+    gap: 10px;
+    align-items: center;
+}
+
+.audio-controls button {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    padding: 8px 15px;
+    border-radius: 20px;
+    border: none;
+    color: white;
+    cursor: pointer;
+    font-size: 14px;
+    transition: all 0.3s ease;
+}
+
+#cancelButton {
+    background: #dc3545;
+}
+
+#cancelButton:hover {
+    background: #c82333;
+}
 
 /* Responsive design */
 @media (max-width: 768px) {
@@ -545,4 +575,5 @@ body {
     top: 15px;
     left: 15px;
   }
+  
 }

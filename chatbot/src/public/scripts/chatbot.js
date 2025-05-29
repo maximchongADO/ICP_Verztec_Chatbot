@@ -10,7 +10,14 @@ function handleKeyPress(event) {
     sendMessage();
   }
 }
-
+function cancelSpeech() {
+    responsiveVoice.cancel();
+    const avatar = document.getElementById('chatbotAvatar');
+    const avatarOpen = document.getElementById('avatarOpen');
+    
+    avatar.classList.remove('speaking');
+    avatarOpen.classList.add('avatar-hidden');
+}
 function sendMessage() {
   const input = document.getElementById("messageInput");
   const message = input.value.trim();
@@ -208,27 +215,7 @@ function sendSuggestion(text) {
   }
 }
 
-// Update the speakMessage function
-function speakMessage(text) {
-  if (!text || !text.trim()) return;
-  
-  const avatar = document.getElementById('chatbotAvatar');
-  const avatarOpen = document.getElementById('avatarOpen');
-  
-  if (responsiveVoice && !isMuted) {
-    avatar.classList.add('speaking');
-    responsiveVoice.speak(text, "UK English Female", {
-      pitch: 1,
-      rate: 1,
-      onstart: () => {
-        avatar.classList.add('speaking');
-      },
-      onend: () => {
-        avatar.classList.remove('speaking');
-      }
-    });
-  }
-}
+
 
 function addMessage(textOrResponse, sender) {
   let text = textOrResponse;
@@ -271,6 +258,12 @@ function addMessage(textOrResponse, sender) {
       <div class="message-content ai-message">${escapeHtml(text.trim())}${imagesHtml}</div>`; // Add trim() here
     // Only trigger speech for bot messages after the message is added
     setTimeout(() => speakMessage(text), 100);
+  }
+  if (sender === "bot") {
+        // ... existing bot message code ...
+        
+        // Call speakMessage after the message is added
+        setTimeout(() => speakMessage(text), 100);
   }
 
   chatMessages.appendChild(messageDiv);
@@ -379,4 +372,26 @@ function toggleMute() {
   } else {
     document.getElementById('chatbotAvatar').classList.remove('muted');
   }
+}
+async function speakMessage(text) {
+    if (!text || !text.trim() || isMuted) return;
+    
+    const avatar = document.getElementById('chatbotAvatar');
+    const avatarOpen = document.getElementById('avatarOpen');
+    
+    try {
+        avatar.classList.add('speaking');
+        avatarOpen.classList.remove('avatar-hidden');
+        
+        responsiveVoice.speak(text, "UK English Female", {
+            onend: () => {
+                avatar.classList.remove('speaking');
+                avatarOpen.classList.add('avatar-hidden');
+            }
+        });
+    } catch (error) {
+        console.error('Speech Error:', error);
+        avatar.classList.remove('speaking');
+        avatarOpen.classList.add('avatar-hidden');
+    }
 }

@@ -12,6 +12,7 @@
       href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap"
       rel="stylesheet"
     />
+    <script src="https://code.responsivevoice.org/responsivevoice.js?key=m3DviYhy"></script>
   </head>
   <body>
     <div class="app-container">
@@ -136,6 +137,11 @@
                 <path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z" />
               </svg>
             </button>
+          </div>
+          <div class="audio-controls">
+              <button id="cancelButton" onclick="cancelSpeech()">
+                  <i class="fas fa-stop"></i> Stop Avatar Speaking
+              </button>
           </div>
           <div class="avatar-container">
             <div class="avatar" id="chatbotAvatar" onclick="toggleMute()">
