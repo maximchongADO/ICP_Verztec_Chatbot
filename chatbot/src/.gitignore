@@ -1,2 +1,6 @@
 /backend/python/.venv
 /backend/python/venv
+.venv/
+venv/
+**/.venv/
+**/venv/
