@@ -260,22 +260,120 @@ def unified_document_pipeline(file_path, images_dir, cleaned_dir, vertztec_colle
             "error": error_msg
         }
 
-# Example usage:
+def unified_document_pipeline_multi(
+    file_paths, images_dir, cleaned_dir, vertztec_collection, embedding_model, faiss_index_path="faiss_index3"
+):
+    """
+    Processes multiple documents, updates a single FAISS index, and saves as 'faiss_index3'.
+
+    Args:
+        file_paths: List of input document paths
+        images_dir: Directory for extracted images
+        cleaned_dir: Directory for cleaned text
+        vertztec_collection: Directory with Verztec logos
+        embedding_model: HuggingFace embedding model
+        faiss_index_path: Path to save the combined FAISS index
+
+    Returns:
+        dict: Summary of processing results
+    """
+    all_chunks = []
+    all_metadata = []
+    results = []
+
+    for file_path in file_paths:
+        try:
+            # Step 1: Process document and extract content
+            processing_result = process_single_file(
+                file_path=file_path,
+                images_dir=images_dir,
+                cleaned_dir=cleaned_dir,
+                vertztec_collection=vertztec_collection
+            )
+
+            if not processing_result["success"]:
+                print(f"[ERROR] Document processing failed: {processing_result['error']}")
+                results.append(processing_result)
+                continue
+
+            # Step 2: Update FAISS index with processed content (collect chunks only)
+            cleaned_text_path = processing_result["cleaned_text_path"]
+            faiss_db = load_single_file(
+                file_path=cleaned_text_path,
+                embedding_model=embedding_model,
+                faiss_index_path=None  # Don't save per-file index
+            )
+
+            if faiss_db is None:
+                processing_result["success"] = False
+                processing_result["error"] = "Failed to update FAISS index"
+                results.append(processing_result)
+                continue
+
+            # Collect all chunks and metadata for global index
+            docs = list(faiss_db.docstore._dict.values())
+            all_chunks.extend(docs)
+            all_metadata.extend([doc.metadata for doc in docs])
+            results.append({
+                **processing_result,
+                "chunks": [doc.page_content for doc in docs],
+                "metadata": [doc.metadata for doc in docs]
+            })
+
+        except Exception as e:
+            error_msg = f"Pipeline failed: {str(e)}"
+            print(f"[ERROR] {error_msg}")
+            results.append({
+                "original_path": file_path,
+                "cleaned_text_path": None,
+                "success": False,
+                "error": error_msg
+            })
+
+    # Save combined FAISS index if any documents were processed
+    if all_chunks:
+        print(f"\n[INFO] Creating NEW FAISS index with all processed documents as '{faiss_index_path}'...")
+        new_index = FAISS.from_documents(all_chunks, embedding_model)
+        new_index.save_local(faiss_index_path)
+        print(f"[SUCCESS] New FAISS index created and saved as '{faiss_index_path}'")
+        return {
+            "success": True,
+            "faiss_index_path": faiss_index_path,
+            "results": results,
+            "total_chunks": len(all_chunks),
+            "all_metadata": all_metadata
+        }
+    else:
+        print("[WARNING] No documents were processed successfully. FAISS index not created.")
+        return {
+            "success": False,
+            "faiss_index_path": None,
+            "results": results,
+            "total_chunks": 0,
+            "all_metadata": []
+        }
+
 if __name__ == "__main__":
-    # Loop through all .txt files in the 'cleaned' directory
-    for file_path in cleaned_dir.glob("*.txt"):
-        print(f"\n[INFO] Starting pipeline for: {file_path.name}")
+    embedding_model = HuggingFaceEmbeddings(
+        model_name="BAAI/bge-large-en-v1.5",
+        encode_kwargs={'normalize_embeddings': True},
+        model_kwargs={'device': 'cpu'}  # Explicitly set device to CPU
+    )
 
-        result = unified_document_pipeline(
-            file_path=file_path,
-            images_dir=images_dir,
-            cleaned_dir=cleaned_dir,
-            vertztec_collection=vertztec_collection,
-            faiss_index_path="faiss_index2",
-            embedding_model=embedding_model
-        )
+    # Use the correct directories for images, cleaned, and verztec_collection
+    images_dir = Path("chatbot/src/backend/python/data/images")
+    cleaned_dir = Path("chatbot/src/backend/python/data/cleaned")
+    vertztec_collection = Path("chatbot/src/backend/python/data/verztec_logo")
 
-        if result["success"]:
-            print(f"[SUCCESS] Pipeline completed for {file_path.name}")
-        else:
-            print(f"[FAILURE] Pipeline failed for {file_path.name}: {result['error']}")
+    # Gather all .txt files in data/cleaned
+    file_paths = list(cleaned_dir.glob("*.txt"))
+
+    # Run the multi-file pipeline
+    unified_document_pipeline_multi(
+        file_paths=file_paths,
+        images_dir=images_dir,
+        cleaned_dir=cleaned_dir,
+        vertztec_collection=vertztec_collection,
+        embedding_model=embedding_model,
+        faiss_index_path="faiss_index3"
+    )
