@@ -512,6 +512,25 @@ body {
     background: #c82333;
 }
 
+/* Sidebar Logo */
+.sidebar-logo {
+  padding: 20px;
+  margin-top: auto;
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+  text-align: center;
+}
+
+.sidebar-logo img {
+  width: 80%;
+  height: auto;
+  opacity: 0.9;
+  transition: opacity 0.3s ease;
+}
+
+.sidebar-logo img:hover {
+  opacity: 1;
+}
+
 /* Responsive design */
 @media (max-width: 768px) {
   .sidebar {
