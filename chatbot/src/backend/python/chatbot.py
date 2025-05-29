@@ -18,10 +18,12 @@ import logging
 #from better_profanity import profanity
 import spacy
 from spacy.matcher import PhraseMatcher
-
-
+#from MySQLDatabase.Inserting_data import store_chat_log
+import sys
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 from transformers import AutoModelForSeq2SeqLM, AutoTokenizer
-
+import mysql.connector
+from datetime import datetime
 # Set up logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
@@ -87,8 +89,30 @@ def is_casual_message(text: str) -> bool:
     doc = nlp(text)
     matches = matcher(doc)
     return bool(matches)
+DB_CONFIG = {
+    'host': 'localhost',
+    'user': 'chatbot_user',
+    'password': 'strong_password',
+    'database': 'chatbot_db',
+    'raise_on_warnings': True
+}
 
+def store_chat_log(user_message, bot_response, session_id):
+    conn = mysql.connector.connect(**DB_CONFIG)
+    cursor = conn.cursor()
 
+    timestamp = datetime.utcnow()
+
+    insert_query = '''
+        INSERT INTO chat_logs (timestamp, user_message, bot_response, session_id)
+        VALUES (%s, %s, %s, %s)
+    '''
+    cursor.execute(insert_query, (timestamp, user_message, bot_response, session_id))
+    conn.commit()
+    logger.info(f"Stored chat log for session {session_id} at {timestamp}")
+
+    cursor.close()
+    conn.close()
 
 def is_query(text: str) -> bool:
     try:
@@ -308,12 +332,13 @@ def get_avg_score(index, embedding_model, query, k=10):
 
 
 AVG_SCORE_THRESHOLD = 0.967
-
+import uuid
 
 def generate_answer(user_query: str, chat_history: ConversationBufferMemory):
     """
     Returns a tuple: (answer_text, image_list)
     """
+    session_id = str(uuid.uuid4())
     try:
         parser = StrOutputParser()
         
@@ -415,6 +440,7 @@ def generate_answer(user_query: str, chat_history: ConversationBufferMemory):
 
         # Define regex pattern to match full <think>...</think> block
         think_block_pattern = re.compile(r"<think>.*?</think>", flags=re.DOTALL)
+        
 
         # Check if full <think> block exists
         has_think_block = bool(think_block_pattern.search(raw_answer))
@@ -439,6 +465,10 @@ def generate_answer(user_query: str, chat_history: ConversationBufferMemory):
 
         # Remove all block tags
         cleaned_answer = block_tag_pattern.sub("", raw_answer).strip()
+        cleaned_answer = re.sub(r"^\s+", "", cleaned_answer)
+    
+        store_chat_log(user_message=user_query, bot_response=cleaned_answer, session_id=session_id)
+        
         
         return cleaned_answer, top_3_img
     except Exception as e:

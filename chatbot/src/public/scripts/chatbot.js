@@ -42,7 +42,11 @@ function sendMessage() {
 
       // Add bot response
       if (response && response.message) {
-        addMessage(response, "bot"); // Pass the whole response object
+        addMessage(response, "bot"); 
+        if (Array.isArray(response.images) && response.images.length > 1) {
+          addMessage(response.images[1], "bot"); // optional: specify sender
+        }
+        //addMessage(response.images[1])// Pass the whole response object
       } else {
         addMessage("Sorry, I received an invalid response. Please try again.", "bot");
       }
@@ -54,7 +58,7 @@ function sendMessage() {
 
       // Add error message
       addMessage(
-        "Sorry, I'm having trouble connecting to the server. Please try again later.",
+        error,
         "bot"
       );
     })
@@ -332,22 +336,13 @@ function exportChat() {
   URL.revokeObjectURL(url);
 }
 
-// Handle file upload (placeholder function)
 function handleFileUpload(event) {
-  const file = event.target.files[0]; // Only take the first file
-
-  if (file) {
-    console.log("File selected:", file);
-
-    addMessage(`File selected: ${file.name}`, "bot");
-
-    // Optional: Reset the input to allow re-upload of the same file later
-    event.target.value = null;
-  } else {
-    addMessage("No file selected.", "bot");
-  }
+  // Prevent default file input behavior
+  event.preventDefault();
+  
+  // Redirect to the file upload page
+  window.location.href = "/fileupload.html";
 }
-
 // Initialize sidebar state on page load
 document.addEventListener("DOMContentLoaded", function () {
   // Close sidebar on mobile by default
