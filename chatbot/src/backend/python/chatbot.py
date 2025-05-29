@@ -1,10 +1,4 @@
-from fastapi import FastAPI, HTTPException, Request
-from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel
 from typing import List, Optional
-import json
-import traceback
-import faiss
 import numpy as np
 from sentence_transformers import SentenceTransformer
 from langchain_groq import ChatGroq
@@ -15,41 +9,26 @@ from langchain.schema import Document
 #from numpy import dot
 #from numpy.linalg import norm
 import os
-from langchain.memory import ConversationBufferMemory  # Updated import
+from langchain.memory import ConversationBufferMemory
 from langchain.chains import ConversationalRetrievalChain
 from langchain_core.output_parsers import StrOutputParser
 from langchain.embeddings import HuggingFaceEmbeddings
- # Updated import
 from langchain_community.vectorstores import FAISS
 import logging
-from datetime import datetime
-from fastapi.responses import JSONResponse
-#from langchain.schema import BaseRetriever
-from better_profanity import profanity
-import spacy
-from spacy.matcher import PhraseMatcher
-app = FastAPI()
 
-# Update CORS middleware to allow all origins in development
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["http://localhost:8000"],
-    allow_credentials=True,
-    allow_methods=["GET", "POST", "DELETE", "OPTIONS"],
-    allow_headers=["*"],
-    expose_headers=["*"],
-    max_age=3600
-)
+# Set up logging
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+logger = logging.getLogger(__name__)
 
-
-# Initialize Groq LLM client
+# Initialize models and clients
+embedding_model = SentenceTransformer('BAAI/bge-large-en-v1.5')
 api_key = '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'
 model_name = "compound-beta"
 model = "deepseek-r1-distill-llama-70b" 
 deepseek = ChatGroq(api_key=api_key, model=model)
-compound =ChatGroq(api_key=api_key, model=model_name)
+compound = ChatGroq(api_key=api_key, model=model_name)
 
-## setting up memory
+# Initialize memory
 memory = ConversationBufferMemory(
     memory_key="chat_history",
     input_key="question",
@@ -57,45 +36,7 @@ memory = ConversationBufferMemory(
     return_messages=True
 )
 
-# Request/Response models
-class ChatRequest(BaseModel):
-    message: str
-    user_id: Optional[str] = None
-    chat_history: Optional[List[str]] = []
-
-class ChatResponse(BaseModel):
-    message: str
-    user_id: Optional[str] = None
-    timestamp: str
-    success: bool
-    #comment back in if you want to use images, not in rn cos idw break the front 
-    #contains_image:bool = False
-    #image_url: Optional[List[str]] = None
-    error: Optional[str] = None
-    
-    
-
-# Set up logging
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(levelname)s - %(message)s'
-)
-logger = logging.getLogger(__name__)
-
-@app.exception_handler(Exception)
-async def global_exception_handler(request: Request, exc: Exception):
-    logger.error(f"Global error handler: {str(exc)}", exc_info=True)
-    return JSONResponse(
-        status_code=500,
-        content=ChatResponse(
-            message="An internal server error occurred",
-            timestamp=datetime.utcnow().isoformat(),
-            success=False,
-            error=str(exc)
-        ).dict()
-    )
-
-# Load FAISS index and metadata on startup
+# Load FAISS index
 try:
     script_dir = os.path.dirname(os.path.abspath(__file__))
     faiss_index_path = os.path.join(script_dir, "faiss_index3")
@@ -105,14 +46,17 @@ try:
     
     embedding_model = HuggingFaceEmbeddings(
         model_name="BAAI/bge-large-en-v1.5",
-        encode_kwargs={'normalize_embeddings': True}
+        encode_kwargs={'normalize_embeddings': True},
+        model_kwargs={'device': 'cpu'}  # Explicitly set device to CPU
     )
+    
     index = FAISS.load_local(
         faiss_index_path,
         embedding_model,
         allow_dangerous_deserialization=True
     )
-    logger.info("FAISS index and metadata loaded successfully")
+    logger.info("FAISS index loaded successfully on CPU")
+    
 except Exception as e:
     logger.error(f"Failed to load FAISS index: {str(e)}", exc_info=True)
     index = None
@@ -348,77 +292,3 @@ def generate_answer(user_query: str, chat_history: ConversationBufferMemory) -> 
         return cleaned_answer
     except Exception as e:
         return f"I encountered an error while processing your request: {str(e)}"
-
-@app.get("/health")
-async def health_check():
-    try:
-        return JSONResponse(
-            content={"status": "healthy", "message": "Chatbot API is running"},
-            status_code=200
-        )
-    except Exception as e:
-        logger.error(f"Health check failed: {str(e)}")
-        return JSONResponse(
-            content={"status": "unhealthy", "error": str(e)},
-            status_code=500
-        )
-
-@app.post("/chatbot")
-async def chat_endpoint(request: ChatRequest):
-    logger.info(f"Received chat request: {request}")
-    try:
-        if not request.message.strip():
-            raise HTTPException(status_code=400, detail="Message cannot be empty")
-        
-        if index is None:
-            raise HTTPException(status_code=503, detail="Search index is not available")
-        
-        # Generate response using chatbot logic
-        response_message = generate_answer(request.message, memory)
-        logger.info(f"Generated response: {response_message}")
-        
-        return ChatResponse(
-            message=response_message,
-            user_id=request.user_id,
-            timestamp=datetime.utcnow().isoformat(),
-            success=True
-        )
-        
-    except Exception as e:
-        logger.error(f"Error processing chat request: {str(e)}", exc_info=True)
-        return ChatResponse(
-            message="An error occurred while processing your request. Please try again later.",
-            user_id=request.user_id,
-            timestamp=datetime.utcnow().isoformat(),
-            success=False,
-            error=str(e)
-        )
-
-@app.delete("/history")
-async def clear_chat_history():
-    try:
-        # For now, just return success
-        # In a real implementation, you'd clear user-specific chat history from database
-        return {"success": True, "message": "Chat history cleared successfully"}
-    except Exception as e:
-        print(f"Error clearing chat history: {str(e)}")
-        raise HTTPException(status_code=500, detail="Failed to clear chat history")
-
-def find_available_port(start_port: int = 8000, max_attempts: int = 10) -> int:
-    import socket
-    for port in range(start_port, start_port + max_attempts):
-        try:
-            with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-                s.bind(('0.0.0.0', port))
-                return port
-        except OSError:
-            continue
-    raise RuntimeError(f"Could not find an available port after {max_attempts} attempts")
-
-if __name__ == "__main__":
-    import uvicorn
-    try:
-        print("Starting server on port 3000")
-        uvicorn.run(app, host="0.0.0.0", port=3000, log_level="debug")
-    except Exception as e:
-        print(f"Failed to start server: {e}")

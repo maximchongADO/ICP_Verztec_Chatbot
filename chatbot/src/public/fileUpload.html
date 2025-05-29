@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>File Upload | AI Assistant Pro</title>
+    <link rel="stylesheet" href="/styles/main.css">
+    <link rel="stylesheet" href="/styles/fileUpload.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+</head>
+<body>
+    <div class="upload-container">
+        <div class="upload-card">
+            <div class="upload-header">
+                <h1>Document Upload</h1>
+                <p>Upload documents to enhance the AI Assistant's knowledge base</p>
+            </div>
+
+            <div class="upload-area" id="dropZone">
+                <input type="file" id="fileInput" multiple accept=".pdf,.doc,.docx,.txt,.pptx" hidden>
+                <div class="upload-icon">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                        <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M17 8l-5-5-5 5M12 3v12"/>
+                    </svg>
+                </div>
+                <h3>Drag & Drop files here</h3>
+                <p>or</p>
+                <button class="btn btn-primary" onclick="document.getElementById('fileInput').click()">
+                    Browse Files
+                </button>
+                <p class="supported-text">Supported formats: PDF, DOC, DOCX, TXT, PPTX</p>
+            </div>
+
+            <div class="upload-list" id="uploadList">
+                <!-- Files will be listed here -->
+            </div>
+
+            <div class="upload-status" id="uploadStatus"></div>
+        </div>
+    </div>
+
+    <script src="/scripts/fileUpload.js"></script>
+</body>
+</html>
