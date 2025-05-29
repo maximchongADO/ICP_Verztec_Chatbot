@@ -41,10 +41,14 @@ function sendMessage() {
       hideTypingIndicator();
 
       // Add bot response
-      if (response && response.message) {
-        addMessage(response, "bot"); 
+      if (response ) {
+        addMessage(response.message, "bot"); 
         if (Array.isArray(response.images) && response.images.length > 1) {
           addMessage(response.images[1], "bot"); // optional: specify sender
+          
+        }
+        else {
+          addMessage("No additional images available.", "bot");
         }
         //addMessage(response.images[1])// Pass the whole response object
       } else {
@@ -96,7 +100,8 @@ async function callChatbotAPI(message) {
     if (data && data.message) {
       return {
         success: true,
-        message: data.message
+        message: data.message,
+        images: data.images || [], // Ensure images is an array
       };
     } else {
       throw new Error("Invalid response format from chatbot");

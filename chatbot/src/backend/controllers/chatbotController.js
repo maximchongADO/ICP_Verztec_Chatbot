@@ -15,7 +15,6 @@
                 body: JSON.stringify({
                     message: message,
                     user_id: userId,
-                    images : [], // Assuming images are handled separately
                     chat_history: chatHistory || []
                 })
             });
@@ -67,9 +66,10 @@
             res.json({
                 success: true,
                 message: response.message,
-                images: response.images || [],
+                images: response.images,
                 timestamp: new Date().toISOString()
             });
+            console.log('Response sent to client:', response.images);
 
         } catch (error) {
             console.error('Error processing message:', error);
