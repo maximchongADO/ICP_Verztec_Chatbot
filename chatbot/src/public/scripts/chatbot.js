@@ -42,7 +42,11 @@ function sendMessage() {
 
       // Add bot response
       if (response && response.message) {
-        addMessage(response, "bot"); // Pass the whole response object
+        addMessage(response, "bot"); 
+        if (Array.isArray(response.images) && response.images.length > 1) {
+          addMessage(response.images[1], "bot"); // optional: specify sender
+        }
+        //addMessage(response.images[1])// Pass the whole response object
       } else {
         addMessage("Sorry, I received an invalid response. Please try again.", "bot");
       }
@@ -54,7 +58,7 @@ function sendMessage() {
 
       // Add error message
       addMessage(
-        "Sorry, I'm having trouble connecting to the server. Please try again later.",
+        error,
         "bot"
       );
     })
