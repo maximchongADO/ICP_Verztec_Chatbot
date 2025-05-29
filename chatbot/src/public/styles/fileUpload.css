@@ -125,3 +125,15 @@
     background: rgba(239, 68, 68, 0.1);
     color: var(--error-color);
 }
+
+.upload-logo {
+    text-align: center;
+    margin-bottom: 2rem;
+    padding: 1rem;
+}
+
+.upload-logo img {
+    width: 180px;
+    height: auto;
+    margin: 0 auto;
+}
