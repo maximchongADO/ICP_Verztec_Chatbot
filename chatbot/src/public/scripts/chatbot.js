@@ -256,13 +256,8 @@ function addMessage(textOrResponse, sender) {
     messageDiv.innerHTML = `
       <div class="ai-message-avatar"></div>
       <div class="message-content ai-message">${escapeHtml(text.trim())}${imagesHtml}</div>`; // Add trim() here
-    // Only trigger speech for bot messages after the message is added
-    setTimeout(() => speakMessage(text), 100);
   }
   if (sender === "bot") {
-        // ... existing bot message code ...
-        
-        // Call speakMessage after the message is added
         setTimeout(() => speakMessage(text), 100);
   }
 
