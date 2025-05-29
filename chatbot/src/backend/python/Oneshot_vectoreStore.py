@@ -261,10 +261,10 @@ def unified_document_pipeline(file_path, images_dir, cleaned_dir, vertztec_colle
         }
 
 def unified_document_pipeline_multi(
-    file_paths, images_dir, cleaned_dir, vertztec_collection, embedding_model, faiss_index_path="faiss_index3"
+    file_paths, images_dir, cleaned_dir, vertztec_collection, embedding_model, faiss_index_path="faiss_master_index"
 ):
     """
-    Processes multiple documents, updates a single FAISS index, and saves as 'faiss_index3'.
+    Processes multiple documents into a single FAISS index file.
 
     Args:
         file_paths: List of input document paths
@@ -277,13 +277,13 @@ def unified_document_pipeline_multi(
     Returns:
         dict: Summary of processing results
     """
-    all_chunks = []
-    all_metadata = []
+    combined_chunks = []
+    combined_metadata = []
     results = []
 
+    # First, process all documents and collect their chunks
     for file_path in file_paths:
         try:
-            # Step 1: Process document and extract content
             processing_result = process_single_file(
                 file_path=file_path,
                 images_dir=images_dir,
@@ -292,56 +292,76 @@ def unified_document_pipeline_multi(
             )
 
             if not processing_result["success"]:
-                print(f"[ERROR] Document processing failed: {processing_result['error']}")
+                print(f"[ERROR] Document processing failed for {file_path}: {processing_result['error']}")
                 results.append(processing_result)
                 continue
 
-            # Step 2: Update FAISS index with processed content (collect chunks only)
-            cleaned_text_path = processing_result["cleaned_text_path"]
-            faiss_db = load_single_file(
-                file_path=cleaned_text_path,
-                embedding_model=embedding_model,
-                faiss_index_path=None  # Don't save per-file index
+            # Process the cleaned text into chunks without creating individual FAISS indexes
+            with open(processing_result["cleaned_text_path"], 'r', encoding='utf-8') as f:
+                text = f.read().lower()
+
+            # Generate document description
+            query = (
+                "Summarize this internal document in 50 words. Describe its purpose, main contents, "
+                "and types of internal questions it can help answer. "
+                "Respond concisely and in a single paragraph:\n\n" + text
+            )
+            description = deepseek_chain.invoke(query)
+            description = re.sub(r"<think>.*?</think>", "", description, flags=re.DOTALL).strip()
+
+            # Process text and create chunks
+            text, image_replacements, image_name_map = replace_image_tags_with_placeholders(text)
+            smart_chunks = spacy_fallback_splitter(text)
+            restored_chunks, chunk_image_lists = restore_image_placeholders_and_collect_metadata(
+                smart_chunks, image_replacements, image_name_map
             )
 
-            if faiss_db is None:
-                processing_result["success"] = False
-                processing_result["error"] = "Failed to update FAISS index"
-                results.append(processing_result)
-                continue
+            # Create langDocument objects for each chunk
+            base_name = Path(file_path).stem
+            for i, chunk in enumerate(restored_chunks):
+                image_list = chunk_image_lists[i]
+                enriched_chunk = f"[Description: {description}] [Document: {base_name}] {chunk}"
+                combined_chunks.append(langDocument(
+                    page_content=enriched_chunk,
+                    metadata={
+                        "source": base_name,
+                        "chunk_id": f"{base_name}_{i}",
+                        "clean_chunk": chunk,
+                        "images": image_list
+                    }
+                ))
+                combined_metadata.append({
+                    "source": base_name,
+                    "chunk_id": f"{base_name}_{i}",
+                    "images": image_list
+                })
 
-            # Collect all chunks and metadata for global index
-            docs = list(faiss_db.docstore._dict.values())
-            all_chunks.extend(docs)
-            all_metadata.extend([doc.metadata for doc in docs])
             results.append({
                 **processing_result,
-                "chunks": [doc.page_content for doc in docs],
-                "metadata": [doc.metadata for doc in docs]
+                "chunks_processed": len(restored_chunks)
             })
 
         except Exception as e:
-            error_msg = f"Pipeline failed: {str(e)}"
+            error_msg = f"Pipeline failed for {file_path}: {str(e)}"
             print(f"[ERROR] {error_msg}")
             results.append({
                 "original_path": file_path,
-                "cleaned_text_path": None,
                 "success": False,
                 "error": error_msg
             })
 
-    # Save combined FAISS index if any documents were processed
-    if all_chunks:
-        print(f"\n[INFO] Creating NEW FAISS index with all processed documents as '{faiss_index_path}'...")
-        new_index = FAISS.from_documents(all_chunks, embedding_model)
-        new_index.save_local(faiss_index_path)
-        print(f"[SUCCESS] New FAISS index created and saved as '{faiss_index_path}'")
+    # Create single FAISS index with all chunks
+    if combined_chunks:
+        print(f"\n[INFO] Creating unified FAISS index with {len(combined_chunks)} chunks as '{faiss_index_path}'...")
+        unified_index = FAISS.from_documents(combined_chunks, embedding_model)
+        unified_index.save_local(faiss_index_path)
+        print(f"[SUCCESS] Unified FAISS index created and saved as '{faiss_index_path}'")
         return {
             "success": True,
             "faiss_index_path": faiss_index_path,
             "results": results,
-            "total_chunks": len(all_chunks),
-            "all_metadata": all_metadata
+            "total_chunks": len(combined_chunks),
+            "all_metadata": combined_metadata
         }
     else:
         print("[WARNING] No documents were processed successfully. FAISS index not created.")
@@ -357,23 +377,20 @@ if __name__ == "__main__":
     embedding_model = HuggingFaceEmbeddings(
         model_name="BAAI/bge-large-en-v1.5",
         encode_kwargs={'normalize_embeddings': True},
-        model_kwargs={'device': 'cpu'}  # Explicitly set device to CPU
+        model_kwargs={'device': 'cpu'}
     )
 
-    # Use the correct directories for images, cleaned, and verztec_collection
     images_dir = Path("chatbot/src/backend/python/data/images")
     cleaned_dir = Path("chatbot/src/backend/python/data/cleaned")
     vertztec_collection = Path("chatbot/src/backend/python/data/verztec_logo")
 
-    # Gather all .txt files in data/cleaned
     file_paths = list(cleaned_dir.glob("*.txt"))
-
-    # Run the multi-file pipeline
+    
     unified_document_pipeline_multi(
         file_paths=file_paths,
         images_dir=images_dir,
         cleaned_dir=cleaned_dir,
         vertztec_collection=vertztec_collection,
         embedding_model=embedding_model,
-        faiss_index_path="faiss_index3"
+        faiss_index_path="faiss_master_index"  # Using a single master index file
     )
