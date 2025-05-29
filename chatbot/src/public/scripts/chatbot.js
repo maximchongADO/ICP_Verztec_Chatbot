@@ -15,6 +15,13 @@ function cancelSpeech() {
     const avatar = document.getElementById('chatbotAvatar');
     const avatarOpen = document.getElementById('avatarOpen');
     
+    // Clear the mouth animation interval
+    if (currentMouthInterval) {
+        clearInterval(currentMouthInterval);
+        currentMouthInterval = null;
+    }
+    
+    // Ensure mouth is closed when stopping
     avatar.classList.remove('speaking');
     avatarOpen.classList.add('avatar-hidden');
 }
@@ -368,6 +375,8 @@ function toggleMute() {
     document.getElementById('chatbotAvatar').classList.remove('muted');
   }
 }
+let currentMouthInterval = null; // Add this at the top level of your file
+
 async function speakMessage(text) {
     if (!text || !text.trim() || isMuted) return;
     
@@ -376,16 +385,27 @@ async function speakMessage(text) {
     
     try {
         avatar.classList.add('speaking');
-        avatarOpen.classList.remove('avatar-hidden');
+        
+        // Store the interval in our global variable
+        currentMouthInterval = setInterval(() => {
+            avatarOpen.classList.toggle('avatar-hidden');
+        }, 600);
         
         responsiveVoice.speak(text, "UK English Female", {
             onend: () => {
+                clearInterval(currentMouthInterval);
+                currentMouthInterval = null;
                 avatar.classList.remove('speaking');
                 avatarOpen.classList.add('avatar-hidden');
+            },
+            onstart: () => {
+                avatar.classList.add('speaking');
             }
         });
     } catch (error) {
         console.error('Speech Error:', error);
+        clearInterval(currentMouthInterval);
+        currentMouthInterval = null;
         avatar.classList.remove('speaking');
         avatarOpen.classList.add('avatar-hidden');
     }
