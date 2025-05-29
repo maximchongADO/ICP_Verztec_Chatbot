@@ -311,21 +311,20 @@ body {
 }
 
 .input-wrapper {
-    flex: 1;
-    position: relative;
-    margin-right: 80px; /* Increased margin to make room for audio controls */
+  flex: 1;
+  position: relative;
+  margin-right: 20px;
+  order: 2;  /* Set order to place it after avatar */
 }
-
-/* Avatar styles */
 .avatar-container {
   position: relative;
-  width: 180px;
-  height: 180px;
+  width: 180px;  /* Increased from 140px */
+  height: 180px; /* Increased from 140px */
   flex-shrink: 0;
   cursor: pointer;
-  margin-bottom: -20px;
+  margin-bottom: 0;
+  order: 1;  /* Keeps avatar on the left */
 }
-
 .avatar {
   width: 100%;
   height: 100%;
@@ -568,9 +567,15 @@ body {
     padding: 20px;
   }
 
-  .chat-input {
-    font-size: 16px; /* Prevents zoom on iOS */
-  }
+.chat-input-container {
+  padding: 25px 30px;
+  background: transparent;
+  border-top: none;
+  display: flex;
+  align-items: center;
+  gap: 20px;  /* Increased gap slightly */
+  justify-content: flex-start;
+}
 
   .welcome-message h2 {
     font-size: 24px;

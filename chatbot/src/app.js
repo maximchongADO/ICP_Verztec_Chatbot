@@ -34,7 +34,9 @@ app.use(bodyParser.urlencoded({ extended: true }));
 app.use(bodyParser.json());
 
 route(app);
-
+// Serve Python image directory to frontend
+app.use('/data/images', express.static(path.join(__dirname, 'backend/python/data/images')));
+// Serve static files from the public directory
 app.listen(PORT, async () => {
   let connection;
   try {

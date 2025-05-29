@@ -15,6 +15,13 @@ function cancelSpeech() {
     const avatar = document.getElementById('chatbotAvatar');
     const avatarOpen = document.getElementById('avatarOpen');
     
+    // Clear the mouth animation interval
+    if (currentMouthInterval) {
+        clearInterval(currentMouthInterval);
+        currentMouthInterval = null;
+    }
+    
+    // Ensure mouth is closed when stopping
     avatar.classList.remove('speaking');
     avatarOpen.classList.add('avatar-hidden');
 }
@@ -48,7 +55,7 @@ function sendMessage() {
       hideTypingIndicator();
 
       // Add bot response
-      if (response ) {
+      if (response) {
         addMessage(response.message, "bot"); 
         if (Array.isArray(response.images) && response.images.length > 1) {
           addMessage(response.images[1], "bot"); // optional: specify sender
@@ -78,6 +85,72 @@ function sendMessage() {
       sendButton.disabled = false;
     });
 }
+
+
+
+
+
+function sendMessage() {
+  const input = document.getElementById("messageInput");
+  const message = input.value.trim();
+
+  if (!message) return;
+
+  // Clear welcome message on first message
+  clearWelcomeContent();
+
+  // Disable send button
+  const sendButton = document.getElementById("sendButton");
+  sendButton.disabled = true;
+
+  // Add user message to chat
+  addMessage(message, "user");
+
+  // Clear input and reset height
+  input.value = "";
+  input.style.height = "auto";
+
+  // Show typing indicator
+  showTypingIndicator();
+
+  // Call chatbot API
+  callChatbotAPI(message)
+    .then((response) => {
+      // Remove typing indicator
+      hideTypingIndicator();
+
+      // Add bot response
+      if (response) {
+        addMessage(response.message, "bot");
+        if (Array.isArray(response.images) && response.images.length > 0) {
+          sendImages(response.images);
+        }
+      } else {
+        addMessage("Sorry, I received an invalid response. Please try again.", "bot");
+      }
+    })
+    .catch((error) => {
+      console.error("Chatbot API error:", error);
+      // Remove typing indicator
+      hideTypingIndicator();
+
+      // Add error message
+      addMessage(
+        error,
+        "bot"
+      );
+    })
+    .finally(() => {
+      // Re-enable send button
+      sendButton.disabled = false;
+    });
+}
+
+
+
+
+
+
 
 async function callChatbotAPI(message) {
   const chatHistory = JSON.parse(sessionStorage.getItem("chatHistory") || "[]");
@@ -220,20 +293,34 @@ function sendSuggestion(text) {
   }
 }
 
+function sendImages(images) {
+  if (!Array.isArray(images) || images.length === 0) return;
+
+  // Each image will be passed as a filename (e.g., "example.png")
+  // We pass it to `addMessage` which now handles raw image filenames
+  addMessage({ message: "", images: images }, "bot");
+}
 
 
 function addMessage(textOrResponse, sender) {
   let text = textOrResponse;
   let images = [];
 
-  // If an object with a 'message' property is passed, extract the message and images
+  // Check if it's an object with message and images
   if (typeof textOrResponse === "object" && textOrResponse !== null && "message" in textOrResponse) {
-    text = textOrResponse.message.trim(); // Add trim() here
+    text = textOrResponse.message?.trim() || "";
     images = textOrResponse.images || [];
+  } 
+  
+  // NEW: If it's a plain image filename string like "example.png"
+  else if (typeof textOrResponse === "string" && /\.(png|jpg|jpeg|gif|bmp)$/i.test(textOrResponse.trim())) {
+    images = [textOrResponse.trim()];
+    text = "";  // No text message, only image
   }
 
-  if (!text || !text.trim()) {
-    console.error("Empty message received");
+  // If no message or image, do nothing
+  if (!text && images.length === 0) {
+    console.error("Empty message and no images received");
     return;
   }
 
@@ -243,27 +330,27 @@ function addMessage(textOrResponse, sender) {
   if (sender === "user") {
     messageDiv.className = "message message-user";
     messageDiv.innerHTML = `
-      <div class="message-content user-message">${escapeHtml(text.trim())}</div>`; // Add trim() here
+      <div class="message-content user-message">${escapeHtml(text)}</div>`;
   } else {
     messageDiv.className = "message message-ai";
     let imagesHtml = "";
-    if (Array.isArray(images) && images.length > 0) {
-      // Only print the image names (filenames) as a list
-      imagesHtml = `<div class="ai-message-images">` +
-      images.map(src => {
-        const filename = escapeHtml(src.split('/').pop() || src);
-        return `<img src="/data/images/${filename}" alt="${filename}" class="chat-image" />`;
-      }).join("") +
-      `</div>`;
 
-      console.log("AI response images:", images.map(src => src.split('/').pop() || src));
+    if (Array.isArray(images) && images.length > 0) {
+      imagesHtml = `<div class="ai-message-images">` +
+        images.map(src => {
+          const filename = escapeHtml(src.split('/').pop() || src);
+          return `<img src="/data/images/${filename}" alt="${filename}" class="chat-image" />`;
+        }).join("") +
+        `</div>`;
     }
+
     messageDiv.innerHTML = `
       <div class="ai-message-avatar"></div>
-      <div class="message-content ai-message">${escapeHtml(text.trim())}${imagesHtml}</div>`; // Add trim() here
+      <div class="message-content ai-message">${escapeHtml(text)}${imagesHtml}</div>`;
   }
-  if (sender === "bot") {
-        setTimeout(() => speakMessage(text), 100);
+
+  if (sender === "bot" && text) {
+    setTimeout(() => speakMessage(text), 100);
   }
 
   chatMessages.appendChild(messageDiv);
@@ -373,6 +460,8 @@ function toggleMute() {
     document.getElementById('chatbotAvatar').classList.remove('muted');
   }
 }
+let currentMouthInterval = null; // Add this at the top level of your file
+
 async function speakMessage(text) {
     if (!text || !text.trim() || isMuted) return;
     
@@ -381,16 +470,27 @@ async function speakMessage(text) {
     
     try {
         avatar.classList.add('speaking');
-        avatarOpen.classList.remove('avatar-hidden');
+        
+        // Store the interval in our global variable
+        currentMouthInterval = setInterval(() => {
+            avatarOpen.classList.toggle('avatar-hidden');
+        }, 600);
         
         responsiveVoice.speak(text, "UK English Female", {
             onend: () => {
+                clearInterval(currentMouthInterval);
+                currentMouthInterval = null;
                 avatar.classList.remove('speaking');
                 avatarOpen.classList.add('avatar-hidden');
+            },
+            onstart: () => {
+                avatar.classList.add('speaking');
             }
         });
     } catch (error) {
         console.error('Speech Error:', error);
+        clearInterval(currentMouthInterval);
+        currentMouthInterval = null;
         avatar.classList.remove('speaking');
         avatarOpen.classList.add('avatar-hidden');
     }
