@@ -232,17 +232,8 @@ function addMessage(textOrResponse, sender) {
 
   // If an object with a 'message' property is passed, extract the message and images
   if (typeof textOrResponse === "object" && textOrResponse !== null && "message" in textOrResponse) {
-    text = textOrResponse.message;
+    text = textOrResponse.message.trim(); // Add trim() here
     images = textOrResponse.images || [];
-    if (Array.isArray(images) && images.length > 0) {
-      console.log("AI response images:", images.map(src => {
-        try {
-          return src.split('/').pop();
-        } catch {
-          return src;
-        }
-      }));
-    }
   }
 
   if (!text || !text.trim()) {
@@ -256,10 +247,7 @@ function addMessage(textOrResponse, sender) {
   if (sender === "user") {
     messageDiv.className = "message message-user";
     messageDiv.innerHTML = `
-      <div class="message-content user-message">
-        ${escapeHtml(text)}
-      </div>
-    `;
+      <div class="message-content user-message">${escapeHtml(text.trim())}</div>`; // Add trim() here
   } else {
     messageDiv.className = "message message-ai";
     let imagesHtml = "";
@@ -275,12 +263,8 @@ function addMessage(textOrResponse, sender) {
       console.log("AI response images:", images.map(src => src.split('/').pop() || src));
     }
     messageDiv.innerHTML = `
-      <div class="ai-message-avatar">AI</div>
-      <div class="message-content ai-message">
-        ${escapeHtml(text)}
-        ${imagesHtml}
-      </div>
-    `;
+      <div class="ai-message-avatar"></div>
+      <div class="message-content ai-message">${escapeHtml(text.trim())}${imagesHtml}</div>`; // Add trim() here
     // Only trigger speech for bot messages after the message is added
     setTimeout(() => speakMessage(text), 100);
   }

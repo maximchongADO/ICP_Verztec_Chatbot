@@ -206,8 +206,7 @@ body {
   font-size: 15px;
   line-height: 1.5;
   overflow-wrap: break-word;
-  white-space: pre-line;
-
+  white-space: normal; /* Change from pre-line to normal */
 }
 
 .user-message {
