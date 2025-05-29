@@ -260,17 +260,12 @@ def unified_document_pipeline(file_path, images_dir, cleaned_dir, vertztec_colle
             "error": error_msg
         }
 
-def unified_document_pipeline_multi(
-    file_paths, images_dir, cleaned_dir, vertztec_collection, embedding_model, faiss_index_path="faiss_master_index"
-):
+def unified_document_pipeline_multi(file_paths, embedding_model, faiss_index_path="faiss_master_index"):
     """
-    Processes multiple documents into a single FAISS index file.
+    Processes multiple text files into a single FAISS index file.
 
     Args:
-        file_paths: List of input document paths
-        images_dir: Directory for extracted images
-        cleaned_dir: Directory for cleaned text
-        vertztec_collection: Directory with Verztec logos
+        file_paths: List of input text file paths
         embedding_model: HuggingFace embedding model
         faiss_index_path: Path to save the combined FAISS index
 
@@ -281,23 +276,10 @@ def unified_document_pipeline_multi(
     combined_metadata = []
     results = []
 
-    # First, process all documents and collect their chunks
     for file_path in file_paths:
         try:
-            processing_result = process_single_file(
-                file_path=file_path,
-                images_dir=images_dir,
-                cleaned_dir=cleaned_dir,
-                vertztec_collection=vertztec_collection
-            )
-
-            if not processing_result["success"]:
-                print(f"[ERROR] Document processing failed for {file_path}: {processing_result['error']}")
-                results.append(processing_result)
-                continue
-
-            # Process the cleaned text into chunks without creating individual FAISS indexes
-            with open(processing_result["cleaned_text_path"], 'r', encoding='utf-8') as f:
+            # Read text file directly
+            with open(file_path, 'r', encoding='utf-8') as f:
                 text = f.read().lower()
 
             # Generate document description
@@ -337,12 +319,13 @@ def unified_document_pipeline_multi(
                 })
 
             results.append({
-                **processing_result,
+                "original_path": file_path,
+                "success": True,
                 "chunks_processed": len(restored_chunks)
             })
 
         except Exception as e:
-            error_msg = f"Pipeline failed for {file_path}: {str(e)}"
+            error_msg = f"Failed to process {file_path}: {str(e)}"
             print(f"[ERROR] {error_msg}")
             results.append({
                 "original_path": file_path,
@@ -380,17 +363,11 @@ if __name__ == "__main__":
         model_kwargs={'device': 'cpu'}
     )
 
-    images_dir = Path("chatbot/src/backend/python/data/images")
     cleaned_dir = Path("chatbot/src/backend/python/data/cleaned")
-    vertztec_collection = Path("chatbot/src/backend/python/data/verztec_logo")
-
     file_paths = list(cleaned_dir.glob("*.txt"))
     
     unified_document_pipeline_multi(
         file_paths=file_paths,
-        images_dir=images_dir,
-        cleaned_dir=cleaned_dir,
-        vertztec_collection=vertztec_collection,
         embedding_model=embedding_model,
-        faiss_index_path="faiss_master_index"  # Using a single master index file
+        faiss_index_path="faiss_master_index"
     )

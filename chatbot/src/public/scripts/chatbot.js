@@ -10,21 +10,25 @@ function handleKeyPress(event) {
     sendMessage();
   }
 }
-function cancelSpeech() {
-    responsiveVoice.cancel();
+
+
+// Add these new variables at the top of the file with other global variables
+let currentSpeechText = null;
+let isCurrentlySpeaking = false;
+
+function stopAvatarAnimation() {
     const avatar = document.getElementById('chatbotAvatar');
     const avatarOpen = document.getElementById('avatarOpen');
     
-    // Clear the mouth animation interval
     if (currentMouthInterval) {
         clearInterval(currentMouthInterval);
         currentMouthInterval = null;
     }
     
-    // Ensure mouth is closed when stopping
     avatar.classList.remove('speaking');
     avatarOpen.classList.add('avatar-hidden');
 }
+
 function sendMessage() {
   const input = document.getElementById("messageInput");
   const message = input.value.trim();
@@ -452,46 +456,73 @@ window.addEventListener("resize", function () {
 let isMuted = false;
 
 function toggleMute() {
-  isMuted = !isMuted;
-  if (isMuted) {
-    responsiveVoice.cancel();
-    document.getElementById('chatbotAvatar').classList.add('muted');
-  } else {
-    document.getElementById('chatbotAvatar').classList.remove('muted');
-  }
+    isMuted = !isMuted;
+    const toggleButton = document.getElementById('toggleSpeechButton');
+    const avatar = document.getElementById('chatbotAvatar');
+    
+    if (isMuted) {
+        responsiveVoice.pause();  // Pause instead of cancel
+        avatar.classList.add('muted');
+        toggleButton.classList.add('muted');
+        toggleButton.innerHTML = '<i class="fas fa-volume-mute"></i> Muted';
+    } else {
+        responsiveVoice.resume();  // Resume if paused
+        avatar.classList.remove('muted');
+        toggleButton.classList.remove('muted');
+        toggleButton.innerHTML = '<i class="fas fa-volume-up"></i> Unmuted';
+    }
 }
+
 let currentMouthInterval = null; // Add this at the top level of your file
 
 async function speakMessage(text) {
-    if (!text || !text.trim() || isMuted) return;
+    if (!text || !text.trim()) return;
     
     const avatar = document.getElementById('chatbotAvatar');
     const avatarOpen = document.getElementById('avatarOpen');
     
+    // Store the current text being spoken
+    currentSpeechText = text;
+    
     try {
         avatar.classList.add('speaking');
+        isCurrentlySpeaking = true;
         
-        // Store the interval in our global variable
+        // Clear any existing animation
+        if (currentMouthInterval) {
+            clearInterval(currentMouthInterval);
+        }
+        
+        // Start new animation
         currentMouthInterval = setInterval(() => {
-            avatarOpen.classList.toggle('avatar-hidden');
-        }, 600);
+            if (isCurrentlySpeaking) {
+                avatarOpen.classList.toggle('avatar-hidden');
+            }
+        }, 200);
         
         responsiveVoice.speak(text, "UK English Female", {
             onend: () => {
-                clearInterval(currentMouthInterval);
-                currentMouthInterval = null;
-                avatar.classList.remove('speaking');
-                avatarOpen.classList.add('avatar-hidden');
+                currentSpeechText = null;
+                isCurrentlySpeaking = false;
+                stopAvatarAnimation();
             },
             onstart: () => {
+                isCurrentlySpeaking = true;
                 avatar.classList.add('speaking');
-            }
+            },
+            volume: isMuted ? 0 : 1  // Set volume based on mute state
         });
+        
     } catch (error) {
         console.error('Speech Error:', error);
-        clearInterval(currentMouthInterval);
-        currentMouthInterval = null;
-        avatar.classList.remove('speaking');
-        avatarOpen.classList.add('avatar-hidden');
+        stopAvatarAnimation();
     }
+}
+
+// Add function to cancel current speech
+function cancelSpeech() {
+    responsiveVoice.cancel();
+    currentSpeechText = null;
+    isCurrentlySpeaking = false;
+    stopAvatarAnimation();
 }

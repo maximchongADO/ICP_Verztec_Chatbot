@@ -116,3 +116,14 @@ function showStatus(type, message) {
         uploadStatus.style.display = 'none';
     }, 5000);
 }
+
+// Add navigation functions
+function logout() {
+    localStorage.removeItem("token");
+    localStorage.removeItem("userId");
+    window.location.href = "/login.html";
+}
+
+function returnToChat() {
+    window.location.href = "/chatbot.html";
+}

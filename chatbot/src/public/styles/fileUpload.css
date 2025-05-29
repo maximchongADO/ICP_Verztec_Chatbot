@@ -1,19 +1,26 @@
+/* Override root styles */
+body {
+    background: #000000;
+    color: #FFD700;
+}
+
 .upload-container {
     min-height: 100vh;
     display: flex;
     align-items: center;
     justify-content: center;
     padding: 2rem;
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    background: #000000;  /* Changed to black */
 }
 
 .upload-card {
     width: 100%;
     max-width: 600px;
-    background: var(--card-bg);
+    background: #ffffff;  /* Changed to white */
     border-radius: 1rem;
     padding: 2rem;
-    box-shadow: var(--shadow-xl);
+    box-shadow: 0 0 15px rgba(255, 215, 0, 0.3);
+    border: 2px solid #FFD700;
 }
 
 .upload-header {
@@ -24,46 +31,50 @@
 .upload-header h1 {
     font-size: 1.875rem;
     font-weight: 700;
-    color: var(--text-primary);
+    color: #000000;  /* Changed to black */
+    text-shadow: none;
     margin-bottom: 0.5rem;
 }
 
 .upload-header p {
-    color: var(--text-secondary);
+    color: #666666;  /* Changed to dark gray */
 }
 
 .upload-area {
-    border: 2px dashed var(--border-color);
+    border: 2px dashed #FFD700;
+    background: #f8f9fa;  /* Light gray background */
+    color: #000000;
     border-radius: 1rem;
     padding: 2rem;
     text-align: center;
     transition: all 0.3s ease;
     margin-bottom: 1.5rem;
+    box-shadow: 0 0 10px rgba(255, 215, 0, 0.2);
 }
 
 .upload-area.drag-over {
-    border-color: var(--primary-color);
-    background: rgba(37, 99, 235, 0.05);
+    border-color: #FFD700;
+    background: #f8f9fa;  /* Slightly different white on drag */
 }
 
 .upload-icon {
     width: 64px;
     height: 64px;
     margin: 0 auto 1rem;
-    color: var(--primary-color);
+    color: #000000;  /* Black icon */
 }
 
 .upload-area h3 {
     font-size: 1.25rem;
     font-weight: 600;
     margin-bottom: 0.5rem;
-    color: var(--text-primary);
+    color: #000000;  /* Black text */
 }
 
 .supported-text {
     margin-top: 1rem;
     font-size: 0.875rem;
-    color: var(--text-secondary);
+    color: #666666;  /* Dark gray text */
 }
 
 .upload-list {
@@ -74,7 +85,8 @@
     display: flex;
     align-items: center;
     padding: 1rem;
-    background: var(--light-bg);
+    background: #1e293b;
+    border: 1px solid #FFD700;
     border-radius: 0.5rem;
     margin-bottom: 0.5rem;
 }
@@ -86,7 +98,7 @@
 
 .file-name {
     font-weight: 500;
-    color: var(--text-primary);
+    color: #FFD700;
     margin-bottom: 0.25rem;
 }
 
@@ -136,4 +148,124 @@
     width: 180px;
     height: auto;
     margin: 0 auto;
+}
+
+/* App container */
+.app-container {
+    display: flex;
+    height: 100vh;
+    position: relative;
+}
+
+/* Sidebar styles */
+.sidebar {
+    width: 250px;
+    background: rgba(0, 0, 0, 0.85);
+    backdrop-filter: blur(15px);
+    color: #FFD700;
+    display: flex;
+    flex-direction: column;
+    transition: all 0.3s ease;
+    z-index: 1000;
+    flex-shrink: 0;
+    position: fixed;
+    left: -250px;
+    height: 100vh;
+    box-shadow: 3px 0 10px rgba(255, 215, 0, 0.2);
+}
+
+.sidebar-trigger {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 20px;
+    height: 100vh;
+    z-index: 999;
+}
+
+.sidebar-trigger:hover + .sidebar,
+.sidebar:hover {
+    left: 0;
+}
+
+/* Update existing upload-container styles */
+.upload-container {
+    flex: 1;
+    margin-left: 20px;
+    transition: margin-left 0.3s ease;
+}
+
+.sidebar-trigger:hover ~ .upload-container,
+.sidebar:hover ~ .upload-container {
+    margin-left: 270px;
+}
+
+/* Add these new styles for sidebar elements */
+.sidebar-header {
+    padding: 20px;
+    border-bottom: 1px solid rgba(255, 215, 0, 0.3);
+}
+
+.sidebar-header .ai-avatar {
+    width: 40px;
+    height: 40px;
+    background: linear-gradient(135deg, #FFD700, #E6C200);
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 600;
+    font-size: 18px;
+    margin-bottom: 10px;
+    color: #000;
+    box-shadow: 0 0 8px #FFD700;
+}
+
+.sidebar-nav {
+    flex: 1;
+    padding: 20px 0;
+}
+
+.nav-item {
+    padding: 12px 20px;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    font-size: 14px;
+    color: #FFD700;
+    border-radius: 8px;
+}
+
+.nav-item:hover {
+    background: rgba(255, 215, 0, 0.15);
+    color: #fff;
+    box-shadow: 0 0 8px #FFD700;
+}
+
+.nav-item svg {
+    width: 20px;
+    height: 20px;
+    fill: currentColor;
+}
+
+.sidebar-logo {
+    padding: 20px;
+    margin-top: auto;
+    border-top: 1px solid rgba(255, 215, 0, 0.2);
+    text-align: center;
+}
+
+.sidebar-logo img {
+    width: 80%;
+    height: auto;
+    opacity: 0.9;
+    transition: opacity 0.3s ease;
+    filter: drop-shadow(0 0 5px #FFD700);
+}
+
+.sidebar-logo img:hover {
+    opacity: 1;
+    filter: drop-shadow(0 0 10px #FFF176);
 }

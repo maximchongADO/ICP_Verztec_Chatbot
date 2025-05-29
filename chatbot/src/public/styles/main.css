@@ -66,6 +66,7 @@ header .container {
   font-weight: 700;
   color: #000000;  /* Changed to black for better contrast on yellow */
   text-decoration: none;
+  text-transform: none; /* Remove any text transforms */
 }
 
 .nav-links {
@@ -102,7 +103,7 @@ main {
   font-size: 3.5rem;
   font-weight: 800;
   margin-bottom: 1.5rem;
-  background: linear-gradient(135deg, #ffffff 0%, #e2e8f0 100%);
+  background: linear-gradient(135deg, #FFD700 0%, #FFC800 100%); /* Updated to match Verztec gold */
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
@@ -111,7 +112,7 @@ main {
 .hero p {
   font-size: 1.25rem;
   margin-bottom: 3rem;
-  color: rgba(255, 255, 255, 0.9);
+  color: #FFD700; /* Updated to match branding */
   max-width: 600px;
   margin-left: auto;
   margin-right: auto;
