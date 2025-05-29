@@ -5,16 +5,17 @@
     align-items: center;
     justify-content: center;
     padding: 1rem;
+    background: #000000;  /* Changed to black */
 }
 
 .login-card {
   width: 100%;
   max-width: 380px;
-  background: var(--card-bg);
+  background: #FFFFFF;  /* Changed to white */
   border-radius: 1rem;
   padding: 2rem;
-  box-shadow: var(--shadow-xl);
-  border: 1px solid var(--border-color);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);  /* Adjusted shadow for contrast */
+  border: 1px solid rgba(255, 255, 255, 0.2);
 }
 
 .login-header {

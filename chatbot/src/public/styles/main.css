@@ -33,7 +33,7 @@ body {
     sans-serif;
   line-height: 1.6;
   color: var(--text-primary);
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  background: linear-gradient(135deg, #000000 0%, #1a1a1a 100%);  /* Changed from purple to black */
   min-height: 100vh;
 }
 
@@ -46,9 +46,9 @@ body {
 
 /* Header Styles */
 header {
-  background: rgba(255, 255, 255, 0.95);
+  background: rgba(255, 215, 0, 0.95);  /* Changed from white to yellow */
   backdrop-filter: blur(10px);
-  border-bottom: 1px solid var(--border-color);
+  border-bottom: 1px solid #FFD700;  /* Changed border color to match */
   padding: 1rem 0;
   position: sticky;
   top: 0;
@@ -64,7 +64,7 @@ header .container {
 .logo {
   font-size: 1.5rem;
   font-weight: 700;
-  color: var(--primary-color);
+  color: #000000;  /* Changed to black for better contrast on yellow */
   text-decoration: none;
 }
 
@@ -75,14 +75,14 @@ header .container {
 }
 
 .nav-links a {
-  color: var(--text-secondary);
+  color: #000000;  /* Changed to black for better contrast on yellow */
   text-decoration: none;
   font-weight: 500;
   transition: color 0.3s ease;
 }
 
 .nav-links a:hover {
-  color: var(--primary-color);
+  color: #1a1a1a;  /* Darker shade for hover state */
 }
 
 /* Main Content */
@@ -134,15 +134,15 @@ main {
 }
 
 .btn-primary {
-  background: var(--primary-color);
-  color: white;
-  box-shadow: var(--shadow-md);
+  background: #FFD700;  /* Changed to yellow */
+  color: black;  /* Changed to black for better contrast */
+  box-shadow: 0 4px 15px rgba(255, 215, 0, 0.3);
 }
 
 .btn-primary:hover {
-  background: var(--primary-hover);
+  background: #FFC800;  /* Slightly darker yellow for hover */
   transform: translateY(-2px);
-  box-shadow: var(--shadow-lg);
+  box-shadow: 0 6px 20px rgba(255, 215, 0, 0.4);
 }
 
 .btn-secondary {
@@ -235,6 +235,7 @@ main {
   padding: 2rem;
   text-align: center;
   border: 1px solid rgba(255, 255, 255, 0.2);
+  transition: transform 0.3s ease, box-shadow 0.3s ease;
 }
 
 .feature-icon {
@@ -264,12 +265,12 @@ main {
 
 /* Footer */
 footer {
-  background: rgba(255, 255, 255, 0.95);
+  background: rgba(0, 0, 0, 0.95);  /* Changed from white to black */
   backdrop-filter: blur(10px);
-  border-top: 1px solid var(--border-color);
+  border-top: 1px solid #333;
+  color: #FFD700;  /* Changed text color to yellow for contrast */
   padding: 2rem 0;
   text-align: center;
-  color: var(--text-secondary);
 }
 
 /* Responsive Design */
