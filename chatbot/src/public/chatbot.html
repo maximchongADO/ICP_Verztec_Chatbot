@@ -59,7 +59,7 @@
 
           <div
             class="nav-item"
-            onclick="document.getElementById('fileInput').click()"
+            <button onclick="handleFileUpload(event)"
           >
             <svg viewBox="0 0 24 24">
               <path
@@ -148,11 +148,7 @@
     </div>
 
     <!-- Hidden file input for uploads -->
-    <input
-      type="file"
-      id="fileInput"
-      style="display: none"
-      onchange="handleFileUpload(event)"
+    <button onclick="handleFileUpload(event)">Upload File</button>
     />
 
     <script src="/scripts/chatbot.js"></script>

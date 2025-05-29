@@ -348,22 +348,13 @@ function exportChat() {
   URL.revokeObjectURL(url);
 }
 
-// Handle file upload (placeholder function)
 function handleFileUpload(event) {
-  const file = event.target.files[0]; // Only take the first file
-
-  if (file) {
-    console.log("File selected:", file);
-
-    addMessage(`File selected: ${file.name}`, "bot");
-
-    // Optional: Reset the input to allow re-upload of the same file later
-    event.target.value = null;
-  } else {
-    addMessage("No file selected.", "bot");
-  }
+  // Prevent default file input behavior
+  event.preventDefault();
+  
+  // Redirect to the file upload page
+  window.location.href = "/fileupload.html";
 }
-
 // Initialize sidebar state on page load
 document.addEventListener("DOMContentLoaded", function () {
   // Close sidebar on mobile by default
