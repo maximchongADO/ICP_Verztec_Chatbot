@@ -23,14 +23,17 @@ body {
 /* Sidebar */
 .sidebar {
   width: 250px;
-  background: rgba(30, 41, 59, 0.95);
+  background: rgba(255, 255, 255, 0.95);  /* Changed to white */
   backdrop-filter: blur(20px);
-  color: white;
+  color: #000000;  /* Changed text to black for contrast */
   display: flex;
   flex-direction: column;
   transition: all 0.3s ease;
   z-index: 1000;
   flex-shrink: 0;
+  position: fixed;
+  left: -250px;  /* Start off-screen */
+  height: 100vh;
 }
 
 .sidebar.collapsed {
@@ -40,7 +43,7 @@ body {
 
 .sidebar-header {
   padding: 20px;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  border-bottom: 1px solid rgba(0, 0, 0, 0.1);  /* Changed border color */
 }
 
 .sidebar-header .ai-avatar {
@@ -80,10 +83,11 @@ body {
   align-items: center;
   gap: 12px;
   font-size: 14px;
+  color: #000000;  /* Changed text to black */
 }
 
 .nav-item:hover {
-  background: rgba(255, 255, 255, 0.1);
+  background: rgba(0, 0, 0, 0.1);  /* Changed hover state for white background */
 }
 
 .nav-item svg {
@@ -92,30 +96,44 @@ body {
   fill: currentColor;
 }
 
-/* Hamburger menu */
+/* Remove or comment out the hamburger menu styles since we won't need them */
 .hamburger-menu {
+  display: none;  /* Hide the hamburger button */
+}
+
+/* Add hover trigger area */
+.sidebar-trigger {
   position: fixed;
-  top: 20px;
-  left: 20px;
-  z-index: 1001;
-  background: rgba(30, 41, 59, 0.9);
-  border: none;
-  color: white;
-  padding: 12px;
-  border-radius: 8px;
-  cursor: pointer;
-  transition: all 0.3s ease;
-  backdrop-filter: blur(20px);
+  top: 0;
+  left: 0;
+  width: 20px;  /* Width of the hover area */
+  height: 100vh;
+  z-index: 999;
 }
 
-.hamburger-menu:hover {
-  background: rgba(30, 41, 59, 1);
+/* Modify sidebar behavior */
+.sidebar {
+  position: fixed;
+  left: -250px;  /* Start off-screen */
+  transition: left 0.3s ease;
+  height: 100vh;
 }
 
-.hamburger-menu svg {
-  width: 20px;
-  height: 20px;
-  fill: currentColor;
+/* Show sidebar on hover */
+.sidebar-trigger:hover + .sidebar,
+.sidebar:hover {
+  left: 0;
+}
+
+/* Adjust main content to slide */
+.chat-container {
+  margin-left: 20px;  /* Match trigger width */
+  transition: margin-left 0.3s ease;
+}
+
+.sidebar-trigger:hover ~ .chat-container,
+.sidebar:hover ~ .chat-container {
+  margin-left: 270px;  /* sidebar width + 20px */
 }
 
 /* Main chat container */
@@ -123,18 +141,19 @@ body {
   flex: 1;
   display: flex;
   flex-direction: column;
-  background: rgba(255, 255, 255, 0.98);
+  background: #000000;  /* Changed to black */
   backdrop-filter: blur(20px);
   margin: 20px;
   border-radius: 16px;
+  border: 2px solid #FFD700;  /* Added yellow border */
   overflow: hidden;
   transition: all 0.3s ease;
 }
 
 /* Chat header - minimal */
 .chat-header {
-  background: rgba(248, 250, 252, 0.8);
-  border-bottom: 1px solid #e2e8f0;
+  background: #FFD700;  /* Changed to yellow */
+  border-bottom: 1px solid rgba(0, 0, 0, 0.1);
   padding: 20px 30px;
   display: flex;
   align-items: center;
@@ -142,63 +161,64 @@ body {
 }
 
 .chat-title {
-  color: #1e293b;
+  color: #000000;  /* Changed to black for contrast */
   font-size: 18px;
   font-weight: 600;
 }
 
-  /* Chat messages area */
-  .chat-messages {
-    flex: 1;
-    overflow-y: auto;
-    padding: 30px;
-    background: #f8fafc;
-    scroll-behavior: smooth;
-  }
+/* Chat messages area */
+.chat-messages {
+  flex: 1;
+  overflow-y: auto;
+  padding: 30px;
+  background: #000000;  /* Changed to black */
+  scroll-behavior: smooth;
+  color: #ffffff;  /* Added white text for contrast */
+}
 
-  .chat-messages::-webkit-scrollbar {
-    width: 6px;
-  }
+.chat-messages::-webkit-scrollbar {
+  width: 6px;
+}
 
-  .chat-messages::-webkit-scrollbar-track {
-    background: transparent;
-  }
+.chat-messages::-webkit-scrollbar-track {
+  background: transparent;
+}
 
-  .chat-messages::-webkit-scrollbar-thumb {
-    background: rgba(0, 0, 0, 0.2);
-    border-radius: 3px;
-  }
+.chat-messages::-webkit-scrollbar-thumb {
+  background: rgba(0, 0, 0, 0.2);
+  border-radius: 3px;
+}
 
-  /* Messages */
-  .message {
-    margin-bottom: 25px;
-    margin-top: 0px;
-    animation: fadeInUp 0.4s ease-out;
-  }
+/* Messages */
+.message {
+  margin-bottom: 25px;
+  margin-top: 0px;
+  animation: fadeInUp 0.4s ease-out;
+}
 
-  @keyframes fadeInUp {
-    from {
-      opacity: 0;
-      transform: translateY(20px);
-    }
-    to {
-      opacity: 1;
-      transform: translateY(0);
-    }
+@keyframes fadeInUp {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
   }
-
-  .message-user {
-    display: flex;
-    justify-content: flex-end;
-    align-items: flex-start;
+  to {
+    opacity: 1;
+    transform: translateY(0);
   }
+}
 
-  .message-ai {
-    display: flex;
-    justify-content: flex-start;
-    align-items: flex-start;
+.message-user {
+  display: flex;
+  justify-content: flex-end;
+  align-items: flex-start;
+}
 
-  }
+.message-ai {
+  display: flex;
+  justify-content: flex-start;
+  align-items: flex-start;
+
+}
 
 .message-content {
   max-width: 75%;
@@ -211,18 +231,18 @@ body {
 
 }
 
-  .user-message {
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-    color: white;
-    box-shadow: 0 4px 15px rgba(102, 126, 234, 0.3);
-  }
+.user-message {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+  box-shadow: 0 4px 15px rgba(102, 126, 234, 0.3);
+}
 
-  .ai-message {
-    background: white;
-    color: #1e293b;
-    border: 1px solid #e2e8f0;
-    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.05);
-  }
+.ai-message {
+  background: white;
+  color: #1e293b;
+  border: 1px solid #e2e8f0;
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.05);
+}
 
 .ai-message-avatar {
   width: 48px;  /* Made slightly bigger */
@@ -238,19 +258,19 @@ body {
   color: transparent; /* Hide the text */
 }
 
-  /* Typing indicator */
-  .typing-indicator {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    margin-bottom: 25px;
-    opacity: 0;
-    animation: fadeIn 0.3s ease-out;
-  }
+/* Typing indicator */
+.typing-indicator {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 25px;
+  opacity: 0;
+  animation: fadeIn 0.3s ease-out;
+}
 
-  .typing-indicator.show {
-    opacity: 1;
-  }
+.typing-indicator.show {
+  opacity: 1;
+}
 
 @keyframes fadeIn {
   from {
@@ -303,8 +323,8 @@ body {
 /* Chat input container with avatar */
 .chat-input-container {
   padding: 25px 30px;
-  background: transparent;
-  border-top: none;
+  background: #000000;  /* Changed to black */
+  border-top: 1px solid #FFD700;  /* Added yellow border top */
   display: flex;
   align-items: flex-end;
   gap: 20px;
@@ -366,16 +386,21 @@ body {
 .chat-input {
   width: 100%;
   padding: 16px 60px 16px 20px;
-  border: 2px solid #e2e8f0;
+  border: 2px solid #FFD700;  /* Changed to yellow */
   border-radius: 25px;
   font-size: 15px;
   outline: none;
   transition: all 0.3s ease;
-  background: #f7fafc;
+  background: #1a1a1a;  /* Darker background */
+  color: #FFD700;  /* Yellow text */
   resize: none;
   min-height: 52px;
   max-height: 120px;
   font-family: inherit;
+}
+
+.chat-input::placeholder {
+  color: rgba(255, 215, 0, 0.5);  /* Semi-transparent yellow */
 }
 
 .chat-input:focus {
@@ -512,6 +537,22 @@ body {
     background: #c82333;
 }
 
+#toggleSpeechButton {
+    background: #FF0000;  /* Changed to red */
+    color: white;
+    padding: 8px 15px;
+    border-radius: 20px;
+    border: none;
+    cursor: pointer;
+    font-size: 14px;
+    transition: all 0.3s ease;
+}
+
+#toggleSpeechButton:hover {
+    background: #CC0000;  /* Darker red on hover */
+    box-shadow: 0 0 10px rgba(255, 0, 0, 0.3);  /* Red glow effect */
+}
+
 /* Sidebar Logo */
 .sidebar-logo {
   padding: 20px;
@@ -569,11 +610,11 @@ body {
 
 .chat-input-container {
   padding: 25px 30px;
-  background: transparent;
-  border-top: none;
+  background: #000000;  /* Changed to black */
+  border-top: 1px solid #FFD700;  /* Added yellow border top */
   display: flex;
-  align-items: center;
-  gap: 20px;  /* Increased gap slightly */
+  align-items: flex-end;
+  gap: 20px  /* Increased gap slightly */
   justify-content: flex-start;
 }
 
