@@ -30,7 +30,7 @@ logger = logging.getLogger(__name__)
 
 # Initialize models and clients
 embedding_model = SentenceTransformer('BAAI/bge-large-en-v1.5')
-api_key = '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'
+api_key = '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'
 model_name = "compound-beta"
 model = "deepseek-r1-distill-llama-70b" 
 deepseek = ChatGroq(api_key=api_key, model=model) # type: ignore
@@ -385,11 +385,16 @@ def generate_answer(user_query: str, chat_history: ConversationBufferMemory):
         ## retrieving images from top 3 chunks (if any)
         # Retrieve images from top 3 chunks (if any)
         top_3_img = []
-        for i, (doc, score) in enumerate(results, 1):
-            if len(top_3_img) < 3:
-                images = doc.metadata.get('images', None)
-                if images:
-                    top_3_img.extend(images)  # Ensures a flat list of strings
+        for doc, score in results:
+            images = doc.metadata.get('images', [])
+            for img in images:
+                if len(top_3_img) < 3:
+                    top_3_img.append(img)
+                else:
+                    break
+            if len(top_3_img) >= 3:
+                    break
+  # Ensures a flat list of strings
         top_3_img = list(set(top_3_img))  # Remove duplicates
         logger.info(f"Top 3 images: {top_3_img}")
 
@@ -430,6 +435,9 @@ def generate_answer(user_query: str, chat_history: ConversationBufferMemory):
             think_block_pattern = re.compile(r"<think>.*?</think>", flags=re.DOTALL)
             cleaned_fallback = think_block_pattern.sub("", raw_fallback).strip()
             return cleaned_fallback, top_3_img
+        
+        
+        
         logger.info("QA chain activated for query processing.")
         # Step 4: Prepare full prompt and return LLM output
         modified_query = "You are a  HELPFUL AND NICE verztec helpdesk assistant. You will only use the provided documents in your response. If the query is out of scope, say so.\n\n" + clean_query

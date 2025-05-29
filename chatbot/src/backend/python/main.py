@@ -84,6 +84,9 @@ async def chat_endpoint(request: ChatRequest):
         
         response_message, image_list = generate_answer(request.message, memory)
         logger.info(f"Generated response: {response_message}")
+        logger.info(f"Image list: {image_list}")
+        
+        
         
         return ChatResponse(
             message=response_message,
@@ -100,7 +103,8 @@ async def chat_endpoint(request: ChatRequest):
             user_id=request.user_id,
             timestamp=datetime.utcnow().isoformat(),
             success=False,
-            error=str(e)
+            error=str(e),
+            images=None
         )
 
 @app.delete("/history")
