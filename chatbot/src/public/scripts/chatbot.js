@@ -42,7 +42,11 @@ function sendMessage() {
 
       // Add bot response
       if (response && response.message) {
-        addMessage(response.message, "bot");
+        addMessage(response, "bot"); 
+        if (Array.isArray(response.images) && response.images.length > 1) {
+          addMessage(response.images[1], "bot"); // optional: specify sender
+        }
+        //addMessage(response.images[1])// Pass the whole response object
       } else {
         addMessage("Sorry, I received an invalid response. Please try again.", "bot");
       }
@@ -54,7 +58,7 @@ function sendMessage() {
 
       // Add error message
       addMessage(
-        "Sorry, I'm having trouble connecting to the server. Please try again later.",
+        error,
         "bot"
       );
     })
@@ -83,19 +87,20 @@ async function callChatbotAPI(message) {
     });
 
     if (!response.ok) {
-      const errorText = await response.text();
-      console.error("API Error Response:", errorText);
       throw new Error(`HTTP error! status: ${response.status}`);
     }
 
-    const result = await response.json();
-    console.log("API Response:", result);
+    const data = await response.json();
+    console.log("API Response:", data);
 
-    if (!result.success) {
-      throw new Error(result.message || "Failed to get response from chatbot");
+    if (data && data.message) {
+      return {
+        success: true,
+        message: data.message
+      };
+    } else {
+      throw new Error("Invalid response format from chatbot");
     }
-
-    return result;
   } catch (error) {
     console.error("Chatbot API Error:", error);
     throw error;
@@ -174,7 +179,7 @@ function showTypingIndicator() {
   typingDiv.className = "typing-indicator show";
   typingDiv.id = "typingIndicator";
   typingDiv.innerHTML = `
-    <div class="ai-message-avatar">AI</div>
+    <div class="ai-message-avatar"></div>
     <div class="typing-dots">
       <div class="typing-dot"></div>
       <div class="typing-dot"></div>
@@ -203,31 +208,74 @@ function sendSuggestion(text) {
   }
 }
 
-function addMessage(text, sender) {
+// Update the speakMessage function
+function speakMessage(text) {
+  if (!text || !text.trim()) return;
+  
+  const avatar = document.getElementById('chatbotAvatar');
+  const avatarOpen = document.getElementById('avatarOpen');
+  
+  if (responsiveVoice && !isMuted) {
+    avatar.classList.add('speaking');
+    responsiveVoice.speak(text, "UK English Female", {
+      pitch: 1,
+      rate: 1,
+      onstart: () => {
+        avatar.classList.add('speaking');
+      },
+      onend: () => {
+        avatar.classList.remove('speaking');
+      }
+    });
+  }
+}
+
+function addMessage(textOrResponse, sender) {
+  let text = textOrResponse;
+  let images = [];
+
+  // If an object with a 'message' property is passed, extract the message and images
+  if (typeof textOrResponse === "object" && textOrResponse !== null && "message" in textOrResponse) {
+    text = textOrResponse.message.trim(); // Add trim() here
+    images = textOrResponse.images || [];
+  }
+
+  if (!text || !text.trim()) {
+    console.error("Empty message received");
+    return;
+  }
+
   const chatMessages = document.getElementById("chatMessages");
   const messageDiv = document.createElement("div");
 
   if (sender === "user") {
     messageDiv.className = "message message-user";
     messageDiv.innerHTML = `
-      <div class="message-content user-message">
-        ${escapeHtml(text)}
-      </div>
-    `;
+      <div class="message-content user-message">${escapeHtml(text.trim())}</div>`; // Add trim() here
   } else {
     messageDiv.className = "message message-ai";
+    let imagesHtml = "";
+    if (Array.isArray(images) && images.length > 0) {
+      // Only print the image names (filenames) as a list
+      imagesHtml = `<div class="ai-message-images">` +
+      images.map(src => {
+        const filename = escapeHtml(src.split('/').pop() || src);
+        return `<img src="/data/images/${filename}" alt="${filename}" class="chat-image" />`;
+      }).join("") +
+      `</div>`;
+
+      console.log("AI response images:", images.map(src => src.split('/').pop() || src));
+    }
     messageDiv.innerHTML = `
-      <div class="ai-message-avatar">AI</div>
-      <div class="message-content ai-message">
-        ${escapeHtml(text)}
-      </div>
-    `;
+      <div class="ai-message-avatar"></div>
+      <div class="message-content ai-message">${escapeHtml(text.trim())}${imagesHtml}</div>`; // Add trim() here
+    // Only trigger speech for bot messages after the message is added
+    setTimeout(() => speakMessage(text), 100);
   }
 
   chatMessages.appendChild(messageDiv);
   chatMessages.scrollTop = chatMessages.scrollHeight;
-
-  return messageDiv; // Return the element for potential removal
+  return messageDiv;
 }
 
 // Helper function to escape HTML to prevent XSS
@@ -288,22 +336,13 @@ function exportChat() {
   URL.revokeObjectURL(url);
 }
 
-// Handle file upload (placeholder function)
 function handleFileUpload(event) {
-  const file = event.target.files[0]; // Only take the first file
-
-  if (file) {
-    console.log("File selected:", file);
-
-    addMessage(`File selected: ${file.name}`, "bot");
-
-    // Optional: Reset the input to allow re-upload of the same file later
-    event.target.value = null;
-  } else {
-    addMessage("No file selected.", "bot");
-  }
+  // Prevent default file input behavior
+  event.preventDefault();
+  
+  // Redirect to the file upload page
+  window.location.href = "/fileupload.html";
 }
-
 // Initialize sidebar state on page load
 document.addEventListener("DOMContentLoaded", function () {
   // Close sidebar on mobile by default
@@ -328,3 +367,16 @@ window.addEventListener("resize", function () {
     }
   }
 });
+
+// Add mute toggle functionality
+let isMuted = false;
+
+function toggleMute() {
+  isMuted = !isMuted;
+  if (isMuted) {
+    responsiveVoice.cancel();
+    document.getElementById('chatbotAvatar').classList.add('muted');
+  } else {
+    document.getElementById('chatbotAvatar').classList.remove('muted');
+  }
+}

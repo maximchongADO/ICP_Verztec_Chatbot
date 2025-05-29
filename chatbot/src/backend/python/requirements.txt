@@ -1,25 +1,31 @@
-faiss-cpu>=1.11.0
-sentence-transformers>=4.1.0
-langchain-groq>=0.3.2
-numpy>=2.2.6
-langchain>=0.3.25
+# Core Framework
+fastapi>=0.115.12
 uvicorn>=0.34.2
 pydantic>=2.11.5
-fastapi>=0.115.12
+python-multipart
+
+# Vector Search / Embeddings
+faiss-cpu>=1.11.0
+sentence-transformers>=4.1.0
+langchain>=0.3.25
 langchain-core>=0.1.46
 langchain-community>=0.0.34
 langchain-huggingface>=0.2.0
-python-dotenv>=1.0.1
+langchain-groq>=0.3.2
+
+# NLP & Text Processing
 regex>=2023.12.25
+ftfy
+spacy
+numpy>=2.2.6
 typing-extensions>=4.9.0
 requests>=2.31.0
-fastapi==0.111.0
-uvicorn==0.19.0
-faiss-cpu  # version not detected, install via pip install faiss-cpu
-sentence-transformers  # version not detected, install via pip install sentence-transformers
-langchain  # version not detected, install via pip install langchain
-langchain-groq  # version not detected, install via pip install langchain-groq
-langchain-community  # version not detected, optional if you're using community modules
+
+# Document Handling
+python-docx
+python-pptx
+pymupdf
+Pillow
+imagehash
 python-dotenv==1.1.0
-pydantic==2.9.2
-numpy==1.24.0
+pywin32 ; platform_system == "Windows"

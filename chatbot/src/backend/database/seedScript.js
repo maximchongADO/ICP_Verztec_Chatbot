@@ -2,7 +2,8 @@ const mysql = require('mysql2/promise');
 const bcrypt = require("bcrypt");
 const dbConfig = require("./dbConfig");
 const path = require('path');
-const fs = require('fs').promises;
+const fs = require('fs').promises;  // Using promises version
+const fsSync = require('fs');  // Add this for sync operations
 
 const createTablesSQL = {
   documents: `
@@ -53,15 +54,25 @@ const createTablesSQL = {
       username VARCHAR(40) NOT NULL,
       email VARCHAR(50) NOT NULL UNIQUE,
       password VARCHAR(100) NOT NULL,
-      role ENUM('student', 'admin') NOT NULL,
+      role ENUM('user', 'admin','manager') NOT NULL,
       PRIMARY KEY (id)
+    )`,
+    
+  cleaned_texts: `
+    CREATE TABLE IF NOT EXISTS cleaned_texts (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      filename VARCHAR(255) NOT NULL,
+      cleaned_content LONGTEXT NOT NULL,
+      uploaded_by INT,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (uploaded_by) REFERENCES Users(id) ON DELETE SET NULL
     )`
   };
 
 async function createTables(connection) {
   try {
     // Create tables in order (roles first, then users due to foreign key)
-    const tableOrder = ['documents', 'knowledge_chunks', 'chat_logs', 'extracted_texts', 'roles', 'users'];
+    const tableOrder = ['documents', 'knowledge_chunks', 'chat_logs', 'extracted_texts', 'roles', 'users', 'cleaned_texts'];
     
     for (const tableName of tableOrder) {
       await connection.execute(createTablesSQL[tableName]);
@@ -131,36 +142,64 @@ async function insertExtractedTexts(connection, folderPath) {
 }
 
 async function insertInitialData(connection) {
-  try {
-    // Insert users directly without role references
-    const hashedPassword1 = await bcrypt.hash('password1234', 10);
-    const hashedPassword2 = await bcrypt.hash('maximchong1', 10);
-    
-    const insertSQL = `
-      INSERT INTO Users (username, email, password, role) 
-      VALUES (?, ?, ?, ?)`;
-    
-    await connection.execute(insertSQL, ['Toby', 'toby@gmail.com', hashedPassword1, 'student']);
-    await connection.execute(insertSQL, ['Maxim', 'maxim@gmail.com', hashedPassword2, 'admin']);
-    console.log('Users inserted successfully');
-    
-    // Update data directory path to be relative to project root
-    const dataDir = path.join(__dirname, '..', '..', '..', '..', 'data');
-    await insertDocumentsFromFolder(connection, path.join(dataDir, 'pdf'), ['.pdf']);
-    await insertDocumentsFromFolder(connection, path.join(dataDir, 'word'), ['.doc', '.docx']);
-    
-    // Insert extracted texts with updated path
-    await insertExtractedTexts(connection, path.join(dataDir, 'cleaned'));
-    
-  
-    
-  
-    
-    console.log('All initial data inserted successfully');
-  } catch (err) {
-    console.error('Error inserting initial data:', err);
-    throw err;
-  }
+    try {
+        // Insert users
+        const hashedPassword1 = await bcrypt.hash('password1234', 10);
+        const hashedPassword2 = await bcrypt.hash('maximchong1', 10);
+        
+        const insertSQL = `
+            INSERT INTO Users (username, email, password, role) 
+            VALUES (?, ?, ?, ?)`;
+        
+        await connection.execute(insertSQL, ['Toby', 'toby@gmail.com', hashedPassword1, 'user']);
+        await connection.execute(insertSQL, ['Maxim', 'maxim@gmail.com', hashedPassword2, 'admin']);
+        console.log('Users inserted successfully');
+        
+        // Update data directory path to be relative to src folder
+        const scriptDir = path.dirname(__filename);
+        const srcDir = path.resolve(scriptDir, '..');
+        const pythonDataDir = path.join(srcDir, 'python', 'data');
+        
+        // Check if directories exist before trying to read them
+        const pdfDir = path.join(pythonDataDir, 'pdf');
+        const wordDir = path.join(pythonDataDir, 'word');
+        const cleanedDir = path.join(pythonDataDir, 'cleaned');
+
+        // Create directories if they don't exist
+        [pdfDir, wordDir, cleanedDir].forEach(dir => {
+            if (!fsSync.existsSync(dir)) {  // Use synchronous version
+                fsSync.mkdirSync(dir, { recursive: true });  // Use synchronous version
+                console.log(`Created directory: ${dir}`);
+            }
+        });
+
+        // Only try to insert documents if directories exist
+        if (fsSync.existsSync(pdfDir)) {  // Use synchronous version
+            await insertDocumentsFromFolder(connection, pdfDir, ['.pdf']);
+            console.log('PDF documents inserted successfully');
+        } else {
+            console.log('PDF directory not found, skipping PDF documents');
+        }
+
+        if (fsSync.existsSync(wordDir)) {
+          await insertDocumentsFromFolder(connection, wordDir, ['.doc', '.docx']);
+          console.log('Word documents inserted successfully');
+        } else {
+          console.log('Word directory not found, skipping Word documents');
+        }
+
+        if (fsSync.existsSync(cleanedDir)) {
+          await insertExtractedTexts(connection, cleanedDir);
+          console.log('Extracted texts inserted successfully');
+        } else {
+          console.log('Cleaned directory not found, skipping extracted texts');
+        }
+        
+        console.log('All initial data inserted successfully');
+    } catch (err) {
+        console.error('Error inserting initial data:', err);
+        throw err;
+    }
 }
 
 async function resetDatabase(connection) {
