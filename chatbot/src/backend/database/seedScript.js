@@ -31,7 +31,8 @@ const createTablesSQL = {
       timestamp DATETIME,
       user_message LONGTEXT,
       bot_response LONGTEXT,
-      session_id VARCHAR(255)
+      session_id VARCHAR(255),
+      feedback VARCHAR(20)
     )`,
     
   extracted_texts: `

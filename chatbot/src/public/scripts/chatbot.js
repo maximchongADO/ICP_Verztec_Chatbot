@@ -477,27 +477,22 @@ function cancelSpeech() {
 }
 
 function handleFeedback(button, isPositive) {
-    // Get the parent message container
     const messageContainer = button.closest('.message');
     if (!messageContainer) return;
 
-    // Get the feedback buttons container
     const feedbackGroup = button.closest('.feedback-buttons');
     if (!feedbackGroup) return;
 
-    // Remove selected class from all buttons
     feedbackGroup.querySelectorAll('.feedback-btn').forEach(btn => {
         btn.classList.remove('selected');
     });
 
-    // Add selected class to clicked button
     button.classList.add('selected');
 
-    // Get the message content
     const messageContent = messageContainer.querySelector('.message-content').textContent.trim();
 
-    // Send feedback to server
-    fetch('http://localhost:3000/feedback', {
+    // Send feedback to server with correct endpoint
+    fetch('/api/chatbot/feedback', {
         method: 'POST',
         headers: {
             'Content-Type': 'application/json',
@@ -505,12 +500,11 @@ function handleFeedback(button, isPositive) {
         },
         body: JSON.stringify({
             message: messageContent,
-            isHelpful: isPositive,
+            feedback: isPositive ? 'helpful' : 'not helpful',
             timestamp: new Date().toISOString()
         })
     }).catch(error => console.error('Error sending feedback:', error));
 
-    // Disable all buttons in this group
     feedbackGroup.querySelectorAll('.feedback-btn').forEach(btn => {
         btn.disabled = true;
     });

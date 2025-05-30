@@ -18,6 +18,12 @@ const chatbotRoute = (app) => {
     authenticateToken,
     chatbotController.clearChatHistory
   );
+  // Add new feedback endpoint
+  app.post(
+    "/api/chatbot/feedback",
+    authenticateToken,
+    chatbotController.handleFeedback
+  );
 };
 
 module.exports = chatbotRoute;
