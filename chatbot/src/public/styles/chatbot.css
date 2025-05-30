@@ -254,6 +254,10 @@ body {
   background: #1e293b;  /* dark blue-gray */
   color: #FFD700;
   border: 1px solid #FFD700;
+  padding: 15px 20px;
+  border-radius: 20px;
+  position: relative;
+  margin-bottom: 8px; /* Reduced to make room for buttons */
   box-shadow: 0 4px 15px rgba(255, 215, 0, 0.2);
 }
 
@@ -363,6 +367,13 @@ body {
   height: 100%;
   position: relative;
   transition: transform 0.3s ease;
+  filter: none; /* Default state */
+  transition: filter 0.3s ease, transform 0.3s ease;
+}
+
+.avatar.muted {
+  filter: grayscale(100%) brightness(70%);
+  opacity: 0.7;
 }
 
 .avatar-image {
@@ -569,7 +580,7 @@ body {
 }
 
 #toggleSpeechButton {
-  background: #FF0000;  /* red */
+  background: #28a745; /* Green for unmuted */
   color: white;
   padding: 8px 15px;
   border-radius: 20px;
@@ -577,12 +588,22 @@ body {
   cursor: pointer;
   font-size: 14px;
   transition: all 0.3s ease;
-  box-shadow: 0 0 10px rgba(255, 0, 0, 0.5);
+  box-shadow: 0 0 10px rgba(40, 167, 69, 0.5);
 }
 
 #toggleSpeechButton:hover {
-  background: #CC0000;  /* Darker red on hover */
-  box-shadow: 0 0 15px rgba(255, 0, 0, 0.8);  /* Red glow effect */
+  background: #218838; /* Darker green on hover */
+  box-shadow: 0 0 15px rgba(40, 167, 69, 0.8);
+}
+
+#toggleSpeechButton.muted {
+  background: #dc3545; /* Red for muted */
+  box-shadow: 0 0 10px rgba(220, 53, 69, 0.5);
+}
+
+#toggleSpeechButton.muted:hover {
+  background: #c82333; /* Darker red on hover */
+  box-shadow: 0 0 15px rgba(220, 53, 69, 0.8);
 }
 
 /* Sidebar Logo */
@@ -604,6 +625,73 @@ body {
 .sidebar-logo img:hover {
   opacity: 1;
   filter: drop-shadow(0 0 10px #FFF176);
+}
+
+/* Feedback buttons */
+.feedback-buttons {
+    display: flex;
+    gap: 10px;
+    margin-top: 8px;
+    margin-left: 48px;
+    justify-content: flex-start;
+    opacity: 0.7;
+    transition: opacity 0.3s ease;
+    pointer-events: auto; /* Ensure clicks are registered */
+    z-index: 2; /* Increase z-index */
+}
+
+.feedback-btn {
+    background: rgba(30, 41, 59, 0.7);
+    border: 1px solid #FFD700;
+    color: #FFD700;
+    padding: 6px 12px;
+    border-radius: 12px;
+    cursor: pointer;
+    font-size: 11px;
+    transition: all 0.3s ease;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 80px;
+    height: 28px;
+    line-height: 1;
+    backdrop-filter: blur(5px);
+    pointer-events: auto; /* Ensure clicks are registered */
+    user-select: none; /* Prevent text selection */
+    outline: none; /* Remove focus outline */
+}
+
+.feedback-btn.selected {
+    background: #FFD700;
+    color: #000000;
+    border-color: #FFD700;
+    transform: scale(1.05);
+    box-shadow: 0 0 15px rgba(255, 215, 0, 0.4);
+}
+
+.feedback-btn.selected.positive {
+    background: #28a745;
+    border-color: #28a745;
+    color: white;
+    box-shadow: 0 0 15px rgba(40, 167, 69, 0.4);
+}
+
+.feedback-btn.selected.negative {
+    background: #dc3545;
+    border-color: #dc3545;
+    color: white;
+    box-shadow: 0 0 15px rgba(220, 53, 69, 0.4);
+}
+
+.feedback-btn:disabled {
+    opacity: 0.7;
+    cursor: default;
+    transform: none;
+}
+
+.feedback-btn.selected:disabled {
+    opacity: 1;
+    transform: scale(1.05);
 }
 
 /* Responsive design */

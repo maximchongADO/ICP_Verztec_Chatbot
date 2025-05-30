@@ -289,7 +289,17 @@ function addMessage(textOrResponse, sender) {
 
     messageDiv.innerHTML = `
       <div class="ai-message-avatar"></div>
-      <div class="message-content ai-message">${escapeHtml(text)}${imagesHtml}</div>`;
+      <div class="message-content ai-message">
+        ${escapeHtml(text)}${imagesHtml}
+      </div>
+      <div class="feedback-buttons">
+        <button class="feedback-btn positive" onclick="handleFeedback(this, true)">
+          👍 Helpful
+        </button>
+        <button class="feedback-btn negative" onclick="handleFeedback(this, false)">
+          👎 Not Helpful
+        </button>
+      </div>`;
   }
 
   if (sender === "bot" && text) {
@@ -464,4 +474,44 @@ function cancelSpeech() {
     currentSpeechText = null;
     isCurrentlySpeaking = false;
     stopAvatarAnimation();
+}
+
+function handleFeedback(button, isPositive) {
+    // Get the parent message container
+    const messageContainer = button.closest('.message');
+    if (!messageContainer) return;
+
+    // Get the feedback buttons container
+    const feedbackGroup = button.closest('.feedback-buttons');
+    if (!feedbackGroup) return;
+
+    // Remove selected class from all buttons
+    feedbackGroup.querySelectorAll('.feedback-btn').forEach(btn => {
+        btn.classList.remove('selected');
+    });
+
+    // Add selected class to clicked button
+    button.classList.add('selected');
+
+    // Get the message content
+    const messageContent = messageContainer.querySelector('.message-content').textContent.trim();
+
+    // Send feedback to server
+    fetch('http://localhost:3000/feedback', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({
+            message: messageContent,
+            isHelpful: isPositive,
+            timestamp: new Date().toISOString()
+        })
+    }).catch(error => console.error('Error sending feedback:', error));
+
+    // Disable all buttons in this group
+    feedbackGroup.querySelectorAll('.feedback-btn').forEach(btn => {
+        btn.disabled = true;
+    });
 }
