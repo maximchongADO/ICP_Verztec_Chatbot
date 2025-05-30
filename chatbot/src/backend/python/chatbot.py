@@ -458,26 +458,36 @@ def generate_answer(user_query: str, chat_history: ConversationBufferMemory):
 
         # Clean the <think> block regardless
         cleaned_answer = think_block_pattern.sub("", raw_answer).strip()
+        has_tag=False
+        while has_tag and i==1:
 
-        if not has_think_block:
-            logger.warning("Missing full <think> block — retrying query once...")
-            response_retry = qa_chain.invoke({"question": clean_query})
-            raw_answer_retry = response_retry['answer']
-            logger.info(f"Retry response: {raw_answer_retry}")
-            sleep(1)  # Optional: wait a bit before retrying
-            cleaned_answer = think_block_pattern.sub("", raw_answer_retry).strip()
-        else:
-            logger.info("Full <think> block found and removed successfully")
-        block_tag_pattern = re.compile(r"<([a-zA-Z0-9_]+)>.*?</\1>", flags=re.DOTALL)
+            if not has_think_block:
+                logger.warning("Missing full <think> block — retrying query once...")
+                response_retry = qa_chain.invoke({"question": clean_query})
+                raw_answer_retry = response_retry['answer']
+                logger.info(f"Retry response: {raw_answer_retry}")
+                sleep(1)  # Optional: wait a bit before retrying
+                cleaned_answer = think_block_pattern.sub("", raw_answer_retry).strip()
+            else:
+                logger.info("Full <think> block found and removed successfully")
+            block_tag_pattern = re.compile(r"<([a-zA-Z0-9_]+)>.*?</\1>", flags=re.DOTALL)
 
-        # Check if there are any block tags at all
-        has_any_block_tag = bool(block_tag_pattern.search(raw_answer))
-        if has_any_block_tag:
-            logger.info("Block tags found in response, cleaning them up")
+            # Check if there are any block tags at all
+            has_any_block_tag = bool(block_tag_pattern.search(raw_answer))
+            if has_any_block_tag:
+                logger.info("Block tags found in response, cleaning them up")
 
-        # Remove all block tags
-        cleaned_answer = block_tag_pattern.sub("", raw_answer).strip()
-        cleaned_answer = re.sub(r"^\s+", "", cleaned_answer)
+            # Remove all block tags
+            cleaned_answer = block_tag_pattern.sub("", raw_answer).strip()
+            cleaned_answer = re.sub(r"^\s+", "", cleaned_answer)
+            has_any_block_tag = bool(block_tag_pattern.search(raw_answer))
+            if not has_any_block_tag:
+                has_tag= False
+            i+=1
+        ## one last cleanup to ensure no <think> tags remain
+        # Remove any remaining <think> tagsbetter have NO MOR NO MORE NO MO NO MOMRE 
+        cleaned_answer = re.sub(r"</?think>", "", cleaned_answer).strip()
+
     
         store_chat_log(user_message=user_query, bot_response=cleaned_answer, session_id=session_id)
         
