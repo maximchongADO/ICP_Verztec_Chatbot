@@ -24,6 +24,7 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 from transformers import AutoModelForSeq2SeqLM, AutoTokenizer
 import mysql.connector
 from datetime import datetime
+from time import sleep
 # Set up logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
@@ -47,7 +48,7 @@ memory = ConversationBufferMemory(
 # Load FAISS index
 try:
     script_dir = os.path.dirname(os.path.abspath(__file__))
-    faiss_index_path = os.path.join(script_dir, "faiss_index3")
+    faiss_index_path = os.path.join(script_dir, "faiss_master_index")
     
     if not os.path.exists(faiss_index_path):
         raise FileNotFoundError(f"FAISS index not found at {faiss_index_path}")
@@ -434,7 +435,9 @@ def generate_answer(user_query: str, chat_history: ConversationBufferMemory):
             # Remove <think> block if present
             think_block_pattern = re.compile(r"<think>.*?</think>", flags=re.DOTALL)
             cleaned_fallback = think_block_pattern.sub("", raw_fallback).strip()
+            top_3_img = []  # No images for fallback response
             return cleaned_fallback, top_3_img
+        
         
         
         
@@ -461,6 +464,7 @@ def generate_answer(user_query: str, chat_history: ConversationBufferMemory):
             response_retry = qa_chain.invoke({"question": clean_query})
             raw_answer_retry = response_retry['answer']
             logger.info(f"Retry response: {raw_answer_retry}")
+            sleep(1)  # Optional: wait a bit before retrying
             cleaned_answer = think_block_pattern.sub("", raw_answer_retry).strip()
         else:
             logger.info("Full <think> block found and removed successfully")

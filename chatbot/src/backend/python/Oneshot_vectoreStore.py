@@ -1,16 +1,14 @@
 import os
 import re
-import mimetypes
-import zipfile
 import xml.etree.ElementTree as ET
 from pathlib import Path
 
 import ftfy
 import fitz  # pymupdf
 import spacy
-import win32com.client
+
 from PIL import Image, ImageGrab
-import imagehash
+
 from pptx import Presentation
 from docx import Document
 from docx.oxml.ns import qn
@@ -19,7 +17,7 @@ from dotenv import load_dotenv
 
 from langchain.text_splitter import RecursiveCharacterTextSplitter
 from langchain_community.vectorstores import FAISS
-from langchain_community.document_loaders import TextLoader, PyPDFLoader
+
 from langchain_huggingface import HuggingFaceEmbeddings
 
 from langchain.schema import Document as langDocument
@@ -277,8 +275,17 @@ def unified_document_pipeline_multi(file_paths, embedding_model, faiss_index_pat
     results = []
 
     for file_path in file_paths:
+        print(f"\n[INFO] Processing document: {file_path}")
         try:
+<<<<<<< HEAD
             # Read text file directly
+=======
+            
+
+            
+
+            # Process the cleaned text into chunks without creating individual FAISS indexes
+>>>>>>> b4e493964be6e04590b1e4badc327fed7e8f0e2d
             with open(file_path, 'r', encoding='utf-8') as f:
                 text = f.read().lower()
 
@@ -318,11 +325,15 @@ def unified_document_pipeline_multi(file_paths, embedding_model, faiss_index_pat
                     "images": image_list
                 })
 
+<<<<<<< HEAD
             results.append({
                 "original_path": file_path,
                 "success": True,
                 "chunks_processed": len(restored_chunks)
             })
+=======
+            
+>>>>>>> b4e493964be6e04590b1e4badc327fed7e8f0e2d
 
         except Exception as e:
             error_msg = f"Failed to process {file_path}: {str(e)}"
@@ -363,6 +374,12 @@ if __name__ == "__main__":
         model_kwargs={'device': 'cpu'}
     )
 
+<<<<<<< HEAD
+=======
+    images_dir = Path("chatbot/src/backend/python/data/images")
+    
+    
+>>>>>>> b4e493964be6e04590b1e4badc327fed7e8f0e2d
     cleaned_dir = Path("chatbot/src/backend/python/data/cleaned")
     file_paths = list(cleaned_dir.glob("*.txt"))
     
