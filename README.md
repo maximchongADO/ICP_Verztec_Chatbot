@@ -36,9 +36,37 @@ pip install -r requirements.txt
 
 
 How to run the application:
-1. change directory of project to chatbot folder (cd chatbot) in terminal
-2. "uvicorn main:app --reload" within terminal to start the FastAPI backend server
-3. double click "index.html" file or go live using live server extension
+cd chatbot first
+1. cd src
+2. npm install - > only need for first time or when adding new packages
+3. npm run seed - > only need for first time or when updating database 
+4. npm start
+
+then go to the localhost:3000 to access the website
+
+to enable the chatbot
+open a new terminal, then
+1. cd src
+2. cd backend
+3. cd python
+4. python -m venv .venv
+5. .venv\Scripts\activate.bat
+6. pip install -r requirements.txt - > only need for first time OR when u add new requirements
+7. python main.py
+
+if u want to change the python chatbot logic make sure to include:
+app = FastAPI()
+
+# Add CORS middleware
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["http://localhost:3000"],  # Express.js server
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+and ensure that it is a fastapi app and routes properly to the existing backend router so that the frontend can access the chatbot
 
 
 
@@ -81,16 +109,9 @@ Install dependencies:
 pip install -r requirements.txt
 
 
-How to run the application:
-1. Head to "view" on top bar and select "Terminal"
-2. change directory using "cd website_proto_2" in terminal
-3. run "streamlit run main.py"
-
 
 Demo Accounts
 You can use these accounts to test the application:
-Username: user1, Password: password1
-Username: user2, Password: password2
-Username: admin, Password: admin123
-
+Username: Maxim , Password : maximchong1
+=
 
