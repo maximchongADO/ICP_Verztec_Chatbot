@@ -425,6 +425,7 @@ def generate_answer(user_query: str, chat_history: ConversationBufferMemory):
                 'As a helpful and friendly Verztec helpdesk assistant, respond with a light-hearted or polite reply — '
                 'even if the message is small talk or out of scope (e.g., "how are you", "do you like pizza"). '
                 'Keep it human and warm (e.g., "I’m doing great, thanks for asking!"), then ***gently guide the user back to Verztec-related helpdesk topics***.'
+                'Do not answer any questions that are not related to Verztec helpdesk topics, and do not use any of the provided documents in your response. '
             )
 
             #modified_query = "You are a verztec helpdesk assistant. You will only use the provided documents in your response. If the query is out of scope, say so.\n\n" + clean_query
