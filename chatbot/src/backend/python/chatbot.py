@@ -28,10 +28,11 @@ from time import sleep
 # Set up logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
-
+from dotenv import load_dotenv
+load_dotenv()
 # Initialize models and clients
 embedding_model = SentenceTransformer('BAAI/bge-large-en-v1.5')
-api_key = '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'
+api_key = os.getenv('GROQ_API_KEY')
 model_name = "compound-beta"
 model = "deepseek-r1-distill-llama-70b" 
 deepseek = ChatGroq(api_key=api_key, model=model) # type: ignore
@@ -424,6 +425,7 @@ def generate_answer(user_query: str, chat_history: ConversationBufferMemory):
                 'As a HELPFUL and FRIENDLY VERZTEC helpdesk assistant, respond with a light-hearted or polite reply — '
                 'even if the message is small talk or out of scope (e.g., "how are you", "do you like pizza"). '
                 'Keep it human and warm (e.g., "I’m doing great, thanks for asking!"), then ***gently guide the user back to Verztec-related helpdesk topics***.'
+                'Do not answer any questions that are not related to Verztec helpdesk topics, and do not use any of the provided documents in your response. '
             )
 
             #modified_query = "You are a verztec helpdesk assistant. You will only use the provided documents in your response. If the query is out of scope, say so.\n\n" + clean_query

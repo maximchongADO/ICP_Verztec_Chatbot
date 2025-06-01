@@ -1,96 +1,120 @@
 # ICP_Verztec_Chatbot
-This repository contains the code for an AI-powered chatbot designed for internal helpdesk support. The chatbot handles frequently asked questions, provides automated responses, and assists users with various queries. It is built with a modular and scalable architecture, making it easy to customize and extend for different use cases.
+
+An AI-powered chatbot designed for internal helpdesk support, featuring:
+- Automated responses to FAQs
+- Document processing and analysis
+- User authentication
+- File upload capabilities
+- Multi-format document support (PDF, DOCX, etc.)
+
+## Project Structure
+
+```
+chatbot/
+├── src/                          # Source directory
+│   ├── app.js                    # Express server entry point
+│   ├── package.json              # Node.js dependencies
+│   │
+│   ├── backend/
+│   │   ├── controllers/          # Express.js controllers
+│   │   │   ├── chatbotController.js    # Chatbot logic
+│   │   │   ├── fileUploadController.js  # File upload handling
+│   │   │   └── userController.js        # User management
+│   │   │
+│   │   ├── database/            # Database configuration
+│   │   │   ├── dbConfig.js      # Database settings
+│   │   │   └── seedScript.js    # Database seeding
+│   │   │
+│   │   ├── middleware/          # Express middleware
+│   │   │   └── authenticateToken.js
+│   │   │
+│   │   ├── models/             # Data models
+│   │   │   ├── fileUpload.js   # File upload model
+│   │   │   └── user.js         # User model
+│   │   │
+│   │   ├── python/            # Python backend
+│   │   │   ├── main.py        # FastAPI server
+│   │   │   ├── chatbot.py     # Chatbot logic
+│   │   │   ├── Documents_Totext.py  # Document processing
+│   │   │   └── requirements.txt      # Python dependencies
+│   │   │
+│   │   └── routes/            # API routes
+│   │
+│   └── public/                # Frontend assets
+│       ├── index.html         # Landing page
+│       ├── login.html         # Login page
+│       ├── chatbot.html       # Chat interface
+│       ├── fileUpload.html    # File upload interface
+│       │
+│       ├── styles/           # CSS stylesheets
+│       │   ├── main.css      # Global styles
+│       │   ├── chatbot.css   # Chat interface styles
+│       │   └── fileUpload.css # Upload page styles
+│       │
+│       ├── scripts/          # JavaScript files
+│       │   ├── chatbot.js    # Chat functionality
+│       │   └── fileUpload.js # Upload functionality
+│       │
+│       └── images/           # Image assets
+│           ├── avatar-open.png
+│           ├── avatar-closed.png
+│           └── verztec-logo.png
+```
+
 
 ## Dependencies
 
-To run this project, you will need to install the following Python packages:
+### Backend (Python)
+- FastAPI
+- langchain
+- langchain_groq
+- langchain_core
+- langchain_community
+- pymupdf
+- python-dotenv
 
-- `pymupdf`
-- `re`
-- `ftfy`
-- `os`
-- `langchain`
-- `langchain_groq`
-- `langchain_core`
-- `langchain_community`
-- `dotenv`
-- `langchain_huggingface`
-- `langchain_community.chat_models`
-### Installation (chatbot) *updated*
+### Frontend (Node.js)
+- Express.js
+- Node.js
+- npm packages (defined in package.json)
 
-Website structure
-chatbot/
-├── index.html                   # Frontend UI entry point
-├── app.js, view.js              # Frontend logic and rendering
-├── model.js, controller.js      # Chatbot state and controller logic
-├── styles.css                   # Chat UI styling
-├── main.py                      # FastAPI backend server
-├── chatbot_backend.py           # Python chatbot logic (FAISS + Groq)
-├── faiss_local_BAAI.idx         # FAISS vector index file
-├── faiss_local_BAAI_meta.json   # Metadata corresponding to FAISS index
-├── requirements.txt             # Python dependencies
-├── __pycache__                 # Python cache files (can be ignored)
-
-Install dependencies:
-pip install -r requirements.txt
-
+*Will also need to install MySQL and set user: 'chatbot_user', 
+password: 'strong_password', database: 'chatbot_db'
 
 How to run the application:
-1. change directory of project to chatbot folder (cd chatbot) in terminal
-2. "uvicorn main:app --reload" within terminal to start the FastAPI backend server
-3. double click "index.html" file or go live using live server extension
+cd chatbot first
+1. cd src
+2. npm install - > only need for first time or when adding new packages
+3. npm run seed - > only need for first time or when updating database 
+4. npm start
 
+then go to the localhost:3000 to access the website
 
+to enable the chatbot
+open a new terminal, then
+1. cd src/backend/python
+4. python -m venv .venv -> only to create virtual environment first time
+5. .venv\Scripts\activate.bat
+6. pip install -r requirements.txt - > only need for first time OR when u add new requirements
+7. python main.py
 
+if u want to change the python chatbot logic make sure to include:
+app = FastAPI()
 
-### Installation (website_proto_2) *outdated*
+# Add CORS middleware
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["http://localhost:3000"],  # Express.js server
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
-You can install all the required dependencies by running:
-
-```bash
-pip install -r requirements.txt
-'
-
-
-
-Website Structure
-
-This follows a variant of the MVC pattern, but it's not strictly MVC. It most closely resembles a modular MVVM (Model-View-ViewModel) or MVC-like architecture, customized for a Python app like Streamlit.
-
-```text
-chatbot_app/
-├── app.py                  # Main application entry point
-├── config/
-│   └── settings.py         # Configuration settings
-├── data/
-│   └── dummy_data.py       # Dummy user data
-├── models/
-│   └── chat.py             # Chat data models
-├── services/
-│   ├── auth_service.py     # Authentication logic
-│   └── chat_service.py     # Chat management logic
-├── ui/
-│   ├── auth_ui.py          # Login UI components
-│   ├── chat_ui.py          # Chat interface UI components
-│   └── sidebar_ui.py       # Sidebar UI components
-└── utils/
-    └── session_helper.py   # Session state management helpers
-
-
-Install dependencies:
-pip install -r requirements.txt
-
-
-How to run the application:
-1. Head to "view" on top bar and select "Terminal"
-2. change directory using "cd website_proto_2" in terminal
-3. run "streamlit run main.py"
+and ensure that it is a fastapi app and routes properly to the existing backend router so that the frontend can access the chatbot
 
 
 Demo Accounts
 You can use these accounts to test the application:
-Username: user1, Password: password1
-Username: user2, Password: password2
-Username: admin, Password: admin123
+Username: Toby , Password : password1234
 
 
