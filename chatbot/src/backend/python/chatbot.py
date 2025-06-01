@@ -32,7 +32,7 @@ from dotenv import load_dotenv
 load_dotenv()
 # Initialize models and clients
 embedding_model = SentenceTransformer('BAAI/bge-large-en-v1.5')
-api_key = os.getenv('GROQ_API_KEY')
+api_key = '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'
 model_name = "compound-beta"
 model = "deepseek-r1-distill-llama-70b" 
 deepseek = ChatGroq(api_key=api_key, model=model) # type: ignore
