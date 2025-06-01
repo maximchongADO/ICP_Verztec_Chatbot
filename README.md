@@ -9,6 +9,7 @@ An AI-powered chatbot designed for internal helpdesk support, featuring:
 
 ## Project Structure
 
+```
 chatbot/
 ├── src/                          # Source directory
 │   ├── app.js                    # Express server entry point
