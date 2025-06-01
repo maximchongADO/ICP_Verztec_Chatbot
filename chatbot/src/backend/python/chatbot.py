@@ -410,7 +410,7 @@ def generate_answer(user_query: str, chat_history: ConversationBufferMemory):
         STRICT_QUERY_THRESHOLD = 0.2
         HARD_AVG_SCORE_THRESHOLD = 1.05
         
-        
+        #handle irrelevant query
         logger.info(f"Clean Query at qa chain: {clean_query}")
         if (
             (is_task_query < SOFT_QUERY_THRESHOLD and avg_score >= soft_threshold) or
@@ -418,10 +418,10 @@ def generate_answer(user_query: str, chat_history: ConversationBufferMemory):
             is_task_query < STRICT_QUERY_THRESHOLD
         ):
             logger.info("Bypassing QA chain for non-query with weak retrieval.")
-            fallback_prompt = f"The user said, this query is out of scope: \"{clean_query}\". Respond appropriately as a POLITELY VERZTEC assistant, and ask how else you can help"
+           # fallback_prompt = f"The user said, this query is out of scope: \"{clean_query}\". Respond appropriately as a POLITELY VERZTEC assistant, and ask how else you can help"
             fallback_prompt = (
                 f'The user said: "{clean_query}". '
-                'As a helpful and friendly Verztec helpdesk assistant, respond with a light-hearted or polite reply — '
+                'As a HELPFUL and FRIENDLY VERZTEC helpdesk assistant, respond with a light-hearted or polite reply — '
                 'even if the message is small talk or out of scope (e.g., "how are you", "do you like pizza"). '
                 'Keep it human and warm (e.g., "I’m doing great, thanks for asking!"), then ***gently guide the user back to Verztec-related helpdesk topics***.'
             )
