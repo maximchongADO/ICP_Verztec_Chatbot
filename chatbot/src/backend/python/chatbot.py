@@ -489,7 +489,8 @@ def generate_answer(user_query: str, chat_history: ConversationBufferMemory):
         ## one last cleanup to ensure no <think> tags remain
         # Remove any remaining <think> tagsbetter have NO MOR NO MORE NO MO NO MOMRE 
         cleaned_answer = re.sub(r"</?think>", "", cleaned_answer).strip()
-
+        cleaned_answer = re.sub(r"</?think>", "", cleaned_answer).strip()
+        cleaned_answer = re.sub(r'[\*#]+', '', cleaned_answer).strip()
     
         store_chat_log(user_message=user_query, bot_response=cleaned_answer, session_id=session_id)
         
