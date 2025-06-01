@@ -6,7 +6,7 @@ import xml.etree.ElementTree as ET
 from pathlib import Path
 
 import ftfy
-import fitz  # pymupdf
+import fitz
 import spacy
 import win32com.client
 from PIL import Image, ImageGrab

@@ -28,10 +28,11 @@ from time import sleep
 # Set up logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
-
+from dotenv import load_dotenv
+load_dotenv()
 # Initialize models and clients
 embedding_model = SentenceTransformer('BAAI/bge-large-en-v1.5')
-api_key = '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'
+api_key = os.getenv('GROQ_API_KEY')
 model_name = "compound-beta"
 model = "deepseek-r1-distill-llama-70b" 
 deepseek = ChatGroq(api_key=api_key, model=model) # type: ignore

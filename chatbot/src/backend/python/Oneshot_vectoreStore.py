@@ -35,7 +35,7 @@ from langchain_huggingface import HuggingFaceEmbeddings
 from langchain.schema import Document as langDocument
 from langchain_groq import ChatGroq
 from langchain_core.output_parsers import StrOutputParser
-
+from dotenv import load_dotenv
 ## define root directory and subsequent sub directories
 root_dir = Path(os.getcwd())  # Get the current working directory (the root of your repository)
 data_dir = root_dir / "data"  # Gets the "data" folder relative to the root directory
@@ -51,7 +51,7 @@ load_dotenv()
 nlp = spacy.load("en_core_web_sm")
 
 # Initialize models
-api_key = "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"  # Set in your .env file
+api_key = os.getenv('GROQ_API_KEY')
 model = "deepseek-r1-distill-llama-70b"
 deepseek = ChatGroq(api_key=api_key, model_name=model)
 deepseek_chain = deepseek | StrOutputParser()
