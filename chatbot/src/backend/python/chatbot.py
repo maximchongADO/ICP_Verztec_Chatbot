@@ -32,7 +32,7 @@ from dotenv import load_dotenv
 load_dotenv()
 # Initialize models and clients
 embedding_model = SentenceTransformer('BAAI/bge-large-en-v1.5')
-api_key = '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'
+api_key = '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'
 model_name = "compound-beta"
 model = "deepseek-r1-distill-llama-70b" 
 deepseek = ChatGroq(api_key=api_key, model=model) # type: ignore
@@ -87,10 +87,7 @@ except Exception as e:
     logger.error(f"Failed to load spacymodel:  {str(e)}", exc_info=True)
     
 
-def is_casual_message(text: str) -> bool:
-    doc = nlp(text)
-    matches = matcher(doc)
-    return bool(matches)
+
 DB_CONFIG = {
     'host': 'localhost',
     'user': 'chatbot_user',
@@ -228,8 +225,8 @@ def is_query_score(text: str) -> float:
 
         # 2. Casual or conversational messages
         casual_phrases = {
-            "hi", "hello", "hey", "how are you", "whats up", "thanks", "thank you",
-            "good morning", "good evening", "ok", "okay", "yo", "sup"
+            "hi", "hello", "hey", "how are you", "whats up", "thanks", "thank you",'park', 
+            "good morning", "good evening", "ok", "okay", "yo", "sup", "what do i eat","How do I go to bishan park ?","What is Ngee Ann Polytechnic ?",'park','bishan park','Ngee Ann Polytechnic','How do I go to Ngee Ann Polytechnic?','How do I go to bishan park?'
         }
         if normalized in casual_phrases:
             return 0.0
@@ -244,6 +241,10 @@ def is_query_score(text: str) -> float:
         # WH- question words
         question_words = {"what", "why", "who", "where", "when", "how", "which", "whom"}
         if any(token.lower_ in question_words for token in doc):
+            return 1.0
+        
+        relatedwords = {'pantry'}
+        if any(token.lower_ in relatedwords for token in doc):
             return 1.0
 
         # Task verbs: imperative or command style (e.g. "List the steps to...")
@@ -275,47 +276,20 @@ def clean_with_grammar_model(user_query: str) -> str:
     outputs = model.generate(inputs, max_length=128, num_beams=5, early_stopping=True)
     corrected = tokenizer.decode(outputs[0], skip_special_tokens=True)
     return corrected
+
+
 def clean_with_grammar_model(user_query: str) -> str:
     """
     Uses a GEC-tuned model to clean up grammar, spelling, and clarity issues from user input.
     """
-    input_text = f"gec: {user_query}"  # GEC = Grammar Error Correction instruction
+    
+    input_text = f"gec: {user_query}"
+    #input_text = f"gec: {user_query}"  # GEC = Grammar Error Correction instruction
     inputs = tokenizer.encode(input_text, return_tensors="pt", max_length=128, truncation=True)
     outputs = model.generate(inputs, max_length=128, num_beams=5, early_stopping=True)
     corrected = tokenizer.decode(outputs[0], skip_special_tokens=True)
     return user_query
 
-## clean query and ensure it is suitable for processing
-def refine_prompt(user_query: str) -> str:
-    #is_profane_query = is_profane(user_query)
-    #logger.info(f"Is Profane: {is_profane_query}")
-    logger.info(f"User Query: {user_query}")
-    is_casual = is_query(user_query)
-    logger.info(f"Is Question: {is_casual}")
-    prompt2 = (
-        f"ONLY RETURN THE CLEANED QUERY. You are an assistant that improves grammar and spelling for an internal helpdesk chatbot. "
-        f"If the input is offensive, unclear, or meaningless, please clean it.\n\n"
-        f"Input:\n{user_query}"
-    )
-    messages = [HumanMessage(content=prompt2)]
-    #response = compound.generate([messages]) # type: ignore
-    
-    #refined_query = response.generations[0][0].text.strip()
-    refined_query = clean_with_grammar_model(user_query)
-    logger.info(f"User Query cleaned: {refined_query}")
-
-    # Safety net
-    
-    isquery = is_query(refined_query)
-    logger.warning(f'New query is a question: {isquery}')
-    if not isquery:
-        #refined_query = user_query
-        logger.warning(f"Refined query was not a valid question, reverting to original: {refined_query}")
-    
-    
-
-   
-    return refined_query
 
 def get_avg_score(index, embedding_model, query, k=10):
     # Embed using LangChain-style embedding model
@@ -332,6 +306,85 @@ def get_avg_score(index, embedding_model, query, k=10):
     logger.info(f"[L2] Average distance for query '{query}': {avg_score}")
     return avg_score
 
+def append_sources(cleaned_response: str, docs: list) -> str:
+    # Extract and deduplicate source info
+    sources = []
+    seen_sources = set()
+    for doc in docs:
+        source = doc.metadata.get("source", None)
+        if source and source not in seen_sources:
+            seen_sources.add(source)
+            sources.append(source)
+
+    if not sources:
+        return cleaned_response  # No sources to add
+
+    # Neatly append sources
+    source_block = "\n\nSources:\n" + "\n".join(f"- {src}" for src in sources)
+    return cleaned_response.strip() + source_block
+from langchain.schema import AIMessage, HumanMessage
+def build_memory_prompt(memory_obj, current_prompt):
+    history = memory_obj.load_memory_variables({}).get("chat_history", [])
+
+    # Filter out messages to just Human and AI
+    dialogue = [msg for msg in history if isinstance(msg, (HumanMessage, AIMessage))]
+
+    # Get the last 2 turns (i.e., 4 messages if it's alternating)
+    last_turns = dialogue[-4:]  # 2 Human + 2 AI messages max
+
+    # Add the current user prompt as the final turn
+    last_turns.append(HumanMessage(content=current_prompt))
+
+    return last_turns
+import os
+
+def append_sources(cleaned_response: str, docs: list) -> str:
+    """
+    Appends a neatly formatted list of unique source names to the cleaned response.
+    """
+    def format_source_name(source_path: str) -> str:
+        filename = os.path.basename(source_path)                     # e.g., 'pantry_rules.docx'
+        name, _ = os.path.splitext(filename)                         # e.g., 'pantry_rules'
+        cleaned_name = name.replace("_", " ").title()                # e.g., 'Pantry Rules'
+        return cleaned_name
+
+    # Extract and deduplicate source info
+    sources = []
+    seen_sources = set()
+    for doc in docs:
+        source = doc.metadata.get("source", None)
+        if source and source not in seen_sources:
+            seen_sources.add(source)
+            sources.append(format_source_name(source))
+
+    if not sources:
+        return cleaned_response  # No sources to add
+
+    # Neatly append sources
+    source_block = "\n\n📂 **Sources Referenced:**\n" + "\n".join(f"- {src}" for src in sources)
+    return cleaned_response.strip() + source_block
+
+def append_sources(cleaned_response: str, docs: list) -> str:
+    def format_source_name(source_path: str) -> str:
+        filename = os.path.basename(source_path)
+        name, _ = os.path.splitext(filename)
+        name = re.sub(r'^\d+\s*', '', name)  # Remove leading numbers
+        return name.replace("_", " ").title().strip()
+
+    sources = []
+    seen_sources = set()
+    for doc in docs:
+        source = doc.metadata.get("source", None)
+        if source and source not in seen_sources:
+            seen_sources.add(source)
+            sources.append(format_source_name(source))
+
+    if not sources:
+        return cleaned_response
+
+    # Clean final formatting
+    source_block = "\n\n📂 Source Document Used:\n" + "\n".join(f"• {src}" for src in sources)
+    return cleaned_response.strip() + source_block
 
 AVG_SCORE_THRESHOLD = 0.967
 import uuid
@@ -370,33 +423,62 @@ def generate_answer(user_query: str, chat_history: ConversationBufferMemory):
         
       
 
-        # Step 1: Check relation to past queries
-        #is_related = is_related_to_previous(user_query, chat_history)
-        #context_query = " ".join(chat_history + [user_query]) if is_related else user_query
-
-        # Step 2: Refine query
-        clean_query = refine_prompt(user_query)
-        #clean_query=user_query
-
+    
+        # Refine query
+       
+        clean_query = clean_with_grammar_model(user_query)
+       
         # Step 3: Search FAISS for context 
         # for images, as well as for context relevance checks 
         results = index.similarity_search_with_score(clean_query, k=5)
         scores = [score for _, score in results]
         avg_score = float(np.mean(scores)) if scores else 1.0
+        seen = set()
+        unique_docs = []
+
+        for doc, _ in results:
+            content = doc.page_content
+            if content not in seen:
+                seen.add(content)
+                unique_docs.append(doc)
+
+        logger.info(f"Retrieved {len(unique_docs)} documents with average score: {avg_score:.4f}")
+    
         
         ## retrieving images from top 3 chunks (if any)
         # Retrieve images from top 3 chunks (if any)
         top_3_img = []
+        sources_set = set()
+        sources_list = []
+        top_docs = []
+        seen_contents = set()
+
         for doc, score in results:
-            images = doc.metadata.get('images', [])
-            for img in images:
-                if len(top_3_img) < 3:
-                    top_3_img.append(img)
-                else:
+            if score < 0.7:
+                # Use the filename or document name as the source
+                source = doc.metadata.get('source')
+                if source and source not in sources_set:
+                    sources_set.add(source)
+                    sources_list.append(source)
+
+                # Track unique docs (based on content) for appending source metadata later
+                if doc.page_content not in seen_contents:
+                    seen_contents.add(doc.page_content)
+                    top_docs.append(doc)
+
+                # Add up to 3 images only
+                images = doc.metadata.get('images', [])
+                for img in images:
+                    if len(top_3_img) < 3:
+                        top_3_img.append(img)
+                    else:
+                        break
+
+                if len(top_3_img) >= 3:
                     break
-            if len(top_3_img) >= 3:
-                    break
-  # Ensures a flat list of strings
+
+
+            # Ensures a flat list of strings
         top_3_img = list(set(top_3_img))  # Remove duplicates
         logger.info(f"Top 3 images: {top_3_img}")
 
@@ -409,7 +491,7 @@ def generate_answer(user_query: str, chat_history: ConversationBufferMemory):
         soft_threshold = 0.7
         SOFT_QUERY_THRESHOLD = 0.5
         STRICT_QUERY_THRESHOLD = 0.2
-        HARD_AVG_SCORE_THRESHOLD = 1.05
+        HARD_AVG_SCORE_THRESHOLD = 1.01
         
         #handle irrelevant query
         logger.info(f"Clean Query at qa chain: {clean_query}")
@@ -418,6 +500,13 @@ def generate_answer(user_query: str, chat_history: ConversationBufferMemory):
             avg_score >= HARD_AVG_SCORE_THRESHOLD or
             is_task_query < STRICT_QUERY_THRESHOLD
         ):
+            if is_task_query < SOFT_QUERY_THRESHOLD and avg_score >= soft_threshold:
+                logger.info("[BYPASS_REASON] Tag: low_task_high_score — Query intent is kinda weak and query is slighlty irrelevant.")
+            elif avg_score >= HARD_AVG_SCORE_THRESHOLD:
+                logger.info("[BYPASS_REASON] Tag: high_score_threshold — Query is highly irrelevant to FAISS documents.")
+            elif is_task_query < STRICT_QUERY_THRESHOLD:
+                logger.info("[BYPASS_REASON] Tag: very_low_task_intent — Query clearly not a task query.")
+
             logger.info("Bypassing QA chain for non-query with weak retrieval.")
            # fallback_prompt = f"The user said, this query is out of scope: \"{clean_query}\". Respond appropriately as a POLITELY VERZTEC assistant, and ask how else you can help"
             fallback_prompt = (
@@ -430,14 +519,17 @@ def generate_answer(user_query: str, chat_history: ConversationBufferMemory):
 
             #modified_query = "You are a verztec helpdesk assistant. You will only use the provided documents in your response. If the query is out of scope, say so.\n\n" + clean_query
             #messages = [HumanMessage(content=fallback_prompt)]
-            messages = [HumanMessage(content=fallback_prompt)]
+            messages = build_memory_prompt(memory, fallback_prompt)
             response = deepseek.generate([messages])
+
             raw_fallback = response.generations[0][0].text.strip()
 
             # Remove <think> block if present
             think_block_pattern = re.compile(r"<think>.*?</think>", flags=re.DOTALL)
             cleaned_fallback = think_block_pattern.sub("", raw_fallback).strip()
             top_3_img = []  # No images for fallback response
+            memory.chat_memory.add_user_message(fallback_prompt)
+            memory.chat_memory.add_ai_message(cleaned_fallback) 
             return cleaned_fallback, top_3_img
         
         
@@ -446,6 +538,15 @@ def generate_answer(user_query: str, chat_history: ConversationBufferMemory):
         logger.info("QA chain activated for query processing.")
         # Step 4: Prepare full prompt and return LLM output
         modified_query = "You are a  HELPFUL AND NICE verztec helpdesk assistant. You will only use the provided documents in your response. If the query is out of scope, say so.\n\n" + clean_query
+        modified_query = (
+            "You are a HELPFUL AND NICE Verztec helpdesk assistant. "
+            "You will only use the provided documents in your response. "
+            "If the query is out of scope, say so. "
+            "If there are any image tags or screenshots mentioned in the documents, "
+            "please reference them in your response where appropriate, such as 'See Screenshot 1' or 'Refer to the image above'.\n\n"
+            + clean_query
+        )
+
         response = qa_chain.invoke({"question": modified_query})
         #response = qa_chain.invoke({"question": clean_query})
         raw_answer = response['answer']
@@ -489,11 +590,17 @@ def generate_answer(user_query: str, chat_history: ConversationBufferMemory):
         ## one last cleanup to ensure no <think> tags remain
         # Remove any remaining <think> tagsbetter have NO MOR NO MORE NO MO NO MOMRE 
         cleaned_answer = re.sub(r"</?think>", "", cleaned_answer).strip()
+        cleaned_answer = re.sub(r"</?think>", "", cleaned_answer).strip()
+        cleaned_answer = re.sub(r'[\*#]+', '', cleaned_answer).strip()
 
     
         store_chat_log(user_message=user_query, bot_response=cleaned_answer, session_id=session_id)
+        # After generating the bot's response
+        final_response = append_sources(cleaned_answer, top_docs)
+        print(final_response)
+
         
         
-        return cleaned_answer, top_3_img
+        return final_response, top_3_img
     except Exception as e:
         return f"I encountered an error while processing your request: {str(e)}", []

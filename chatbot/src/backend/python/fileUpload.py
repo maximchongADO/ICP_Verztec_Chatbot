@@ -63,7 +63,7 @@ async def process_upload(file: UploadFile = File(...)):
         faiss_index_path = current_dir / "faiss_master_index"
 
         
-        # Process document and update FAISS index
+        # Process document and update FAISS indexs
         result = unified_document_pipeline(
             file_path=temp_file_path,
             images_dir=images_dir,

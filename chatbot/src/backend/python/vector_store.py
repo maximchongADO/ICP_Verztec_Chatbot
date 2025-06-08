@@ -53,7 +53,7 @@ load_dotenv()
 nlp = spacy.load("en_core_web_sm")
 
 # Initialize models
-api_key = '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'  # Set in your .env file
+api_key = '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'  # Set in your .env file
 model = "deepseek-r1-distill-llama-70b"
 deepseek = ChatGroq(api_key=api_key, model_name=model)
 deepseek_chain = deepseek | StrOutputParser()
