@@ -5,6 +5,7 @@
   box-sizing: border-box;
 }
 
+
 body {
   font-family: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI",
     sans-serif;
@@ -225,44 +226,19 @@ body {
   display: flex;
   justify-content: flex-end;
   align-items: flex-start;
+  flex-direction: row;
 }
 
 .message-ai {
   display: flex;
   justify-content: flex-start;
   align-items: flex-start;
+  flex-direction: row;
 }
 
-.message-content {
-  max-width: 75%;
-  padding: 10px 15px;
-  border-radius: 18px;
-  font-size: 20px;
-  line-height: 1.5;
-  overflow-wrap: break-word;
-  white-space: pre-line;
-  font-weight: 500;
-}
-
-.user-message {
-  background: linear-gradient(135deg, #FFD700 0%, #E6C200 100%);
-  color: #000000;
-  box-shadow: 0 4px 15px rgba(255, 215, 0, 0.3);
-}
-
-.ai-message {
-  background: #1e293b;  /* dark blue-gray */
-  color: #FFD700;
-  border: 1px solid #FFD700;
-  padding: 15px 20px;
-  border-radius: 20px;
-  position: relative;
-  margin-bottom: 8px; /* Reduced to make room for buttons */
-  box-shadow: 0 4px 15px rgba(255, 215, 0, 0.2);
-}
-
+/* Avatar styles for AI and User - standardized size, but spacing is different */
 .ai-message-avatar {
-  width: 48px;  /* Made slightly bigger */
+  width: 48px;
   height: 48px;
   border-radius: 50%;
   flex-shrink: 0;
@@ -271,11 +247,34 @@ body {
   background-size: cover;
   background-position: center;
   box-shadow: 0 0 8px #FFD700;
-  font-size: 0; /* Hide the text */
-  color: transparent; /* Hide the text */
+  font-size: 0;
+  color: transparent;
+  margin-right: 12px;
+  margin-left: 0;
 }
 
-/* Typing indicator */
+.user-message-avatar {
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  margin-top: 4px;
+  background-image: url('/images/image.png');
+  background-size: cover;
+  background-position: center;
+  box-shadow: 0 0 8px #FFD700;
+  font-size: 0;
+  color: transparent;
+  margin-left: 12px;
+  margin-right: 0;
+}
+
+/* Message content alignment */
+.user-message {
+  margin-left: auto;
+}
+
+/* Typing indicator (loading bubble) */
 .typing-indicator {
   display: flex;
   align-items: center;
@@ -289,23 +288,15 @@ body {
   opacity: 1;
 }
 
-@keyframes fadeIn {
-  from {
-    opacity: 0;
-  }
-  to {
-    opacity: 1;
-  }
-}
-
 .typing-dots {
   display: flex;
   gap: 4px;
-  padding: 16px 20px;
+  padding: 15px 22px;
   background: #1e293b;
   border: 1px solid #FFD700;
   border-radius: 18px;
-  box-shadow: 0 0 10px rgba(255, 215, 0, 0.4);
+  box-shadow: 0 0 10px rgba(255, 215, 0, 0.18);
+  align-items: center;
 }
 
 .typing-dot {
@@ -333,6 +324,75 @@ body {
     transform: scale(1.2);
     opacity: 1;
   }
+}
+
+/* Copy button for AI responses - position inside bubble, bottom right */
+.copy-btn {
+  position: absolute;
+  bottom: 10px;
+  right: 12px;
+  background: linear-gradient(135deg, #FFD700 60%, #FFF176 100%);
+  border: none;
+  color: #222;
+  cursor: pointer;
+  font-size: 16px;
+  padding: 4px 12px;
+  border-radius: 16px;
+  transition: background 0.2s, color 0.2s, box-shadow 0.2s;
+  vertical-align: middle;
+  display: inline-flex;
+  align-items: center;
+  box-shadow: 0 2px 8px rgba(255, 215, 0, 0.15);
+  outline: none;
+  border: 1px solid #FFD700;
+  gap: 6px;
+  z-index: 1;
+  pointer-events: auto;
+}
+
+.copy-btn:hover,
+.copy-btn:focus {
+  background: linear-gradient(135deg, #FFF176 60%, #FFD700 100%);
+  color: #000;
+  box-shadow: 0 0 12px #FFD700;
+}
+
+.copy-btn.copied {
+  background: #28a745;
+  color: #fff;
+  border-color: #28a745;
+  box-shadow: 0 0 10px #28a745;
+}
+
+/* When disabled, prevent interaction and show default style */
+.copy-btn:disabled,
+.copy-btn.copied:disabled {
+  pointer-events: none;
+  opacity: 0.7;
+}
+
+/* Popup notification for copy - even higher above chat input bar */
+.copy-popup {
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
+  bottom: 260px; /* Increased from 180px to 260px for higher placement */
+  background: #222;
+  color: #FFD700;
+  padding: 14px 32px;
+  border-radius: 24px;
+  font-size: 18px;
+  font-weight: 600;
+  box-shadow: 0 4px 24px rgba(255, 215, 0, 0.18);
+  opacity: 0;
+  pointer-events: none;
+  z-index: 2000;
+  transition: opacity 0.3s, transform 0.3s;
+}
+
+.copy-popup.show {
+  opacity: 1;
+  transform: translateX(-50%) translateY(-16px);
 }
 
 /* Chat input container with avatar */
@@ -412,19 +472,20 @@ body {
   padding: 16px 60px 16px 20px;
   border: 2px solid #FFD700;  /* Yellow border */
   border-radius: 25px;
-  font-size: 15px;
+  font-size: 18px;
   outline: none;
   transition: all 0.3s ease;
   background: #1a1a1a;  /* Dark background */
   color: #FFD700;  /* Yellow text */
   resize: none;
-  min-height: 52px;
+  min-height: 120px;
   max-height: 120px;
   font-family: inherit;
 }
 
 .chat-input::placeholder {
   color: rgba(255, 215, 0, 0.5);  /* Semi-transparent yellow */
+  
 }
 
 .chat-input:focus {
@@ -693,6 +754,49 @@ body {
 .feedback-btn.selected:disabled {
     opacity: 1;
     transform: scale(1.05);
+}
+
+/* Message content styles */
+.message-content {
+  max-width: 75%;
+  padding: 10px 15px;
+  border-radius: 18px;
+  font-size: 20px;
+  line-height: 1.5;
+  overflow-wrap: break-word;
+  white-space: pre-line;
+  font-weight: 500;
+  /* Restore bubble look for all message-content */
+  background: transparent;
+  border: none;
+}
+
+/* User message bubble */
+.user-message {
+  background: linear-gradient(135deg, #FFD700 0%, #E6C200 100%);
+  color: #000000;
+  box-shadow: 0 4px 15px rgba(255, 215, 0, 0.3);
+  border-radius: 18px;
+  border: 1px solid #FFD700;
+  padding: 10px 15px;
+  margin-left: auto;
+  display: inline-block;
+}
+
+/* AI message bubble */
+.ai-message {
+  background: #1e293b;
+  color: #FFD700;
+  border: 1px solid #FFD700;
+  border-radius: 18px;
+  padding: 15px 20px;
+  position: relative;
+  margin-bottom: 8px;
+  box-shadow: 0 4px 15px rgba(255, 215, 0, 0.2);
+  display: inline-block;
+  /* Make room for the copy button */
+  padding-right: 54px;
+  min-width: 80px;
 }
 
 /* Responsive design */

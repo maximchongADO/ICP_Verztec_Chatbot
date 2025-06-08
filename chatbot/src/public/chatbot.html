@@ -147,6 +147,9 @@
     <!-- Hidden file input for uploads -->
     <button onclick="handleFileUpload(event)">Upload File</button>
 
+    <!-- Copy notification popup -->
+    <div id="copyPopup" class="copy-popup">Message copied to clipboard</div>
+
     <script src="/scripts/chatbot.js"></script>
     <script>
       // Auto-resize textarea
@@ -176,6 +179,29 @@
         a.click();
         URL.revokeObjectURL(url);
       }
+
+      // Example user message structure for correct placement:
+      //
+      // <div class="message message-user">
+      //   <div class="message-content user-message">User message here</div>
+      //   <div class="user-message-avatar"></div>
+      // </div>
+      //
+      // For AI messages (already present):
+      // <div class="message message-ai">
+      //   <div class="ai-message-avatar"></div>
+      //   <div class="message-content ai-message">...</div>
+      // </div>
+      //
+      // Example AI message structure for correct placement and copy button:
+      //
+      // <div class="message message-ai">
+      //   <div class="ai-message-avatar"></div>
+      //   <div class="message-content ai-message">
+      //     AI response here
+      //     <button class="copy-btn" title="Copy response" onclick="copyMessage(this)">📋</button>
+      //   </div>
+      // </div>
     </script>
   </body>
 </html>

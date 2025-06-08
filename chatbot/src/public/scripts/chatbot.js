@@ -273,7 +273,9 @@ function addMessage(textOrResponse, sender) {
   if (sender === "user") {
     messageDiv.className = "message message-user";
     messageDiv.innerHTML = `
-      <div class="message-content user-message">${escapeHtml(text)}</div>`;
+      <div class="message-content user-message">${escapeHtml(text)}</div>
+      <div class="user-message-avatar"></div>
+    `;
   } else {
     messageDiv.className = "message message-ai";
     let imagesHtml = "";
@@ -291,6 +293,7 @@ function addMessage(textOrResponse, sender) {
       <div class="ai-message-avatar"></div>
       <div class="message-content ai-message">
         ${escapeHtml(text)}${imagesHtml}
+        <button class="copy-btn" title="Copy response" onclick="copyMessage(this)">📋</button>
       </div>
       <div class="feedback-buttons">
         <button class="feedback-btn positive" onclick="handleFeedback(this, true)">
@@ -508,4 +511,58 @@ function handleFeedback(button, isPositive) {
     feedbackGroup.querySelectorAll('.feedback-btn').forEach(btn => {
         btn.disabled = true;
     });
+}
+
+// Render user message
+function appendUserMessage(userMessage) {
+  const userMessageDiv = document.createElement('div');
+  userMessageDiv.className = 'message message-user';
+  userMessageDiv.innerHTML = `
+    <div class="message-content user-message">${escapeHtml(userMessage)}</div>
+    <div class="user-message-avatar"></div>
+  `;
+  chatMessages.appendChild(userMessageDiv);
+}
+
+// Render AI message with copy button
+function appendAIMessage(aiMessage) {
+  const aiMessageDiv = document.createElement('div');
+  aiMessageDiv.className = 'message message-ai';
+  aiMessageDiv.innerHTML = `
+    <div class="ai-message-avatar"></div>
+    <div class="message-content ai-message">
+      ${escapeHtml(aiMessage)}
+      <button class="copy-btn" title="Copy response" onclick="copyMessage(this)">📋</button>
+    </div>
+  `;
+  chatMessages.appendChild(aiMessageDiv);
+}
+
+// Only trigger copy on click, not on keydown/keyup/keypress
+window.copyMessage = function(btn) {
+  // Prevent multiple triggers
+  if (btn.disabled) return;
+  btn.disabled = true;
+
+  const content = btn.parentElement.textContent.replace('📋', '').replace('✔', '').trim();
+  navigator.clipboard.writeText(content).then(() => {
+    btn.classList.add('copied');
+    btn.innerHTML = '<span style="font-size:18px;">✔</span> Copied';
+    showCopyPopup();
+    setTimeout(() => {
+      btn.classList.remove('copied');
+      btn.innerHTML = '<span style="font-size:18px;">📋</span> Copy';
+      btn.disabled = false;
+    }, 1200);
+  });
+};
+
+function showCopyPopup() {
+  const popup = document.getElementById('copyPopup');
+  if (!popup) return;
+  popup.classList.add('show');
+  clearTimeout(window._copyPopupTimeout);
+  window._copyPopupTimeout = setTimeout(() => {
+    popup.classList.remove('show');
+  }, 1400);
 }

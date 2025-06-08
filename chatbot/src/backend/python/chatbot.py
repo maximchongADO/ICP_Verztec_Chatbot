@@ -528,8 +528,15 @@ def generate_answer(user_query: str, chat_history: ConversationBufferMemory):
             think_block_pattern = re.compile(r"<think>.*?</think>", flags=re.DOTALL)
             cleaned_fallback = think_block_pattern.sub("", raw_fallback).strip()
             top_3_img = []  # No images for fallback response
+            # Store the fallback response in chat memory
+         
             memory.chat_memory.add_user_message(fallback_prompt)
             memory.chat_memory.add_ai_message(cleaned_fallback) 
+            # Clean up chat memory to keep it manageable
+            # Limit chat memory to last 4 turns (8 messages)
+            MAX_TURNS = 4
+            if len(memory.chat_memory.messages) > 2 * MAX_TURNS:
+                memory.chat_memory.messages = memory.chat_memory.messages[-2 * MAX_TURNS:]
             return cleaned_fallback, top_3_img
         
         
@@ -551,6 +558,12 @@ def generate_answer(user_query: str, chat_history: ConversationBufferMemory):
         #response = qa_chain.invoke({"question": clean_query})
         raw_answer = response['answer']
         logger.info(f"Full response before cleanup: {raw_answer}")
+        
+        # Clean the chat memory to keep it manageable
+        # Limit chat memory to last 4 turns (8 messages)
+        MAX_TURNS = 4
+        if len(memory.chat_memory.messages) > 2 * MAX_TURNS:
+            memory.chat_memory.messages = memory.chat_memory.messages[-2 * MAX_TURNS:]
 
         # Define regex pattern to match full <think>...</think> block
         think_block_pattern = re.compile(r"<think>.*?</think>", flags=re.DOTALL)
