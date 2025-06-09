@@ -567,6 +567,7 @@ def generate_answer(user_query: str, chat_history: ConversationBufferMemory):
 
         # Define regex pattern to match full <think>...</think> block
         think_block_pattern = re.compile(r"<think>.*?</think>", flags=re.DOTALL)
+       
         
 
         # Check if full <think> block exists
@@ -574,16 +575,33 @@ def generate_answer(user_query: str, chat_history: ConversationBufferMemory):
 
         # Clean the <think> block regardless
         cleaned_answer = think_block_pattern.sub("", raw_answer).strip()
-        has_tag=False
-        while has_tag and i==1:
+        has_tag = False
+        import concurrent.futures
 
+        # Timeout logic for retry
+        def retry_qa_chain():
+            response_retry = qa_chain.invoke({"question": clean_query})
+            return response_retry['answer']
+
+        i = 1  # Ensure i is defined
+        while has_tag and i == 1:
             if not has_think_block:
                 logger.warning("Missing full <think> block — retrying query once...")
-                response_retry = qa_chain.invoke({"question": clean_query})
-                raw_answer_retry = response_retry['answer']
-                logger.info(f"Retry response: {raw_answer_retry}")
-                sleep(1)  # Optional: wait a bit before retrying
-                cleaned_answer = think_block_pattern.sub("", raw_answer_retry).strip()
+                try:
+                    with concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor:
+                        future = executor.submit(retry_qa_chain)
+                        raw_answer_retry = future.result(timeout=30)
+                    logger.info(f"Retry response: {raw_answer_retry}")
+                    sleep(1)  # Optional: wait a bit before retrying
+                    cleaned_answer = think_block_pattern.sub("", raw_answer_retry).strip()
+                except concurrent.futures.TimeoutError:
+                    logger.error("QA chain retry timed out after 30 seconds.")
+                    cleaned_answer = "Sorry, the system took too long to generate a response. Please try again in a moment."
+                    break
+                except Exception as e:
+                    logger.error(f"Error during QA chain retry: {e}")
+                    cleaned_answer = f"Sorry, an error occurred while generating a response: {e}"
+                    break
             else:
                 logger.info("Full <think> block found and removed successfully")
             block_tag_pattern = re.compile(r"<([a-zA-Z0-9_]+)>.*?</\1>", flags=re.DOTALL)
@@ -598,8 +616,8 @@ def generate_answer(user_query: str, chat_history: ConversationBufferMemory):
             cleaned_answer = re.sub(r"^\s+", "", cleaned_answer)
             has_any_block_tag = bool(block_tag_pattern.search(raw_answer))
             if not has_any_block_tag:
-                has_tag= False
-            i+=1
+                has_tag = False
+            i += 1
         ## one last cleanup to ensure no <think> tags remain
         # Remove any remaining <think> tagsbetter have NO MOR NO MORE NO MO NO MOMRE 
         cleaned_answer = re.sub(r"</?think>", "", cleaned_answer).strip()

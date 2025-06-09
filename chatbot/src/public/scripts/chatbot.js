@@ -53,8 +53,11 @@ function sendMessage() {
   input.value = "";
   input.style.height = "auto";
 
-  // Show typing indicator
-  showTypingIndicator();
+  // Show typing indicator with realistic staged status updates
+  showTypingIndicator("Retrieving relevant documents...");
+  setTimeout(() => updateTypingIndicatorStatus("Analyzing your question..."), 1000);
+  setTimeout(() => updateTypingIndicatorStatus("Generating response..."), 2200);
+  setTimeout(() => updateTypingIndicatorStatus("Finalizing..."), 3200);
 
   // Call chatbot API
   callChatbotAPI(message)
@@ -200,23 +203,31 @@ function clearWelcomeContent() {
   }
 }
 
-// Show typing indicator
-function showTypingIndicator() {
+// Show typing indicator with status message
+function showTypingIndicator(status = "Getting documents...") {
   const messagesContainer = document.getElementById("chatMessages");
   const typingDiv = document.createElement("div");
   typingDiv.className = "typing-indicator show";
   typingDiv.id = "typingIndicator";
   typingDiv.innerHTML = `
     <div class="ai-message-avatar"></div>
-    <div class="typing-dots">
-      <div class="typing-dot"></div>
-      <div class="typing-dot"></div>
-      <div class="typing-dot"></div>
+    <div class="typing-bubble">
+      <span class="typing-status" id="typingStatus">${status}</span>
+      <span class="typing-dots">
+        <span class="typing-dot"></span>
+        <span class="typing-dot"></span>
+        <span class="typing-dot"></span>
+      </span>
     </div>
   `;
-
   messagesContainer.appendChild(typingDiv);
   messagesContainer.scrollTop = messagesContainer.scrollHeight;
+}
+
+// Update typing indicator status message
+function updateTypingIndicatorStatus(status) {
+  const statusSpan = document.getElementById("typingStatus");
+  if (statusSpan) statusSpan.textContent = status;
 }
 
 // Hide typing indicator
