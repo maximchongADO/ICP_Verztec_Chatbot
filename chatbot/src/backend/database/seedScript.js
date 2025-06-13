@@ -32,7 +32,9 @@ const createTablesSQL = {
       user_message LONGTEXT,
       bot_response LONGTEXT,
       session_id VARCHAR(255),
-      feedback VARCHAR(20)
+      feedback VARCHAR(20),
+      query_score FLOAT,
+      relevance_score FLOAT
     )`,
     
   extracted_texts: `
@@ -79,6 +81,7 @@ async function createTables(connection) {
       await connection.execute(createTablesSQL[tableName]);
       console.log(`Created ${tableName} table`);
     }
+
   } catch (err) {
     console.error('Error creating tables:', err);
     throw err;

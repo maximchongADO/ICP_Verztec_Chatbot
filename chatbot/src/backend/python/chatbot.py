@@ -1,42 +1,42 @@
-from typing import List, Optional
-import numpy as np
-from sentence_transformers import SentenceTransformer
-from langchain_groq import ChatGroq
-from langchain.schema import HumanMessage
-import re
-from langchain.vectorstores.base import VectorStoreRetriever
-from langchain.schema import Document
-#from numpy import dot
-#from numpy.linalg import norm
 import os
+import re
+import sys
+import time
+import logging
+from datetime import datetime
+from time import sleep
+import uuid
+import numpy as np
+import mysql.connector
+import spacy
+from spacy.matcher import PhraseMatcher
+from typing import List, Optional
+
+from sentence_transformers import SentenceTransformer
+from transformers import AutoModelForSeq2SeqLM, AutoTokenizer
+
+from langchain_groq import ChatGroq
+from langchain.schema import HumanMessage, AIMessage, Document
+from langchain.vectorstores.base import VectorStoreRetriever
 from langchain.memory import ConversationBufferMemory
 from langchain.chains import ConversationalRetrievalChain
 from langchain_core.output_parsers import StrOutputParser
 from langchain.embeddings import HuggingFaceEmbeddings
 from langchain_community.vectorstores import FAISS
-import logging
-#from better_profanity import profanity
-import spacy
-from spacy.matcher import PhraseMatcher
-#from MySQLDatabase.Inserting_data import store_chat_log
-import sys
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
-from transformers import AutoModelForSeq2SeqLM, AutoTokenizer
-import mysql.connector
-from datetime import datetime
-from time import sleep
+
+#from dotenv import load_dotenv
+
 # Set up logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
-from dotenv import load_dotenv
-load_dotenv()
+
 # Initialize models and clients
 embedding_model = SentenceTransformer('BAAI/bge-large-en-v1.5')
-api_key = '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'
-model_name = "compound-beta"
+api_key = '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'
+#model_name = "compound-beta"
 model = "deepseek-r1-distill-llama-70b" 
 deepseek = ChatGroq(api_key=api_key, model=model) # type: ignore
-compound = ChatGroq(api_key=api_key, model=model_name) # type: ignore
+#compound = ChatGroq(api_key=api_key, model=model_name) # type: ignore
 
 # Initialize memory
 memory = ConversationBufferMemory(
@@ -45,6 +45,14 @@ memory = ConversationBufferMemory(
     output_key="answer",
     return_messages=True
 )
+# config db 
+DB_CONFIG = {
+    'host': 'localhost',
+    'user': 'chatbot_user',
+    'password': 'strong_password',
+    'database': 'chatbot_db',
+    'raise_on_warnings': True
+}
 
 # Load FAISS index
 try:
@@ -66,12 +74,11 @@ try:
         allow_dangerous_deserialization=True
     )
     logger.info("FAISS index loaded successfully on CPU")
-    
 except Exception as e:
     logger.error(f"Failed to load FAISS index: {str(e)}", exc_info=True)
     index = None
     metadata = None
-
+# load in spacy model and matcher for query scoring and casual phrase matching
 try:
     # Load spaCy English model
     nlp = spacy.load("en_core_web_sm")
@@ -82,128 +89,31 @@ try:
     model = AutoModelForSeq2SeqLM.from_pretrained("pszemraj/flan-t5-large-grammar-synthesis")
     matcher.add("CASUAL", patterns)
     logger.info("SpaCy model and matcher initialized successfully")
-    
 except Exception as e:
     logger.error(f"Failed to load spacymodel:  {str(e)}", exc_info=True)
     
 
 
-DB_CONFIG = {
-    'host': 'localhost',
-    'user': 'chatbot_user',
-    'password': 'strong_password',
-    'database': 'chatbot_db',
-    'raise_on_warnings': True
-}
 
-def store_chat_log(user_message, bot_response, session_id):
+
+def store_chat_log(user_message, bot_response, session_id, query_score, relevance_score):
     conn = mysql.connector.connect(**DB_CONFIG)
     cursor = conn.cursor()
 
     timestamp = datetime.utcnow()
 
     insert_query = '''
-        INSERT INTO chat_logs (timestamp, user_message, bot_response, session_id)
-        VALUES (%s, %s, %s, %s)
+        INSERT INTO chat_logs (timestamp, user_message, bot_response, session_id,query_score, relevance_score)
+        VALUES (%s, %s, %s, %s, %s, %s)
     '''
-    cursor.execute(insert_query, (timestamp, user_message, bot_response, session_id))
+    cursor.execute(insert_query, (timestamp, user_message, bot_response, session_id,query_score, relevance_score))
     conn.commit()
     logger.info(f"Stored chat log for session {session_id} at {timestamp}")
 
     cursor.close()
     conn.close()
 
-def is_query(text: str) -> bool:
-    try:
-        doc = nlp(text)
-        # Check for known casual question patterns
-        casual_phrases = {"how are you", "what's up", "how's it going", "are you there"}
-        normalized = text.lower().strip("!?.,")
-        if normalized in casual_phrases:
-            return False
 
-        # Check for bot refusal or rubbish responses
-        refusal_patterns = [
-            "i'm sorry", "i cannot", "i can't", "as an ai", "i am unable", "not able to", 
-            "i do not understand", "i don't know", "no comment", "n/a", "not applicable",
-            "this is not a question", "please rephrase", "unclear", "meaningless"
-        ]
-        if any(pattern in normalized for pattern in refusal_patterns):
-            return False
-
-        # Check for question words or action verbs
-        for token in doc:
-            if token.dep_ in ("aux", "ROOT") and token.tag_ in ("VB", "VBP", "VBZ", "MD"):
-                if token.lemma_ in {"do", "can", "could", "help", "need", "upload", "reset", "access"}:
-                    return True
-            if token.dep_ == "nsubj" and token.lemma_ in {"problem", "issue"}:
-                return True
-            if token.lower_ in {"how", "what", "when", "where", "why", "who"}:
-                return True
-
-        # If it looks like a statement or rubbish, not a query
-        return False
-    except Exception as e:
-        logger.error(f"is_query exception: {e} for text: {text!r}")
-        return False
-
-
-def is_query(text: str) -> bool:
-    try:
-        # Normalize text
-        normalized = text.lower().strip()
-        normalized = re.sub(r'[^\w\s]', '', normalized)  # remove punctuation
-
-        # 1. Refusal or non-query phrases (LLM-like outputs or conversational redirections)
-        refusal_phrases = [
-            "i won't engage", "i will not engage", "not a question", "this isn't a question",
-            "is there something else", "can i help you with something else", "i'm unable to answer",
-            "i cannot help with that", "i'm sorry", "as an ai", "i do not understand",
-            "this is unclear", "this seems incomplete", "please clarify", "please rephrase",
-            "i don't have an answer", "i cannot provide", "that's outside my scope",
-            "no comment", "n/a", "not applicable", "i'm just an ai", "not relevant"
-        ]
-        if any(phrase in normalized for phrase in refusal_phrases):
-            return False
-
-        # 2. Casual conversational small talk — not queries
-        casual_talk = [
-            "how are you", "what's up", "good morning", "hello", "hi", "are you there", "thanks", "okay"
-        ]
-        if normalized in casual_talk:
-            return False
-
-        # 3. If it ends with a question mark, it’s *very likely* a question
-        if text.strip().endswith("?"):
-            return True
-
-        # 4. Use spaCy parsing to find question intent
-        doc = nlp(text)
-
-        # Question starters like: what, how, why, where...
-        question_words = {"what", "why", "who", "where", "when", "how", "which", "whom"}
-        if any(token.lower_ in question_words for token in doc):
-            return True
-
-        # Imperative: "Tell me", "Explain", "Show me", etc.
-        imperative_verbs = {"tell", "explain", "show", "list", "describe", "give", "find", "fetch"}
-        if any(token.lemma_ in imperative_verbs and token.pos_ == "VERB" for token in doc):
-            return True
-
-        # Auxiliary verbs indicating a query
-        query_aux_verbs = {"can", "could", "would", "do", "does", "did", "is", "are", "will", "should"}
-        if any(token.lemma_ in query_aux_verbs and token.tag_ in {"MD", "VB", "VBP", "VBZ"} for token in doc):
-            return True
-
-        # Heuristic fallback: is it short and not informative?
-        if len(normalized.split()) <= 2:
-            return False
-
-        return False
-
-    except Exception as e:
-        print(f"[Error in is_query]: {e}")
-        return False
 def is_query_score(text: str) -> float:
     """
     Returns a score:
@@ -268,14 +178,81 @@ def is_query_score(text: str) -> float:
         return 0.0
 
 
+def is_query_score(text: str) -> float:
+    """
+    Determines how likely a given text is a task-related question for the Verztec assistant.
+    Returns a float score from 0.0 to 1.0:
+        - 1.0 = Strong query
+        - 0.5 = Possibly a query, ambiguous
+        - 0.0 = Casual talk or irrelevant
+    """
+
+    try:
+        # ---------- Step 1: Clean the input ----------
+        original = text
+        text = text.lower().strip()
+        text = re.sub(r'[^\w\s]', '', text)  # remove punctuation
+        text = re.sub(r'\s+', ' ', text)     # collapse multiple spaces
+
+        # ---------- Step 2: Early exits ----------
+        refusal_phrases = [
+            "i'm sorry", "as an ai", "i cannot answer", "i do not understand", "outside my scope",
+            "not a question", "not relevant", "i cannot help", "please clarify", "not applicable"
+        ]
+        if any(phrase in text for phrase in refusal_phrases):
+            return 0.0  # Definite non-query
+
+        casual_phrases = {
+            "hi", "hello", "hey", "how are you", "whats up", "thanks", "thank you",
+            "good morning", "good evening", "ok", "okay", "yo", "sup",
+            "what do i eat", "how do i go to bishan park", "what is ngee ann polytechnic",
+            "ngee ann polytechnic", "bishan park", "park"
+        }
+        if text in casual_phrases:
+            return 0.0  # Too casual
+
+        if original.strip().endswith("?"):
+            return 1.0  # Strong signal: explicitly a question
+
+        # ---------- Step 3: Linguistic analysis ----------
+        doc = nlp(text)
+
+        # Match WH-words
+        wh_words = {"what", "why", "who", "where", "when", "how", "which", "whom"}
+        if any(token.lower_ in wh_words for token in doc):
+            return 1.0
+
+        # Explicit task keywords
+        task_keywords = {"leave", "policy", "submit", "upload", "reset", "salary", "claim", "benefit", "holiday", "sick", "urgent", "apply", "deadline"}
+        if any(token.lemma_ in task_keywords for token in doc):
+            return 1.0
+
+        # Related domain-specific hints (custom logic)
+        related_terms = {'pantry', 'bereavement', 'rom', 'mc', 'clinic', 'finance'}
+        if any(token.lower_ in related_terms for token in doc):
+            return 1.0
+
+        # Imperative verbs or command patterns
+        command_verbs = {"tell", "explain", "show", "list", "describe", "give", "find", "fetch"}
+        if any(token.lemma_ in command_verbs and token.pos_ == "VERB" for token in doc):
+            return 0.9
+
+        # Modal + auxiliary check
+        aux_verbs = {"can", "could", "would", "should", "will", "do", "does", "did"}
+        if any(token.lower_ in aux_verbs and token.tag_ in {"MD", "VB", "VBP", "VBZ"} for token in doc):
+            return 0.8
+
+        # ---------- Step 4: Fallback heuristics ----------
+        if len(text.split()) >= 4:
+            return 0.5  # Ambiguous but maybe informative
+
+        return 0.0  # Short and uninformative
+
+    except Exception as e:
+        print(f"[Error in is_query_score]: {e}")
+        return 0.0
 
 
-def clean_with_grammar_model(user_query: str) -> str:
-    input_text = f"gec: {user_query}"
-    inputs = tokenizer.encode(input_text, return_tensors="pt", max_length=128, truncation=True)
-    outputs = model.generate(inputs, max_length=128, num_beams=5, early_stopping=True)
-    corrected = tokenizer.decode(outputs[0], skip_special_tokens=True)
-    return corrected
 
 
 def clean_with_grammar_model(user_query: str) -> str:
@@ -306,23 +283,7 @@ def get_avg_score(index, embedding_model, query, k=10):
     logger.info(f"[L2] Average distance for query '{query}': {avg_score}")
     return avg_score
 
-def append_sources(cleaned_response: str, docs: list) -> str:
-    # Extract and deduplicate source info
-    sources = []
-    seen_sources = set()
-    for doc in docs:
-        source = doc.metadata.get("source", None)
-        if source and source not in seen_sources:
-            seen_sources.add(source)
-            sources.append(source)
 
-    if not sources:
-        return cleaned_response  # No sources to add
-
-    # Neatly append sources
-    source_block = "\n\nSources:\n" + "\n".join(f"- {src}" for src in sources)
-    return cleaned_response.strip() + source_block
-from langchain.schema import AIMessage, HumanMessage
 def build_memory_prompt(memory_obj, current_prompt):
     history = memory_obj.load_memory_variables({}).get("chat_history", [])
 
@@ -338,31 +299,6 @@ def build_memory_prompt(memory_obj, current_prompt):
     return last_turns
 import os
 
-def append_sources(cleaned_response: str, docs: list) -> str:
-    """
-    Appends a neatly formatted list of unique source names to the cleaned response.
-    """
-    def format_source_name(source_path: str) -> str:
-        filename = os.path.basename(source_path)                     # e.g., 'pantry_rules.docx'
-        name, _ = os.path.splitext(filename)                         # e.g., 'pantry_rules'
-        cleaned_name = name.replace("_", " ").title()                # e.g., 'Pantry Rules'
-        return cleaned_name
-
-    # Extract and deduplicate source info
-    sources = []
-    seen_sources = set()
-    for doc in docs:
-        source = doc.metadata.get("source", None)
-        if source and source not in seen_sources:
-            seen_sources.add(source)
-            sources.append(format_source_name(source))
-
-    if not sources:
-        return cleaned_response  # No sources to add
-
-    # Neatly append sources
-    source_block = "\n\n📂 **Sources Referenced:**\n" + "\n".join(f"- {src}" for src in sources)
-    return cleaned_response.strip() + source_block
 
 def append_sources(cleaned_response: str, docs: list) -> str:
     def format_source_name(source_path: str) -> str:
@@ -386,7 +322,7 @@ def append_sources(cleaned_response: str, docs: list) -> str:
     source_block = "\n\n📂 Source Document Used:\n" + "\n".join(f"• {src}" for src in sources)
     return cleaned_response.strip() + source_block
 
-AVG_SCORE_THRESHOLD = 0.967
+#AVG_SCORE_THRESHOLD = 0.967
 import uuid
 
 def generate_answer(user_query: str, chat_history: ConversationBufferMemory):
@@ -395,6 +331,8 @@ def generate_answer(user_query: str, chat_history: ConversationBufferMemory):
     """
     session_id = str(uuid.uuid4())
     try:
+        total_start_time = time.time()  # Start timing for the whole query
+
         parser = StrOutputParser()
         
 
@@ -537,6 +475,8 @@ def generate_answer(user_query: str, chat_history: ConversationBufferMemory):
             MAX_TURNS = 4
             if len(memory.chat_memory.messages) > 2 * MAX_TURNS:
                 memory.chat_memory.messages = memory.chat_memory.messages[-2 * MAX_TURNS:]
+            store_chat_log(user_message=user_query, bot_response=cleaned_fallback, session_id=session_id, query_score=is_task_query, relevance_score=avg_score)
+    
             return cleaned_fallback, top_3_img
         
         
@@ -554,10 +494,11 @@ def generate_answer(user_query: str, chat_history: ConversationBufferMemory):
             + clean_query
         )
 
+        qa_start_time = time.time()
         response = qa_chain.invoke({"question": modified_query})
-        #response = qa_chain.invoke({"question": clean_query})
+        qa_elapsed_time = time.time() - qa_start_time
         raw_answer = response['answer']
-        logger.info(f"Full response before cleanup: {raw_answer}")
+        logger.info(f"Full response before cleanup: {raw_answer} (QA chain time taken: {qa_elapsed_time:.2f}s)")
         
         # Clean the chat memory to keep it manageable
         # Limit chat memory to last 4 turns (8 messages)
@@ -580,18 +521,19 @@ def generate_answer(user_query: str, chat_history: ConversationBufferMemory):
 
         # Timeout logic for retry
         def retry_qa_chain():
-            response_retry = qa_chain.invoke({"question": clean_query})
-            return response_retry['answer']
+            return qa_chain.invoke({"question": clean_query})['answer']
 
         i = 1  # Ensure i is defined
         while has_tag and i == 1:
             if not has_think_block:
                 logger.warning("Missing full <think> block — retrying query once...")
                 try:
+                    retry_start = time.time()
                     with concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor:
                         future = executor.submit(retry_qa_chain)
                         raw_answer_retry = future.result(timeout=30)
-                    logger.info(f"Retry response: {raw_answer_retry}")
+                    retry_elapsed = time.time() - retry_start
+                    logger.info(f"Retry response: {raw_answer_retry} (Retry time taken: {retry_elapsed:.2f}s)")
                     sleep(1)  # Optional: wait a bit before retrying
                     cleaned_answer = think_block_pattern.sub("", raw_answer_retry).strip()
                 except concurrent.futures.TimeoutError:
@@ -625,13 +567,14 @@ def generate_answer(user_query: str, chat_history: ConversationBufferMemory):
         cleaned_answer = re.sub(r'[\*#]+', '', cleaned_answer).strip()
 
     
-        store_chat_log(user_message=user_query, bot_response=cleaned_answer, session_id=session_id)
+        store_chat_log(user_message=user_query, bot_response=cleaned_answer, session_id=session_id, query_score=is_task_query, relevance_score=avg_score)
         # After generating the bot's response
         final_response = append_sources(cleaned_answer, top_docs)
         print(final_response)
 
-        
-        
+        total_elapsed_time = time.time() - total_start_time
+        logger.info(f"Total time taken for query processing: {total_elapsed_time:.2f}s")
+
         return final_response, top_3_img
     except Exception as e:
         return f"I encountered an error while processing your request: {str(e)}", []
