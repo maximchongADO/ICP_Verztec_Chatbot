@@ -97,8 +97,15 @@ function sendMessage() {
 
 
 async function get_frequentmsg() {
+  // Fallback suggestions
+  const fallback = [
+    "What are the pantry rules?",
+    "What is the leave policy?",
+    "How do I upload e-invoices?"
+  ];
+
   try {
-    const response = await fetch("http://localhost:3000/frequent", { // use full backend URL
+    const response = await fetch("http://localhost:3000/frequent", {
       method: "POST",
       headers: {
         Authorization: `Bearer ${token}`,
@@ -112,13 +119,15 @@ async function get_frequentmsg() {
     const data = await response.json();
     console.log("Frequent Messages:", data);
 
-    if (Array.isArray(data)) {
+    if (Array.isArray(data) && data.length > 0) {
       updateSuggestions(data);
     } else {
-      console.error("Expected an array but got:", data);
+      updateSuggestions(fallback);
     }
   } catch (error) {
     console.error("Error fetching frequent messages:", error);
+    // Use fallback if API is unreachable or any error occurs
+    updateSuggestions(fallback);
   }
 }
 
@@ -234,9 +243,9 @@ function updateSuggestions(suggestionsArray) {
 
   // Fallback suggestions
   const fallback = [
-    "what are the pantry rules",
-    "what is the leave policy",
-    "how do i upload e invoices"
+    "What are the pantry rules?",
+    "What is the leave policy?",
+    "How do I upload e-invoices?"
   ];
 
   // Use fallback if suggestionsArray is not an array or empty

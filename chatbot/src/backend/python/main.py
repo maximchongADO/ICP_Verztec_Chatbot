@@ -128,9 +128,9 @@ async def get_frequent_queries():
 
         # Fallback if no queries
         fallback = [
-            "what are the pantry rules",
-            "what is the leave policy",
-            "how do i upload e invoices"
+            "What are the pantry rules?",
+            "What is the leave policy?",
+            "How do I upload e-invoices?"
         ]
         if not isinstance(top_queries, list) or not top_queries:
             top_queries = fallback
@@ -141,9 +141,9 @@ async def get_frequent_queries():
         logger.error(f"Error retrieving frequent queries: {str(e)}")
         # Also fallback on error
         fallback = [
-            "what are the pantry rules",
-            "what is the leave policy",
-            "how do i upload e invoices"
+            "What are the pantry rules?",
+            "What is the leave policy?",
+            "How do I upload e-invoices?"
         ]
         return JSONResponse(content=fallback, status_code=200)
 
