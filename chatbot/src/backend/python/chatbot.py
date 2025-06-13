@@ -23,8 +23,8 @@ from langchain.chains import ConversationalRetrievalChain
 from langchain_core.output_parsers import StrOutputParser
 from langchain.embeddings import HuggingFaceEmbeddings
 from langchain_community.vectorstores import FAISS
+import uuid
 
-#from dotenv import load_dotenv
 
 # Set up logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -33,10 +33,10 @@ logger = logging.getLogger(__name__)
 # Initialize models and clients
 embedding_model = SentenceTransformer('BAAI/bge-large-en-v1.5')
 api_key = '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'
-#model_name = "compound-beta"
+
 model = "deepseek-r1-distill-llama-70b" 
 deepseek = ChatGroq(api_key=api_key, model=model) # type: ignore
-#compound = ChatGroq(api_key=api_key, model=model_name) # type: ignore
+
 
 # Initialize memory
 memory = ConversationBufferMemory(
@@ -93,9 +93,6 @@ except Exception as e:
     logger.error(f"Failed to load spacymodel:  {str(e)}", exc_info=True)
     
 
-
-
-
 def store_chat_log(user_message, bot_response, session_id, query_score, relevance_score):
     conn = mysql.connector.connect(**DB_CONFIG)
     cursor = conn.cursor()
@@ -112,71 +109,6 @@ def store_chat_log(user_message, bot_response, session_id, query_score, relevanc
 
     cursor.close()
     conn.close()
-
-
-def is_query_score(text: str) -> float:
-    """
-    Returns a score:
-        1.0 = Strong task query
-        0.5 = Possibly a question, but ambiguous
-        0.0 = Casual chatter or not a valid query
-    """
-    try:
-        normalized = text.lower().strip()
-        normalized = re.sub(r'[^\w\s]', '', normalized)
-
-        # 1. AI-like or filler responses
-        refusal_phrases = [
-            "i'm sorry", "as an ai", "i cannot answer", "i do not understand", "outside my scope",
-            "not a question", "not relevant", "i cannot help", "please clarify", "not applicable"
-        ]
-        if any(phrase in normalized for phrase in refusal_phrases):
-            return 0.0
-
-        # 2. Casual or conversational messages
-        casual_phrases = {
-            "hi", "hello", "hey", "how are you", "whats up", "thanks", "thank you",'park', 
-            "good morning", "good evening", "ok", "okay", "yo", "sup", "what do i eat","How do I go to bishan park ?","What is Ngee Ann Polytechnic ?",'park','bishan park','Ngee Ann Polytechnic','How do I go to Ngee Ann Polytechnic?','How do I go to bishan park?'
-        }
-        if normalized in casual_phrases:
-            return 0.0
-
-        # 3. Explicit question mark = strong signal
-        if text.strip().endswith("?"):
-            return 1.0
-
-        # 4. Use spaCy to analyze query structure
-        doc = nlp(text)
-
-        # WH- question words
-        question_words = {"what", "why", "who", "where", "when", "how", "which", "whom"}
-        if any(token.lower_ in question_words for token in doc):
-            return 1.0
-        
-        relatedwords = {'pantry'}
-        if any(token.lower_ in relatedwords for token in doc):
-            return 1.0
-
-        # Task verbs: imperative or command style (e.g. "List the steps to...")
-        task_verbs = {"tell", "explain", "show", "list", "describe", "give", "find", "fetch", "upload", "reset"}
-        if any(token.lemma_ in task_verbs and token.pos_ == "VERB" for token in doc):
-            return 1.0
-
-        # Modal auxiliaries suggesting a request
-        aux_verbs = {"can", "could", "would", "should", "will", "do", "does", "did"}
-        if any(token.lower_ in aux_verbs for token in doc):
-            return 0.9
-
-        # Default fallback if it looks like a statement but unclear intent
-        if len(normalized.split()) >= 4:
-            return 0.5
-
-        return 0.0  # too short or vague
-
-    except Exception as e:
-        print(f"[Error in is_query_score]: {e}")
-        return 0.0
-
 
 def is_query_score(text: str) -> float:
     """
@@ -253,8 +185,6 @@ def is_query_score(text: str) -> float:
         return 0.0
 
 
-
-
 def clean_with_grammar_model(user_query: str) -> str:
     """
     Uses a GEC-tuned model to clean up grammar, spelling, and clarity issues from user input.
@@ -265,6 +195,7 @@ def clean_with_grammar_model(user_query: str) -> str:
     inputs = tokenizer.encode(input_text, return_tensors="pt", max_length=128, truncation=True)
     outputs = model.generate(inputs, max_length=128, num_beams=5, early_stopping=True)
     corrected = tokenizer.decode(outputs[0], skip_special_tokens=True)
+
     return user_query
 
 
@@ -322,8 +253,6 @@ def append_sources(cleaned_response: str, docs: list) -> str:
     source_block = "\n\n📂 Source Document Used:\n" + "\n".join(f"• {src}" for src in sources)
     return cleaned_response.strip() + source_block
 
-#AVG_SCORE_THRESHOLD = 0.967
-import uuid
 
 def generate_answer(user_query: str, chat_history: ConversationBufferMemory):
     """
@@ -334,8 +263,7 @@ def generate_answer(user_query: str, chat_history: ConversationBufferMemory):
         total_start_time = time.time()  # Start timing for the whole query
 
         parser = StrOutputParser()
-        
-
+    
         # Chain the Groq model with the parser
         deepseek_chain = deepseek | parser
         
@@ -345,9 +273,6 @@ def generate_answer(user_query: str, chat_history: ConversationBufferMemory):
         )
         avg_score = get_avg_score(index, embedding_model, user_query)
         
-      
-       
-        ## FAISS retriever setup
         
         ## QA chain setup with mrmory 
         qa_chain = ConversationalRetrievalChain.from_llm(
@@ -358,9 +283,7 @@ def generate_answer(user_query: str, chat_history: ConversationBufferMemory):
             output_key="answer"
         )
         logger.info(memory)
-        
-      
-
+    
     
         # Refine query
        
@@ -578,3 +501,101 @@ def generate_answer(user_query: str, chat_history: ConversationBufferMemory):
         return final_response, top_3_img
     except Exception as e:
         return f"I encountered an error while processing your request: {str(e)}", []
+
+## some stuff to generate suggestionsm i might just use the same api pathway cos idk how ot redo ir HHHAHA
+def retrieve_user_messages_and_scores():
+    conn = mysql.connector.connect(**DB_CONFIG)
+    cursor = conn.cursor(dictionary=True)
+
+    select_query = '''
+        SELECT user_message, query_score, relevance_score
+        FROM chat_logs
+        ORDER BY timestamp ASC
+    '''
+    cursor.execute(select_query)
+    results = cursor.fetchall()
+
+    cursor.close()
+    conn.close()
+
+    return results
+
+from collections import Counter
+import re
+from rapidfuzz import fuzz
+from collections import defaultdict, Counter
+
+def normalize_text(text: str) -> str:
+    # Lowercase, remove punctuation, strip spaces
+    return re.sub(r'[^\w\s]', '', text.lower().strip())
+
+import re
+import string
+
+def format_query(text: str) -> str:
+    """Cleans and formats user queries with proper spacing, capitalization, and punctuation."""
+    if not text or not isinstance(text, str):
+        return ""
+
+    # Step 1: Normalize whitespace
+    text = re.sub(r'\s+', ' ', text.strip())
+
+    # Step 2: Remove stray punctuation from the start (e.g., "?? help?")
+    text = re.sub(r'^[^\w]+', '', text)
+
+    # Step 3: Capitalize first word only, leave rest as-is
+    if len(text) > 1:
+        text = text[0].upper() + text[1:]
+
+    # Step 4: Add a question mark if it doesn't end in punctuation
+    if not text.endswith(('.', '?', '!')):
+        text += '?'
+
+    # Optional: replace multiple punctuation at the end (e.g., "What is this??") with a single ?
+    text = re.sub(r'[.?!]{2,}$', '?', text)
+
+    return text
+
+
+def get_suggestions(query: str = "") -> List[str]:
+    all_results = retrieve_user_messages_and_scores()
+
+    # Filter based on your criteria
+    filtered_results = [
+        result for result in all_results
+        if result['user_message'] and result['query_score'] > 0.79 and result['relevance_score'] < 1.01
+    ]
+
+    # Fuzzy group similar queries
+    grouped_queries = []
+    query_map = defaultdict(list)  # {canonical_query: [variants]}
+
+    for result in filtered_results:
+        message = result['user_message']
+        matched = False
+
+        # Try to match against existing groups
+        for canon in query_map:
+            if fuzz.ratio(message.lower(), canon.lower()) > 85:  # similarity threshold
+                query_map[canon].append(message)
+                matched = True
+                break
+
+        # If no match, start new group
+        if not matched:
+            query_map[message] = [message]
+
+    # Count occurrences by group
+    grouped_counts = [(canon, len(variants)) for canon, variants in query_map.items()]
+    top_3_groups = sorted(grouped_counts, key=lambda x: x[1], reverse=True)[:4]
+
+    # Return the canonical representative from each top group
+    top_3_queries = [item[0] for item in top_3_groups]
+    for i in range(len(top_3_queries)):
+        top_3_queries[i] = format_query(normalize_text(top_3_queries[i]))
+
+    return top_3_queries
+
+if __name__ == "__main__":
+    hello = get_suggestions()
+    print(hello)

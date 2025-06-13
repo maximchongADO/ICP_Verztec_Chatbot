@@ -179,3 +179,5 @@ def update_verztec_index():
     faiss.write_index(index, 'verztec_index.faiss')
 
     return index, chunk_metadata
+
+

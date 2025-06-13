@@ -9,11 +9,12 @@ import os
 import uvicorn
 
 from chatbot import (
-    generate_answer, 
+    generate_answer,
     memory, 
     logger, 
     index
 )
+from Freq_queries import (get_suggestions)
 from fileUpload import process_upload
 from fastapi.staticfiles import StaticFiles
 app = FastAPI()
@@ -96,6 +97,7 @@ async def chat_endpoint(request: ChatRequest):
             images=image_list
         )
         
+
     except Exception as e:
         logger.error(f"Error processing chat request: {str(e)}", exc_info=True)
         return ChatResponse(
@@ -106,6 +108,44 @@ async def chat_endpoint(request: ChatRequest):
             error=str(e),
             images=None
         )
+        
+    from fastapi import APIRouter, HTTPException
+from fastapi.responses import JSONResponse
+
+from fastapi.responses import JSONResponse
+
+@app.post("/frequent")
+async def get_frequent_queries():
+    logger.info("Received request for frequent queries")
+
+    try:
+        if index is None:
+            logger.warning("Search index is not available")
+            return JSONResponse(content=[], status_code=200)
+
+        top_queries = get_suggestions()
+        logger.info(f"Top frequent queries: {top_queries}")
+
+        # Fallback if no queries
+        fallback = [
+            "what are the pantry rules",
+            "what is the leave policy",
+            "how do i upload e invoices"
+        ]
+        if not isinstance(top_queries, list) or not top_queries:
+            top_queries = fallback
+
+        return JSONResponse(content=top_queries, status_code=200)
+
+    except Exception as e:
+        logger.error(f"Error retrieving frequent queries: {str(e)}")
+        # Also fallback on error
+        fallback = [
+            "what are the pantry rules",
+            "what is the leave policy",
+            "how do i upload e invoices"
+        ]
+        return JSONResponse(content=fallback, status_code=200)
 
 @app.delete("/history")
 async def clear_chat_history():

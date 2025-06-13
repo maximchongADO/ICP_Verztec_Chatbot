@@ -12,6 +12,7 @@ function handleKeyPress(event) {
 }
 
 
+
 // Add these new variables at the top of the file with other global variables
 let currentSpeechText = null;
 let isCurrentlySpeaking = false;
@@ -95,7 +96,31 @@ function sendMessage() {
 
 
 
+async function get_frequentmsg() {
+  try {
+    const response = await fetch("http://localhost:3000/frequent", { // use full backend URL
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    });
 
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+
+    const data = await response.json();
+    console.log("Frequent Messages:", data);
+
+    if (Array.isArray(data)) {
+      updateSuggestions(data);
+    } else {
+      console.error("Expected an array but got:", data);
+    }
+  } catch (error) {
+    console.error("Error fetching frequent messages:", error);
+  }
+}
 
 
 async function callChatbotAPI(message) {
@@ -202,6 +227,59 @@ function clearWelcomeContent() {
     welcomeMsg.remove();
   }
 }
+
+function updateSuggestions(suggestionsArray) {
+  const container = document.getElementById("suggestionsContainer");
+  if (!container) return;
+
+  // Fallback suggestions
+  const fallback = [
+    "what are the pantry rules",
+    "what is the leave policy",
+    "how do i upload e invoices"
+  ];
+
+  // Use fallback if suggestionsArray is not an array or empty
+  const suggestions = Array.isArray(suggestionsArray) && suggestionsArray.length > 0
+    ? suggestionsArray
+    : fallback;
+
+  container.innerHTML = ""; // Clear old suggestions
+
+  suggestions.forEach(text => {
+    const div = document.createElement("div");
+    div.className = "suggestion";
+    div.textContent = text;
+    div.onclick = () => sendSuggestion(text);
+    container.appendChild(div);
+  });
+}
+
+async function fetchSuggestions(query = "") {
+  try {
+    const res = await fetch(`/api/chatbot/suggestions?query=${encodeURIComponent(query)}`, {
+      headers: { Authorization: `Bearer ${token}` }
+    });
+
+    const data = await res.json();
+    if (data && Array.isArray(data.suggestions)) {
+      updateSuggestions(data.suggestions);
+    }
+  } catch (err) {
+    console.error("Failed to fetch suggestions:", err);
+  }
+}
+
+document.addEventListener("DOMContentLoaded", function () {
+  if (window.innerWidth <= 768) {
+    document.getElementById("sidebar").classList.add("collapsed");
+  }
+
+  // Fetch default welcome suggestions
+  get_frequentmsg();  // fixed syntax
+});
+
+
 
 // Show typing indicator with status message
 function showTypingIndicator(status = "Getting documents...") {
@@ -577,3 +655,4 @@ function showCopyPopup() {
     popup.classList.remove('show');
   }, 1400);
 }
+
