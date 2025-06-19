@@ -484,7 +484,7 @@ document.addEventListener("DOMContentLoaded", function () {
     document.getElementById("sidebar").classList.add("collapsed");
   }
 });
-
+  
 // Handle window resize
 window.addEventListener("resize", function () {
   const sidebar = document.getElementById("sidebar");

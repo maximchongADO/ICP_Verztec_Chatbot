@@ -11,7 +11,7 @@ import mysql.connector
 import spacy
 from spacy.matcher import PhraseMatcher
 from typing import List, Optional
-
+import os
 from sentence_transformers import SentenceTransformer
 from transformers import AutoModelForSeq2SeqLM, AutoTokenizer
 
@@ -24,6 +24,7 @@ from langchain_core.output_parsers import StrOutputParser
 from langchain.embeddings import HuggingFaceEmbeddings
 from langchain_community.vectorstores import FAISS
 import uuid
+from memory_retrieval import build_memory_from_results, retrieve_user_messages_and_scores
 
 
 # Set up logging
@@ -228,7 +229,7 @@ def build_memory_prompt(memory_obj, current_prompt):
     last_turns.append(HumanMessage(content=current_prompt))
 
     return last_turns
-import os
+
 
 
 def append_sources(cleaned_response: str, docs: list) -> str:
@@ -502,100 +503,268 @@ def generate_answer(user_query: str, chat_history: ConversationBufferMemory):
     except Exception as e:
         return f"I encountered an error while processing your request: {str(e)}", []
 
-## some stuff to generate suggestionsm i might just use the same api pathway cos idk how ot redo ir HHHAHA
-def retrieve_user_messages_and_scores():
-    conn = mysql.connector.connect(**DB_CONFIG)
-    cursor = conn.cursor(dictionary=True)
+memory_store = {}
 
-    select_query = '''
-        SELECT user_message, query_score, relevance_score
-        FROM chat_logs
-        ORDER BY timestamp ASC
-    '''
-    cursor.execute(select_query)
-    results = cursor.fetchall()
+def generate_answer_histoy_retrieval(user_query: str, user_id:str, chat_id, str):
+    """
+    Returns a tuple: (answer_text, image_list)
+    """
+    
+    key = f"{user_id}_{chat_id}"  # Use a separator to avoid accidental key collisions
 
-    cursor.close()
-    conn.close()
+    if key in memory_store:
+        chat_history = memory_store[key]
+        logger.info(f"Memory object found at key: {key}")
+    else:
+        msgs = retrieve_user_messages_and_scores(user_id, chat_id)
+        chat_history = build_memory_from_results(msgs)
+        memory_store[key] = chat_history
+        logger.info(f"No memory object found. Created and saved for key: {key}")
 
-    return results
+    
+        
+    
+    try:
+        total_start_time = time.time()  # Start timing for the whole query
 
-from collections import Counter
-import re
-from rapidfuzz import fuzz
-from collections import defaultdict, Counter
+        parser = StrOutputParser()
+    
+        # Chain the Groq model with the parser
+        deepseek_chain = deepseek | parser
+        
+        retriever = index.as_retriever(
+            search_type="similarity",
+            search_kwargs={"k": 10}
+        )
+        avg_score = get_avg_score(index, embedding_model, user_query)
+        
+        
+        ## QA chain setup with mrmory 
+        qa_chain = ConversationalRetrievalChain.from_llm(
+            llm=deepseek_chain,
+            retriever=retriever,
+            memory=chat_history,
+            return_source_documents=True,
+            output_key="answer"
+        )
+        logger.info(memory)
+    
+    
+        # Refine query
+       
+        clean_query = clean_with_grammar_model(user_query)
+       
+        # Step 3: Search FAISS for context 
+        # for images, as well as for context relevance checks 
+        results = index.similarity_search_with_score(clean_query, k=5)
+        scores = [score for _, score in results]
+        avg_score = float(np.mean(scores)) if scores else 1.0
+        seen = set()
+        unique_docs = []
 
-def normalize_text(text: str) -> str:
-    # Lowercase, remove punctuation, strip spaces
-    return re.sub(r'[^\w\s]', '', text.lower().strip())
+        for doc, _ in results:
+            content = doc.page_content
+            if content not in seen:
+                seen.add(content)
+                unique_docs.append(doc)
 
-import re
-import string
+        logger.info(f"Retrieved {len(unique_docs)} documents with average score: {avg_score:.4f}")
+    
+        
+        ## retrieving images from top 3 chunks (if any)
+        # Retrieve images from top 3 chunks (if any)
+        top_3_img = []
+        sources_set = set()
+        sources_list = []
+        top_docs = []
+        seen_contents = set()
 
-def format_query(text: str) -> str:
-    """Cleans and formats user queries with proper spacing, capitalization, and punctuation."""
-    if not text or not isinstance(text, str):
-        return ""
+        for doc, score in results:
+            if score < 0.7:
+                # Use the filename or document name as the source
+                source = doc.metadata.get('source')
+                if source and source not in sources_set:
+                    sources_set.add(source)
+                    sources_list.append(source)
 
-    # Step 1: Normalize whitespace
-    text = re.sub(r'\s+', ' ', text.strip())
+                # Track unique docs (based on content) for appending source metadata later
+                if doc.page_content not in seen_contents:
+                    seen_contents.add(doc.page_content)
+                    top_docs.append(doc)
 
-    # Step 2: Remove stray punctuation from the start (e.g., "?? help?")
-    text = re.sub(r'^[^\w]+', '', text)
+                # Add up to 3 images only
+                images = doc.metadata.get('images', [])
+                for img in images:
+                    if len(top_3_img) < 3:
+                        top_3_img.append(img)
+                    else:
+                        break
 
-    # Step 3: Capitalize first word only, leave rest as-is
-    if len(text) > 1:
-        text = text[0].upper() + text[1:]
-
-    # Step 4: Add a question mark if it doesn't end in punctuation
-    if not text.endswith(('.', '?', '!')):
-        text += '?'
-
-    # Optional: replace multiple punctuation at the end (e.g., "What is this??") with a single ?
-    text = re.sub(r'[.?!]{2,}$', '?', text)
-
-    return text
+                if len(top_3_img) >= 3:
+                    break
 
 
-def get_suggestions(query: str = "") -> List[str]:
-    all_results = retrieve_user_messages_and_scores()
+            # Ensures a flat list of strings
+        top_3_img = list(set(top_3_img))  # Remove duplicates
+        logger.info(f"Top 3 images: {top_3_img}")
 
-    # Filter based on your criteria
-    filtered_results = [
-        result for result in all_results
-        if result['user_message'] and result['query_score'] > 0.79 and result['relevance_score'] < 1.01
-    ]
 
-    # Fuzzy group similar queries
-    grouped_queries = []
-    query_map = defaultdict(list)  # {canonical_query: [variants]}
+       
+        is_task_query = is_query_score(user_query)
+        logger.info(f"Query Score: {is_task_query}")
+        logger.info(f"Average Score: {avg_score}")
+        
+        soft_threshold = 0.7
+        SOFT_QUERY_THRESHOLD = 0.5
+        STRICT_QUERY_THRESHOLD = 0.2
+        HARD_AVG_SCORE_THRESHOLD = 1.01
+        
+        #handle irrelevant query
+        logger.info(f"Clean Query at qa chain: {clean_query}")
+        if (
+            (is_task_query < SOFT_QUERY_THRESHOLD and avg_score >= soft_threshold) or
+            avg_score >= HARD_AVG_SCORE_THRESHOLD or
+            is_task_query < STRICT_QUERY_THRESHOLD
+        ):
+            if is_task_query < SOFT_QUERY_THRESHOLD and avg_score >= soft_threshold:
+                logger.info("[BYPASS_REASON] Tag: low_task_high_score — Query intent is kinda weak and query is slighlty irrelevant.")
+            elif avg_score >= HARD_AVG_SCORE_THRESHOLD:
+                logger.info("[BYPASS_REASON] Tag: high_score_threshold — Query is highly irrelevant to FAISS documents.")
+            elif is_task_query < STRICT_QUERY_THRESHOLD:
+                logger.info("[BYPASS_REASON] Tag: very_low_task_intent — Query clearly not a task query.")
 
-    for result in filtered_results:
-        message = result['user_message']
-        matched = False
+            logger.info("Bypassing QA chain for non-query with weak retrieval.")
+           # fallback_prompt = f"The user said, this query is out of scope: \"{clean_query}\". Respond appropriately as a POLITELY VERZTEC assistant, and ask how else you can help"
+            fallback_prompt = (
+                f'The user said: "{clean_query}". '
+                'As a HELPFUL and FRIENDLY VERZTEC helpdesk assistant, respond with a light-hearted or polite reply — '
+                'even if the message is small talk or out of scope (e.g., "how are you", "do you like pizza"). '
+                'Keep it human and warm (e.g., "I’m doing great, thanks for asking!"), then ***gently guide the user back to Verztec-related helpdesk topics***.'
+                'Do not answer any questions that are not related to Verztec helpdesk topics, and do not use any of the provided documents in your response. '
+            )
 
-        # Try to match against existing groups
-        for canon in query_map:
-            if fuzz.ratio(message.lower(), canon.lower()) > 85:  # similarity threshold
-                query_map[canon].append(message)
-                matched = True
-                break
+            #modified_query = "You are a verztec helpdesk assistant. You will only use the provided documents in your response. If the query is out of scope, say so.\n\n" + clean_query
+            #messages = [HumanMessage(content=fallback_prompt)]
+            messages = build_memory_prompt(memory, fallback_prompt)
+            response = deepseek.generate([messages])
 
-        # If no match, start new group
-        if not matched:
-            query_map[message] = [message]
+            raw_fallback = response.generations[0][0].text.strip()
 
-    # Count occurrences by group
-    grouped_counts = [(canon, len(variants)) for canon, variants in query_map.items()]
-    top_3_groups = sorted(grouped_counts, key=lambda x: x[1], reverse=True)[:4]
+            # Remove <think> block if present
+            think_block_pattern = re.compile(r"<think>.*?</think>", flags=re.DOTALL)
+            cleaned_fallback = think_block_pattern.sub("", raw_fallback).strip()
+            top_3_img = []  # No images for fallback response
+            # Store the fallback response in chat memory
+         
+            memory.chat_memory.add_user_message(fallback_prompt)
+            memory.chat_memory.add_ai_message(cleaned_fallback) 
+            # Clean up chat memory to keep it manageable
+            # Limit chat memory to last 4 turns (8 messages)
+            MAX_TURNS = 4
+            if len(memory.chat_memory.messages) > 2 * MAX_TURNS:
+                memory.chat_memory.messages = memory.chat_memory.messages[-2 * MAX_TURNS:]
+            store_chat_log(user_message=user_query, bot_response=cleaned_fallback, session_id=session_id, query_score=is_task_query, relevance_score=avg_score)
+    
+            return cleaned_fallback, top_3_img
+        
+        
+        
+        
+        logger.info("QA chain activated for query processing.")
+        # Step 4: Prepare full prompt and return LLM output
+        modified_query = "You are a  HELPFUL AND NICE verztec helpdesk assistant. You will only use the provided documents in your response. If the query is out of scope, say so.\n\n" + clean_query
+        modified_query = (
+            "You are a HELPFUL AND NICE Verztec helpdesk assistant. "
+            "You will only use the provided documents in your response. "
+            "If the query is out of scope, say so. "
+            "If there are any image tags or screenshots mentioned in the documents, "
+            "please reference them in your response where appropriate, such as 'See Screenshot 1' or 'Refer to the image above'.\n\n"
+            + clean_query
+        )
 
-    # Return the canonical representative from each top group
-    top_3_queries = [item[0] for item in top_3_groups]
-    for i in range(len(top_3_queries)):
-        top_3_queries[i] = format_query(normalize_text(top_3_queries[i]))
+        qa_start_time = time.time()
+        response = qa_chain.invoke({"question": modified_query})
+        qa_elapsed_time = time.time() - qa_start_time
+        raw_answer = response['answer']
+        logger.info(f"Full response before cleanup: {raw_answer} (QA chain time taken: {qa_elapsed_time:.2f}s)")
+        
+        # Clean the chat memory to keep it manageable
+        # Limit chat memory to last 4 turns (8 messages)
+        MAX_TURNS = 4
+        if len(memory.chat_memory.messages) > 2 * MAX_TURNS:
+            memory.chat_memory.messages = memory.chat_memory.messages[-2 * MAX_TURNS:]
 
-    return top_3_queries
+        # Define regex pattern to match full <think>...</think> block
+        think_block_pattern = re.compile(r"<think>.*?</think>", flags=re.DOTALL)
+       
+        
 
-if __name__ == "__main__":
-    hello = get_suggestions()
-    print(hello)
+        # Check if full <think> block exists
+        has_think_block = bool(think_block_pattern.search(raw_answer))
+
+        # Clean the <think> block regardless
+        cleaned_answer = think_block_pattern.sub("", raw_answer).strip()
+        has_tag = False
+        import concurrent.futures
+
+        # Timeout logic for retry
+        def retry_qa_chain():
+            return qa_chain.invoke({"question": clean_query})['answer']
+
+        i = 1  # Ensure i is defined
+        while has_tag and i == 1:
+            if not has_think_block:
+                logger.warning("Missing full <think> block — retrying query once...")
+                try:
+                    retry_start = time.time()
+                    with concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor:
+                        future = executor.submit(retry_qa_chain)
+                        raw_answer_retry = future.result(timeout=30)
+                    retry_elapsed = time.time() - retry_start
+                    logger.info(f"Retry response: {raw_answer_retry} (Retry time taken: {retry_elapsed:.2f}s)")
+                    sleep(1)  # Optional: wait a bit before retrying
+                    cleaned_answer = think_block_pattern.sub("", raw_answer_retry).strip()
+                except concurrent.futures.TimeoutError:
+                    logger.error("QA chain retry timed out after 30 seconds.")
+                    cleaned_answer = "Sorry, the system took too long to generate a response. Please try again in a moment."
+                    break
+                except Exception as e:
+                    logger.error(f"Error during QA chain retry: {e}")
+                    cleaned_answer = f"Sorry, an error occurred while generating a response: {e}"
+                    break
+            else:
+                logger.info("Full <think> block found and removed successfully")
+            block_tag_pattern = re.compile(r"<([a-zA-Z0-9_]+)>.*?</\1>", flags=re.DOTALL)
+
+            # Check if there are any block tags at all
+            has_any_block_tag = bool(block_tag_pattern.search(raw_answer))
+            if has_any_block_tag:
+                logger.info("Block tags found in response, cleaning them up")
+
+            # Remove all block tags
+            cleaned_answer = block_tag_pattern.sub("", raw_answer).strip()
+            cleaned_answer = re.sub(r"^\s+", "", cleaned_answer)
+            has_any_block_tag = bool(block_tag_pattern.search(raw_answer))
+            if not has_any_block_tag:
+                has_tag = False
+            i += 1
+        ## one last cleanup to ensure no <think> tags remain
+        # Remove any remaining <think> tagsbetter have NO MOR NO MORE NO MO NO MOMRE 
+        cleaned_answer = re.sub(r"</?think>", "", cleaned_answer).strip()
+        cleaned_answer = re.sub(r"</?think>", "", cleaned_answer).strip()
+        cleaned_answer = re.sub(r'[\*#]+', '', cleaned_answer).strip()
+
+    
+        store_chat_log(user_message=user_query, bot_response=cleaned_answer, query_score=is_task_query, relevance_score=avg_score, user_id=user_id, chat_id=chat_id)##brian u need to update sql for this to work
+        # also need to update the store_chat_bot method, to incoude user id and chat id 
+        # After generating the bot's response
+        final_response = append_sources(cleaned_answer, top_docs)
+        print(final_response)
+
+        total_elapsed_time = time.time() - total_start_time
+        logger.info(f"Total time taken for query processing: {total_elapsed_time:.2f}s")
+
+        return final_response, top_3_img
+    except Exception as e:
+        return f"I encountered an error while processing your request: {str(e)}", []
+
