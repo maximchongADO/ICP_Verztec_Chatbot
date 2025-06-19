@@ -24,6 +24,9 @@ def retrieve_user_messages_and_scores(User_id, chat_id):
 
     cursor.execute(select_query, (User_id, chat_id))
     results = cursor.fetchall()
+    
+    for row in results:
+        row['timestamp'] = row['timestamp'].isoformat()
 
     cursor.close()
     conn.close()
@@ -38,11 +41,16 @@ def build_memory_from_results(results):
         reverse=True
     )[:10]
 
-    # Create memory object
-    memory = ConversationBufferMemory(return_messages=True)
+    # Create memory object with specified keys
+    memory = ConversationBufferMemory(
+        memory_key="chat_history",
+        input_key="question",
+        output_key="answer",
+        return_messages=True
+    )
 
-    # Insert messages in chronological order
-    for item in reversed(sorted_results):  # oldest to newest
+    # Insert messages in chronological order (oldest to newest)
+    for item in reversed(sorted_results):
         user_msg = item["user_message"]
         bot_msg = item["bot_response"]
         
@@ -50,6 +58,5 @@ def build_memory_from_results(results):
         memory.chat_memory.messages.append(AIMessage(content=bot_msg))
 
     return memory
-
 if __name__=='__main__':
     print('moew')

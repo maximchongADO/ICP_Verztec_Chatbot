@@ -93,6 +93,33 @@ function sendMessage() {
     });
 }
 
+//getting all messages from the given chat and user 
+async function getChatHistory(userId, chatId) {
+  try {
+    const response = await fetch("/history", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        user_id: userId,
+        chat_id: chatId
+      })
+    });
+
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+
+    const chatLogs = await response.json();
+    console.log("Chat History:", chatLogs);
+
+    // then here u do whatever u want with the chatlogs json file
+
+  } catch (error) {
+    console.error("Error fetching chat history:", error);
+  }
+}
 
 
 

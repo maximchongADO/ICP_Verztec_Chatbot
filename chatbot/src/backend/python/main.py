@@ -14,6 +14,7 @@ from chatbot import (
     logger, 
     index
 )
+from memory_retrieval import retrieve_user_messages_and_scores
 from Freq_queries import (get_suggestions)
 from fileUpload import process_upload
 from fastapi.staticfiles import StaticFiles
@@ -72,6 +73,23 @@ async def health_check():
             content={"status": "unhealthy", "error": str(e)},
             status_code=500
         )
+        
+@app.post("/history")
+async def history_retreival(request: Request):
+    body = await request.json()
+    user_id = body.get("user_id")
+    chat_id = body.get("chat_id")
+
+    if not user_id or not chat_id:
+        return JSONResponse(
+            status_code=400,
+            content={"error": "Missing 'user_id' or 'chat_id'"}
+        )
+
+    results = retrieve_user_messages_and_scores(user_id, chat_id)
+    results.reverse()  # Optional: oldest to newest
+    return JSONResponse(content=results)
+
 
 @app.post("/chatbot")
 async def chat_endpoint(request: ChatRequest):
