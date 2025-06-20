@@ -119,7 +119,7 @@ def store_chat_log_updated(user_message, bot_response, query_score, relevance_sc
     timestamp = datetime.utcnow()
 
     insert_query = '''
-        INSERT INTO chat_logs (timestamp, user_message, bot_response, session_id,query_score, relevance_score,user_id ,chat_id)
+        INSERT INTO chat_logs (timestamp, user_message, bot_response,query_score, relevance_score,user_id ,chat_id)
         VALUES (%s, %s, %s, %s, %s, %s)
     '''
     cursor.execute(insert_query, (timestamp, user_message, bot_response,query_score, relevance_score,user_id,chat_id))
@@ -524,7 +524,7 @@ def generate_answer(user_query: str, chat_history: ConversationBufferMemory):
 
 memory_store = {}
 
-def generate_answer_histoy_retrieval(user_query: str, user_id:str, chat_id, str):
+def generate_answer_histoy_retrieval(user_query: str, user_id:str, chat_id:str):
     """
     Returns a tuple: (answer_text, image_list)
     """

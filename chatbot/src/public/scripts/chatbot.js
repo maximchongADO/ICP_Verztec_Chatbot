@@ -61,6 +61,7 @@ function sendMessage() {
   setTimeout(() => updateTypingIndicatorStatus("Finalizing..."), 3200);
 
   // Call chatbot API
+  // this needs to be changed to take userid and chatid to enable changing history 
   callChatbotAPI(message)
     .then((response) => {
       // Remove typing indicator
@@ -93,7 +94,7 @@ function sendMessage() {
     });
 }
 
-//getting all messages from the given chat and user 
+//getting all messages from the given chat and user
 async function getChatHistory(userId, chatId) {
   try {
     const response = await fetch("/history", {
@@ -159,7 +160,10 @@ async function get_frequentmsg() {
 }
 
 
-async function callChatbotAPI(message) {
+async function callChatbotAPI(message
+  //chat_id
+  //user_id
+) {
   const chatHistory = JSON.parse(sessionStorage.getItem("chatHistory") || "[]");
 
   try {
@@ -174,6 +178,8 @@ async function callChatbotAPI(message) {
       body: JSON.stringify({
         message: message,
         chat_history: chatHistory,
+        // user_id :user_id,
+        // chat_id: chat_id
       }),
     });
 

@@ -10,6 +10,7 @@ import uvicorn
 
 from chatbot import (
     generate_answer,
+    generate_answer_histoy_retrieval,
     memory, 
     logger, 
     index
@@ -102,6 +103,7 @@ async def chat_endpoint(request: ChatRequest):
             raise HTTPException(status_code=503, detail="Search index is not available")
         
         response_message, image_list = generate_answer(request.message, memory)
+        # response_message, image_list= generate_answer_histoy_retrieval(request.message , request.user_id, request.chat_id)
         logger.info(f"Generated response: {response_message}")
         logger.info(f"Image list: {image_list}")
         

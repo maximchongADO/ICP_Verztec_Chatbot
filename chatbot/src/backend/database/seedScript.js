@@ -27,14 +27,15 @@ const createTablesSQL = {
     
   chat_logs: `
     CREATE TABLE IF NOT EXISTS chat_logs (
-      log_id INT AUTO_INCREMENT PRIMARY KEY,
-      timestamp DATETIME,
-      user_message LONGTEXT,
-      bot_response LONGTEXT,
-      session_id VARCHAR(255),
-      feedback VARCHAR(20),
-      query_score FLOAT,
-      relevance_score FLOAT
+    log_id INT AUTO_INCREMENT PRIMARY KEY,
+    timestamp DATETIME,
+    user_message LONGTEXT,
+    bot_response LONGTEXT,
+    feedback VARCHAR(20),
+    query_score FLOAT,
+    relevance_score FLOAT,
+    user_id VARCHAR(255),
+    chat_id VARCHAR(255)
     )`,
     
   extracted_texts: `
