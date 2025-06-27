@@ -29,6 +29,8 @@ app.use(
     cookie: { secure: false },
   })
 );
+app.use("/avatar", express.static(path.join(__dirname, "public/avatar")));
+// Always return index.html for any /avatar/* route (for React Router)
 
 app.use(bodyParser.urlencoded({ extended: true }));
 app.use(bodyParser.json());
