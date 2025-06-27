@@ -189,6 +189,7 @@ def update_verztec_index():
     return index, chunk_metadata
 
 
+
 if __name__ =='__main__':
     results=get_search_results('verztec')
     print(results)

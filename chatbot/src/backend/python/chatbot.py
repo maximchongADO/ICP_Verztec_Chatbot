@@ -14,7 +14,7 @@ from typing import List, Optional
 import os
 from sentence_transformers import SentenceTransformer
 from transformers import AutoModelForSeq2SeqLM, AutoTokenizer
-
+from langchain.tools import tool
 from langchain_groq import ChatGroq
 from langchain.schema import HumanMessage, AIMessage, Document
 from langchain.vectorstores.base import VectorStoreRetriever
@@ -79,6 +79,10 @@ except Exception as e:
     logger.error(f"Failed to load FAISS index: {str(e)}", exc_info=True)
     index = None
     metadata = None
+    
+    
+    
+    
 # load in spacy model and matcher for query scoring and casual phrase matching
 try:
     # Load spaCy English model
@@ -92,7 +96,8 @@ try:
     logger.info("SpaCy model and matcher initialized successfully")
 except Exception as e:
     logger.error(f"Failed to load spacymodel:  {str(e)}", exc_info=True)
-    
+  
+
 
 def store_chat_log(user_message, bot_response, session_id, query_score, relevance_score):
     conn = mysql.connector.connect(**DB_CONFIG)
@@ -111,7 +116,7 @@ def store_chat_log(user_message, bot_response, session_id, query_score, relevanc
     cursor.close()
     conn.close()
 
-
+# for stroing with user and chat id 
 def store_chat_log_updated(user_message, bot_response, query_score, relevance_score,chat_id, user_id):
     conn = mysql.connector.connect(**DB_CONFIG)
     cursor = conn.cursor()
@@ -129,7 +134,7 @@ def store_chat_log_updated(user_message, bot_response, query_score, relevance_sc
     cursor.close()
     conn.close()
     
-    
+# checking how alike a query the users question is
 def is_query_score(text: str) -> float:
     """
     Determines how likely a given text is a task-related question for the Verztec assistant.
