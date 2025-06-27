@@ -61,7 +61,7 @@ async def crawl(results: list[dict | str]) -> list[str]:
                 markdown_pages.append(res.markdown)
         return markdown_pages
 
-api_key = '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'
+api_key = ''
 
 model = "deepseek-r1-distill-llama-70b" 
 
