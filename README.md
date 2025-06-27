@@ -88,7 +88,16 @@ How to run the application:
 3. npm run seed - > only need for first time or when updating database 
 4. npm start
 
+
 then go to the localhost:3000 to access the website
+
+
+if changes made to avatar, 
+cd to avatar-scene 
+npm run build 
+once build folder is created, rename it to avatar to replace old 'avatar' folder 
+
+
 
 to enable the chatbot
 open a new terminal, then

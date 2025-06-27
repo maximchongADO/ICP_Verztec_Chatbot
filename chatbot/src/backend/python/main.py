@@ -91,6 +91,42 @@ async def history_retreival(request: Request):
     results.reverse()  # Optional: oldest to newest
     return JSONResponse(content=results)
 
+@app.post('/chatbot_avatar')
+async def avataer_endpoint(request:ChatRequest):
+    logger.info(f"Received chat request: {request}")
+    try:
+        if not request.message.strip():
+            raise HTTPException(status_code=400, detail="Message cannot be empty")
+        
+        if index is None:
+            raise HTTPException(status_code=503, detail="Search index is not available")
+        
+        response_message, image_list = generate_answer(request.message, memory)
+        # response_message, image_list= generate_answer_histoy_retrieval(request.message , request.user_id, request.chat_id)
+        logger.info(f"Generated response: {response_message}")
+        logger.info(f"Image list: {image_list}")
+        
+        
+        
+        return ChatResponse(
+            message=response_message,
+            user_id=request.user_id,
+            timestamp=datetime.utcnow().isoformat(),
+            success=True,
+            images=None
+        )
+        
+
+    except Exception as e:
+        logger.error(f"Error processing chat request: {str(e)}", exc_info=True)
+        return ChatResponse(
+            message="An error occurred while processing your request. Please try again later.",
+            user_id=request.user_id,
+            timestamp=datetime.utcnow().isoformat(),
+            success=False,
+            error=str(e),
+            images=None
+        )
 
 @app.post("/chatbot")
 async def chat_endpoint(request: ChatRequest):
