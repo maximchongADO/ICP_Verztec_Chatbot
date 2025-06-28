@@ -725,3 +725,59 @@ function showCopyPopup() {
   }, 1400);
 }
 
+// Helper to get current user info (populated by the HTML script)
+function getCurrentUser() {
+  return window.currentUser || null;
+}
+
+// Helper to check if current user is admin
+function isAdmin() {
+  return getCurrentUser() && getCurrentUser().role === 'admin';
+}
+
+// Profile dropdown logic
+function populateProfileSection() {
+  const user = getCurrentUser();
+  if (!user) return;
+  // Sidebar summary
+  document.getElementById("profileName").textContent = user.username || "User";
+  document.getElementById("profileRole").textContent = user.role || "";
+  // Dropdown
+  document.getElementById("profileDropdownName").textContent = user.username || "";
+  document.getElementById("profileDropdownEmail").textContent = user.email || "";
+  document.getElementById("profileDropdownRole").textContent = user.role || "";
+}
+function toggleProfileDropdown(event) {
+  event.stopPropagation();
+  const profile = document.getElementById("sidebarProfile");
+  profile.classList.toggle("active");
+  // Close on outside click
+  if (profile.classList.contains("active")) {
+    document.addEventListener("click", closeProfileDropdownOnClick);
+  }
+}
+function closeProfileDropdownOnClick(e) {
+  const profile = document.getElementById("sidebarProfile");
+  if (!profile.contains(e.target)) {
+    profile.classList.remove("active");
+    document.removeEventListener("click", closeProfileDropdownOnClick);
+  }
+}
+
+// Wait for user info to be loaded and then populate profile
+document.addEventListener("DOMContentLoaded", function () {
+  // ...existing code...
+  // Wait for window.currentUser to be set (from HTML inline script)
+  let tries = 0;
+  function tryPopulateProfile() {
+    if (window.currentUser) {
+      populateProfileSection();
+    } else if (tries < 20) {
+      tries++;
+      setTimeout(tryPopulateProfile, 100);
+    }
+  }
+  tryPopulateProfile();
+  // ...existing code...
+});
+

@@ -29,6 +29,25 @@
           <p>Your intelligent companion</p>
         </div>
 
+        <!-- Profile section -->
+        <div class="sidebar-profile" id="sidebarProfile" onclick="toggleProfileDropdown(event)">
+          <div class="profile-summary">
+            <div class="profile-avatar">
+              <img src="/images/image.png" alt="User Avatar" />
+            </div>
+            <div class="profile-info">
+              <span id="profileName">User</span>
+              <span id="profileRole" class="profile-role">Role</span>
+            </div>
+            <span class="profile-caret">&#9662;</span>
+          </div>
+          <div class="profile-dropdown" id="profileDropdown">
+            <div><strong>Name:</strong> <span id="profileDropdownName"></span></div>
+            <div><strong>Email:</strong> <span id="profileDropdownEmail"></span></div>
+            <div><strong>Role:</strong> <span id="profileDropdownRole"></span></div>
+          </div>
+        </div>
+
         <nav class="sidebar-nav">
           <div class="nav-item" onclick="clearChatHistory()">
             <svg viewBox="0 0 24 24">
@@ -137,6 +156,27 @@
     <div id="copyPopup" class="copy-popup">Message copied to clipboard</div>
 
     <script src="/scripts/chatbot.js"></script>
+    <script>
+      // Fetch current user info and expose as window.currentUser
+      (async function() {
+        const token = localStorage.getItem("token");
+        if (!token) return;
+        try {
+          const res = await fetch('/api/users/me', {
+            headers: { Authorization: `Bearer ${token}` }
+          });
+          if (res.ok) {
+            window.currentUser = await res.json();
+            // Optionally, you can use this info to show/hide admin features
+            // Example: if (window.currentUser.role === 'admin') { ... }
+          } else {
+            window.currentUser = null;
+          }
+        } catch (e) {
+          window.currentUser = null;
+        }
+      })();
+    </script>
     <script>
       // Auto-resize textarea
       function autoResize(textarea) {

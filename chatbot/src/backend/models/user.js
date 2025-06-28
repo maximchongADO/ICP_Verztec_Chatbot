@@ -42,6 +42,12 @@ class User {
         return this.toUserObj(rows[0]);
     }
 
+    static async getUserByIdFull(id) {
+        const sql = 'SELECT id, username, email, role FROM Users WHERE id = ?';
+        const rows = await this.query(sql, [id]);
+        return rows[0];
+    }
+
     static async getUserByEmail(email) {
         const sql = 'SELECT * FROM Users WHERE email = ?';
         const rows = await this.query(sql, [email]);

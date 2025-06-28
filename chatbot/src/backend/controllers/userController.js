@@ -110,6 +110,18 @@ const decodeJWT = async (req, res) => {
     }
 }
 
+const getCurrentUser = async (req, res) => {
+    try {
+        const userId = req.user?.userId;
+        if (!userId) return res.status(401).json({ message: "Not authenticated" });
+        const user = await User.getUserByIdFull(userId);
+        if (!user) return res.status(404).json({ message: "User not found" });
+        res.json(user);
+    } catch (error) {
+        res.status(500).json({ message: "Internal server error" });
+    }
+};
+
 module.exports = {
     getAllUsers,
     getUserById,
@@ -117,5 +129,6 @@ module.exports = {
     createUser,
     decodeJWT,
     hashPassword,
-    generateAccessToken
+    generateAccessToken,
+    getCurrentUser
 };
