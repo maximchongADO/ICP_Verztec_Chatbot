@@ -18,6 +18,13 @@ const userRoute = (app) => {
     authenticateToken.requireAdmin,
     userController.adminCreateUser
   );
+  // Admin-only: update user (PATCH /api/users/:id)
+  app.patch(
+    "/api/users/:id",
+    authenticateToken,
+    authenticateToken.requireAdmin,
+    userController.adminUpdateUser
+  );
 
   console.log("User routes mounted successfully");
 };

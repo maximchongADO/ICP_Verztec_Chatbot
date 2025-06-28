@@ -31,7 +31,7 @@ class User {
     }
 
     static async getAllUsers() {
-        const sql = 'SELECT id, username, role FROM Users';
+        const sql = 'SELECT id, username, email, role FROM Users';
         const rows = await this.query(sql);
         return rows.map(row => this.toUserObj(row));
     }
@@ -70,6 +70,24 @@ class User {
         ]);
         
         return this.getUserById(result.insertId);
+    }
+
+    static async updateUser(id, fields) {
+        if (!id || !fields || Object.keys(fields).length === 0) return null;
+        const allowed = ['username', 'email', 'password', 'role'];
+        const set = [];
+        const params = [];
+        for (const key of allowed) {
+            if (fields[key] !== undefined) {
+                set.push(`${key} = ?`);
+                params.push(fields[key]);
+            }
+        }
+        if (set.length === 0) return null;
+        params.push(id);
+        const sql = `UPDATE Users SET ${set.join(', ')} WHERE id = ?`;
+        await this.query(sql, params);
+        return this.getUserByIdFull(id);
     }
 }
 

@@ -132,6 +132,40 @@ const adminCreateUser = async (req, res) => {
     }
 };
 
+// Admin-only: update user profile
+const adminUpdateUser = async (req, res) => {
+    if (!req.user || req.user.role !== 'admin') {
+        return res.status(403).json({ message: 'Admin access required' });
+    }
+    const userId = req.params.id;
+    const { username, email, role, password } = req.body;
+    if (!username && !email && !role && !password) {
+        return res.status(400).json({ message: 'No fields to update' });
+    }
+    if (role && !['user', 'admin'].includes(role)) {
+        return res.status(400).json({ message: 'Role must be user or admin' });
+    }
+    try {
+        let updateFields = {};
+        if (username) updateFields.username = username;
+        if (email) updateFields.email = email;
+        if (role) updateFields.role = role;
+        if (password) updateFields.password = await hashPassword(password);
+
+        const updatedUser = await User.updateUser(userId, updateFields);
+        if (!updatedUser) {
+            return res.status(404).json({ message: 'User not found' });
+        }
+        res.json({
+            message: 'User updated successfully',
+            user: updatedUser
+        });
+    } catch (error) {
+        console.error('Error updating user (admin):', error);
+        res.status(500).json({ message: 'Internal server error' });
+    }
+};
+
 const decodeJWT = async (req, res) => {
     const token = req.headers.authorization?.split(' ')[1];
     if (!token) {
@@ -167,5 +201,6 @@ module.exports = {
     hashPassword,
     generateAccessToken,
     getCurrentUser,
-    adminCreateUser
+    adminCreateUser,
+    adminUpdateUser
 };
