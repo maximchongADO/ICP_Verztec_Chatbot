@@ -100,7 +100,7 @@ once build folder is created, rename it to avatar to replace old 'avatar' folder
 
 to enable the chatbot
 open a new terminal, then
-1. cd src/backend/python
+1. cd chatbot/src/backend/python
 4. python -m venv .venv -> only to create virtual environment first time
 5. .venv\Scripts\activate.bat
 6. pip install -r requirements.txt - > only need for first time OR when u add new requirements
