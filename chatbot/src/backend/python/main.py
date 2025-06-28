@@ -92,7 +92,7 @@ async def history_retreival(request: Request):
     return JSONResponse(content=results)
 
 @app.post('/chatbot_avatar')
-async def avataer_endpoint(request:ChatRequest):
+async def avatar_endpoint(request:ChatRequest):
     logger.info(f"Received chat request: {request}")
     try:
         if not request.message.strip():
@@ -103,7 +103,7 @@ async def avataer_endpoint(request:ChatRequest):
         
         response_message, image_list = generate_answer(request.message, memory)
         # response_message, image_list= generate_answer_histoy_retrieval(request.message , request.user_id, request.chat_id)
-        logger.info(f"Generated response: {response_message}")
+        logger.info(f"Generated response:S {response_message}")
         logger.info(f"Image list: {image_list}")
         
         
