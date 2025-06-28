@@ -33,7 +33,7 @@ logger = logging.getLogger(__name__)
 
 # Initialize models and clients
 embedding_model = SentenceTransformer('BAAI/bge-large-en-v1.5')
-api_key = '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'
+api_key = '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'
 
 model = "deepseek-r1-distill-llama-70b" 
 deepseek = ChatGroq(api_key=api_key, model=model) # type: ignore

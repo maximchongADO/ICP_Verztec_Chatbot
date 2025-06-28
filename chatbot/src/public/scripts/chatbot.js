@@ -438,6 +438,24 @@ function addMessage(textOrResponse, sender) {
 
   if (sender === "bot" && text) {
     setTimeout(() => speakMessage(text), 100);
+
+    // Disable all previous feedback buttons
+    const allFeedbackGroups = chatMessages.querySelectorAll('.feedback-buttons');
+    allFeedbackGroups.forEach(group => {
+      group.querySelectorAll('.feedback-btn').forEach(btn => {
+        btn.disabled = true;
+      });
+    });
+
+    // Enable feedback buttons for the latest bot message
+    setTimeout(() => {
+      const latestFeedbackGroup = messageDiv.querySelector('.feedback-buttons');
+      if (latestFeedbackGroup) {
+        latestFeedbackGroup.querySelectorAll('.feedback-btn').forEach(btn => {
+          btn.disabled = false;
+        });
+      }
+    }, 0);
   }
 
   chatMessages.appendChild(messageDiv);
@@ -623,9 +641,20 @@ function handleFeedback(button, isPositive) {
 
     button.classList.add('selected');
 
-    const messageContent = messageContainer.querySelector('.message-content').textContent.trim();
+    // Get bot response text
+    const bot_response = messageContainer.querySelector('.message-content').textContent.trim();
 
-    // Send feedback to server with correct endpoint
+    // Get the previous user message (search backwards for .message-user)
+    let user_message = '';
+    let prev = messageContainer.previousElementSibling;
+    while (prev) {
+        if (prev.classList.contains('message-user')) {
+            user_message = prev.querySelector('.message-content').textContent.trim();
+            break;
+        }
+        prev = prev.previousElementSibling;
+    }
+
     fetch('/api/chatbot/feedback', {
         method: 'POST',
         headers: {
@@ -633,9 +662,7 @@ function handleFeedback(button, isPositive) {
             'Authorization': `Bearer ${token}`
         },
         body: JSON.stringify({
-            message: messageContent,
-            feedback: isPositive ? 'helpful' : 'not helpful',
-            timestamp: new Date().toISOString()
+            feedback: isPositive ? 'helpful' : 'not helpful'
         })
     }).catch(error => console.error('Error sending feedback:', error));
 

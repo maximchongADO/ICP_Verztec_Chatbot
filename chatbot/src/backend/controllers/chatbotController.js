@@ -112,12 +112,22 @@ const clearChatHistory = (req, res) => {
 // Handle feedback from user
 const handleFeedback = async (req, res) => {
     try {
-        const { message, feedback } = req.body;
-        
+        const { feedback } = req.body;
+
+        if (!feedback) {
+            return res.status(400).json({
+                success: false,
+                message: 'feedback is required'
+            });
+        }
+
         const connection = await mysql.createConnection(dbConfig);
         await connection.execute(
-            'UPDATE chat_logs SET feedback = ? WHERE bot_response = ? ORDER BY timestamp DESC LIMIT 1',
-            [feedback, message]
+            `UPDATE chat_logs
+             SET feedback = ?
+             ORDER BY timestamp DESC
+             LIMIT 1`,
+            [feedback]
         );
         await connection.end();
 
