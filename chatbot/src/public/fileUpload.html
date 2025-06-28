@@ -35,7 +35,7 @@
             </div>
         </div>
 
-        <div class="upload-container">
+        <div class="upload-container" id="uploadContainer">
             <div class="upload-card">
                 <div class="upload-logo">
                     <img src="/images/verztec-logo.png" alt="Verztec Logo">
@@ -65,10 +65,41 @@
                 </div>
 
                 <div class="upload-status" id="uploadStatus"></div>
+                <!-- Add return to chat button below upload status -->
+                <div style="text-align:center; margin-top:2rem;">
+                  <button class="btn btn-primary" onclick="window.location.href='/chatbot.html'">
+                    ← Return to Chatbot
+                  </button>
+                </div>
+            </div>
+        </div>
+        <div class="upload-container" id="adminOnlyMsg" style="display:none;">
+            <div class="upload-card" style="text-align:center;">
+                <h2>Admin Access Required</h2>
+                <p>Only admin users can upload files.</p>
             </div>
         </div>
     </div>
 
     <script src="/scripts/fileUpload.js"></script>
+    <script>
+      // Hide upload UI for non-admins
+      (async function() {
+        const token = localStorage.getItem("token");
+        if (!token) return;
+        try {
+          const res = await fetch('/api/users/me', {
+            headers: { Authorization: `Bearer ${token}` }
+          });
+          if (res.ok) {
+            const user = await res.json();
+            if (user.role !== 'admin') {
+              document.getElementById('uploadContainer').style.display = 'none';
+              document.getElementById('adminOnlyMsg').style.display = 'flex';
+            }
+          }
+        } catch (e) {}
+      })();
+    </script>
 </body>
 </html>

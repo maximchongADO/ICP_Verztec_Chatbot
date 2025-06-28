@@ -9,6 +9,47 @@ const fileInput = document.getElementById('fileInput');
 const uploadList = document.getElementById('uploadList');
 const uploadStatus = document.getElementById('uploadStatus');
 
+// Prevent non-admins from using upload JS
+(function() {
+    const token = localStorage.getItem("token");
+    if (!token) return;
+    fetch('/api/users/me', {
+        headers: { Authorization: `Bearer ${token}` }
+    })
+    .then(res => res.ok ? res.json() : null)
+    .then(user => {
+        if (user && user.role !== 'admin') {
+            showAdminPopup();
+            // Optionally, disable upload UI
+            document.getElementById('dropZone').style.pointerEvents = 'none';
+            document.getElementById('dropZone').style.opacity = '0.6';
+            document.getElementById('uploadList').style.opacity = '0.6';
+        }
+    })
+    .catch(() => {});
+})();
+
+function showAdminPopup() {
+    let popup = document.createElement('div');
+    popup.textContent = "Admin access required to upload files.";
+    popup.style.position = "fixed";
+    popup.style.top = "30px";
+    popup.style.left = "50%";
+    popup.style.transform = "translateX(-50%)";
+    popup.style.background = "#222";
+    popup.style.color = "#FFD700";
+    popup.style.padding = "18px 36px";
+    popup.style.borderRadius = "18px";
+    popup.style.fontSize = "1.1rem";
+    popup.style.boxShadow = "0 4px 24px rgba(255,215,0,0.18)";
+    popup.style.zIndex = "9999";
+    popup.style.opacity = "0.97";
+    document.body.appendChild(popup);
+    setTimeout(() => {
+        popup.remove();
+    }, 3500);
+}
+
 // Handle drag and drop events
 ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
     dropZone.addEventListener(eventName, preventDefaults, false);

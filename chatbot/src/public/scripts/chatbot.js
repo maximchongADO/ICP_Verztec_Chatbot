@@ -524,10 +524,48 @@ function exportChat() {
 function handleFileUpload(event) {
   // Prevent default file input behavior
   event.preventDefault();
-  
-  // Redirect to the file upload page
-  window.location.href = "/fileupload.html";
+
+  // Check admin before redirecting
+  fetch('/api/users/me', {
+    headers: { Authorization: `Bearer ${token}` }
+  })
+    .then(res => res.ok ? res.json() : null)
+    .then(user => {
+      if (user && user.role === 'admin') {
+        window.location.href = "/fileupload.html";
+      } else {
+        showNoAccessPopup();
+      }
+    })
+    .catch(() => {
+      showNoAccessPopup();
+    });
 }
+
+// Show a non-intrusive popup in the middle of the page for no access
+function showNoAccessPopup() {
+  if (document.getElementById('noAccessPopup')) return;
+  const popup = document.createElement('div');
+  popup.id = 'noAccessPopup';
+  popup.textContent = "You do not have access to the file upload feature.";
+  popup.style.position = "fixed";
+  popup.style.top = "50%";
+  popup.style.left = "50%";
+  popup.style.transform = "translate(-50%, -50%)";
+  popup.style.background = "#222";
+  popup.style.color = "#FFD700";
+  popup.style.padding = "22px 44px";
+  popup.style.borderRadius = "18px";
+  popup.style.fontSize = "1.2rem";
+  popup.style.boxShadow = "0 4px 24px rgba(255,215,0,0.18)";
+  popup.style.zIndex = "9999";
+  popup.style.opacity = "0.97";
+  document.body.appendChild(popup);
+  setTimeout(() => {
+    popup.remove();
+  }, 3500);
+}
+
 // Initialize sidebar state on page load
 document.addEventListener("DOMContentLoaded", function () {
   // Close sidebar on mobile by default
