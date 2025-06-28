@@ -14,6 +14,13 @@ from crawl4ai.extraction_strategy import (
 from crawl4ai.content_filter_strategy import PruningContentFilter
 from crawl4ai.markdown_generation_strategy import DefaultMarkdownGenerator
 
+
+browser_cfg = BrowserConfig(
+    headless=False,  # opens a visible browser window so you can see page loads
+    verbose=True     # enables detailed logging from Playwright & the crawler
+)
+
+
 def get_search_results(query: str, num_results: int = 10) -> list[dict]:
     """
     Return up to `num_results` Google search results as a list of dicts.
@@ -64,9 +71,10 @@ model = "deepseek-r1-distill-llama-70b"
 deepseek_strategy = LLMExtractionStrategy(
     input_format="fit_markdown",            # better than raw HTML
     instruction=(
-        "Extract structured information about the company: "
-        "services, industry focus, notable clients, partnerships, "
-        "and recent announcements. Return **only** JSON."
+    "Extract structured information about the company, grouped by category. "
+    "Return one JSON object with top-level keys like 'Vision', 'Brand Promise', 'Corporate Values', etc., "
+    "and under each, provide a list of relevant text items."
+    "Return only valid JSON."
     ),
     llm_config=LLMConfig(
         provider="ollama/llama3",        # ← model name inside provider
@@ -74,6 +82,13 @@ deepseek_strategy = LLMExtractionStrategy(
                     # optional
         # api_token is NOT needed for local Ollama
     ),
+)
+
+from crawl4ai.deep_crawling import BFSDeepCrawlStrategy   # breadth-first search
+deep_crawl = BFSDeepCrawlStrategy(
+    max_depth=2,           # 0 = only start URL, 1 = +direct links, 2 = +links-of-links
+    include_external=False # stay on the same domain
+    # max_pages=100        # optional overall cap
 )
 
 
@@ -96,6 +111,7 @@ async def crawl_with_strategy(
     async with AsyncWebCrawler(config=browser_config or BrowserConfig(headless=True)) as crawler:
         cfg = CrawlerRunConfig(
             cache_mode=CacheMode.BYPASS,
+            deep_crawl_strategy = deep_crawl,  
             extraction_strategy=strategy,
             markdown_generator=DefaultMarkdownGenerator(
                 content_filter=PruningContentFilter()
@@ -126,7 +142,7 @@ async def crawl_with_strategy(
 if __name__ == "__main__":
     async def main():
         # 1️⃣ get URL list (strings or dicts)
-        urls = get_search_results("What does verztec do", num_results=2)
+        urls = get_search_results("What does verztec do", num_results=5)
         for i in urls:
             print(f"🔗 {i['url']} - {i['title']}\n   {i['description']}")
 
