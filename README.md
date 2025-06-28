@@ -91,7 +91,6 @@ How to run the application:
 
 then go to the localhost:3000 to access the website
 
-
 if changes made to avatar, 
 cd to avatar-scene 
 npm run build 

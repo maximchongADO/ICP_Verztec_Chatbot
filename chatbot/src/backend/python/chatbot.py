@@ -129,7 +129,7 @@ def store_chat_log_updated(user_message, bot_response, query_score, relevance_sc
     '''
     cursor.execute(insert_query, (timestamp, user_message, bot_response,query_score, relevance_score,user_id,chat_id))
     conn.commit()
-    logger.info(f"Stored chat log for session {user_id+" "+chat_id} at {timestamp}")
+    logger.info("Stored chat log for session %s %s at %s", user_id, chat_id, timestamp)
 
     cursor.close()
     conn.close()

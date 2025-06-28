@@ -1,8 +1,4 @@
-import requests
-from bs4 import BeautifulSoup
-import re
-                # Facebook AI Similarity Search library
-from sentence_transformers import SentenceTransformer
+
 from googlesearch import search
 import asyncio
 from crawl4ai import *
@@ -10,15 +6,11 @@ import asyncio
 from typing import List, Union
 
 import asyncio
-import os
 
 from crawl4ai import AsyncWebCrawler, BrowserConfig, CrawlerRunConfig, CacheMode
 from crawl4ai import LLMConfig
 from crawl4ai.extraction_strategy import (
-    LLMExtractionStrategy,
-    JsonCssExtractionStrategy,
-    JsonXPathExtractionStrategy,
-)
+    LLMExtractionStrategy)
 from crawl4ai.content_filter_strategy import PruningContentFilter
 from crawl4ai.markdown_generation_strategy import DefaultMarkdownGenerator
 
@@ -77,8 +69,10 @@ deepseek_strategy = LLMExtractionStrategy(
         "and recent announcements. Return **only** JSON."
     ),
     llm_config=LLMConfig(
-        provider="groq/deepseek-r1-distill-llama-70b",
-        api_token=api_key,                    # your Groq API key
+        provider="ollama/llama3",        # ← model name inside provider
+        base_url="http://localhost:11434"   # default Ollama endpoint
+                    # optional
+        # api_token is NOT needed for local Ollama
     ),
 )
 
@@ -132,7 +126,9 @@ async def crawl_with_strategy(
 if __name__ == "__main__":
     async def main():
         # 1️⃣ get URL list (strings or dicts)
-        urls = get_search_results("What does verztec do", num_results=10)
+        urls = get_search_results("What does verztec do", num_results=2)
+        for i in urls:
+            print(f"🔗 {i['url']} - {i['title']}\n   {i['description']}")
 
         # 2️⃣ run crawler with DeepSeek strategy
         results = await crawl_with_strategy(urls, deepseek_strategy)
