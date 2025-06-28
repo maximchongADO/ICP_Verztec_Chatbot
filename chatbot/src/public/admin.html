@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Admin - Add User | Verztec AI Chatbot</title>
+  <link rel="stylesheet" href="/styles/main.css" />
+  <link rel="stylesheet" href="/styles/login.css" />
+</head>
+<body>
+  <div class="login-container">
+    <div class="login-card">
+      <div class="login-logo">
+        <img src="/images/verztec-logo.png" alt="Verztec Logo">
+      </div>
+      <div class="login-header">
+        <h1>Add New User</h1>
+        <p>Admins can add new users here</p>
+      </div>
+      <form id="addUserForm" class="login-form">
+        <div class="form-group">
+          <label for="username" class="form-label">Username</label>
+          <input type="text" id="username" name="username" class="form-input" required />
+        </div>
+        <div class="form-group">
+          <label for="email" class="form-label">Email</label>
+          <input type="email" id="email" name="email" class="form-input" required />
+        </div>
+        <div class="form-group">
+          <label for="password" class="form-label">Password</label>
+          <input type="password" id="password" name="password" class="form-input" required />
+        </div>
+        <div class="form-group">
+          <label for="role" class="form-label">Role</label>
+          <select id="role" name="role" class="form-input" required>
+            <option value="user">User</option>
+            <option value="admin">Admin</option>
+          </select>
+        </div>
+        <button type="submit" class="btn btn-primary">
+          <span class="login-text">Add User</span>
+          <span class="loading-text" style="display: none">Adding...</span>
+        </button>
+      </form>
+      <div class="login-footer">
+        <p><a href="/chatbot.html">← Back to Chatbot</a></p>
+      </div>
+    </div>
+  </div>
+  <script>
+    // Only allow admins to access this page
+    (async function() {
+      const token = localStorage.getItem("token");
+      if (!token) {
+        window.location.href = "/login.html";
+        return;
+      }
+      try {
+        const res = await fetch('/api/users/me', {
+          headers: { Authorization: `Bearer ${token}` }
+        });
+        if (!res.ok) throw new Error();
+        const user = await res.json();
+        if (user.role !== 'admin') {
+          alert("Admin access required.");
+          window.location.href = "/chatbot.html";
+        }
+      } catch {
+        window.location.href = "/login.html";
+      }
+    })();
+
+    document.addEventListener("DOMContentLoaded", function () {
+      const form = document.getElementById("addUserForm");
+      const submitButton = form.querySelector('button[type="submit"]');
+      const loginText = submitButton.querySelector(".login-text");
+      const loadingText = submitButton.querySelector(".loading-text");
+
+      form.addEventListener("submit", async function (e) {
+        e.preventDefault();
+        const username = form.username.value.trim();
+        const email = form.email.value.trim();
+        const password = form.password.value.trim();
+        const role = form.role.value;
+
+        if (!username || !email || !password || !role) {
+          showAlert("All fields are required.", "error");
+          return;
+        }
+
+        submitButton.disabled = true;
+        loginText.style.display = "none";
+        loadingText.style.display = "inline";
+
+        try {
+          const token = localStorage.getItem("token");
+          const res = await fetch("/api/users", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              "Authorization": `Bearer ${token}`
+            },
+            body: JSON.stringify({ username, email, password, role })
+          });
+          const data = await res.json();
+          if (res.ok) {
+            showAlert("User created successfully!", "success");
+            form.reset();
+          } else {
+            showAlert(data.message || "Failed to create user.", "error");
+          }
+        } catch (err) {
+          showAlert("Connection error. Please try again.", "error");
+        } finally {
+          submitButton.disabled = false;
+          loginText.style.display = "inline";
+          loadingText.style.display = "none";
+        }
+      });
+
+      function showAlert(message, type) {
+        const existingAlert = document.querySelector(".alert");
+        if (existingAlert) existingAlert.remove();
+        const alert = document.createElement("div");
+        alert.className = `alert alert-${type}`;
+        alert.textContent = message;
+        form.parentNode.insertBefore(alert, form);
+        setTimeout(() => {
+          if (alert.parentNode) alert.remove();
+        }, 4000);
+      }
+    });
+  </script>
+</body>
+</html>

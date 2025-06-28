@@ -96,6 +96,42 @@ const createUser = async (req, res, next, _generateAccessToken = generateAccessT
     }
 }
 
+// Admin-only: create user with role
+const adminCreateUser = async (req, res) => {
+    // Only allow if admin
+    if (!req.user || req.user.role !== 'admin') {
+        return res.status(403).json({ message: 'Admin access required' });
+    }
+    const { username, email, password, role } = req.body;
+    if (!username || !email || !password || !role) {
+        return res.status(400).json({ message: 'Missing required fields' });
+    }
+    if (!['user', 'admin'].includes(role)) {
+        return res.status(400).json({ message: 'Role must be user or admin' });
+    }
+    try {
+        const hashedPassword = await hashPassword(password);
+        const createdUser = await User.createUser({
+            username,
+            email,
+            password: hashedPassword,
+            role
+        });
+        res.status(201).json({
+            message: 'User created successfully',
+            user: {
+                id: createdUser.id,
+                username: createdUser.username,
+                email: createdUser.email,
+                role: createdUser.role
+            }
+        });
+    } catch (error) {
+        console.error('Error creating user (admin):', error);
+        res.status(500).json({ message: 'Internal server error' });
+    }
+};
+
 const decodeJWT = async (req, res) => {
     const token = req.headers.authorization?.split(' ')[1];
     if (!token) {
@@ -130,5 +166,6 @@ module.exports = {
     decodeJWT,
     hashPassword,
     generateAccessToken,
-    getCurrentUser
+    getCurrentUser,
+    adminCreateUser
 };

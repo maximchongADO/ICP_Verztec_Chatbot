@@ -84,14 +84,21 @@
             Avatar
           </div>
         </nav>
-          <div class="nav-item" onclick="logout()">
-            <svg viewBox="0 0 24 24">
-              <path
-                d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4M16 17l5-5-5-5M21 12H9"
-              />
-            </svg>
-            Logout
-          </div>
+        <!-- Admin-only: Add User button (hidden by default, shown by JS), placed above logout -->
+        <div class="nav-item" id="adminAddUserBtn" style="display:none;" onclick="window.location.href='/admin.html'">
+          <svg viewBox="0 0 24 24">
+            <path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4zm6-1v2h2v2h2v-2h2v-2h-2v-2h-2v2h-2z"/>
+          </svg>
+          Add User
+        </div>
+        <div class="nav-item" onclick="logout()">
+          <svg viewBox="0 0 24 24">
+            <path
+              d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4M16 17l5-5-5-5M21 12H9"
+            />
+          </svg>
+          Logout
+        </div>
 
           
 
@@ -167,8 +174,10 @@
           });
           if (res.ok) {
             window.currentUser = await res.json();
-            // Optionally, you can use this info to show/hide admin features
-            // Example: if (window.currentUser.role === 'admin') { ... }
+            // Show admin Add User button if admin
+            if (window.currentUser.role === 'admin') {
+              document.getElementById('adminAddUserBtn').style.display = '';
+            }
           } else {
             window.currentUser = null;
           }

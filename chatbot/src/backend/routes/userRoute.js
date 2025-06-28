@@ -11,6 +11,13 @@ const userRoute = (app) => {
   app.get("/users", userController.getAllUsers);
   // Get user by ID route
   app.get("/users/:id", userController.getUserById);
+  // Admin-only: create user (POST /api/users)
+  app.post(
+    "/api/users",
+    authenticateToken,
+    authenticateToken.requireAdmin,
+    userController.adminCreateUser
+  );
 
   console.log("User routes mounted successfully");
 };
