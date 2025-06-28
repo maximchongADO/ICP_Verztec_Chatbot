@@ -58,9 +58,18 @@ const authenticateToken = (req,res,next) => {
             return res.status(403).json({ message: 'Forbidden' });
         }
 
-        req.user = user;
+        req.user = user; // user contains userId and role
         next();
     })
 }
 
-module.exports = authenticateToken
+// Middleware to restrict to admin only
+function requireAdmin(req, res, next) {
+    if (!req.user || req.user.role !== 'admin') {
+        return res.status(403).json({ success: false, message: 'Admin access required' });
+    }
+    next();
+}
+
+module.exports = authenticateToken;
+module.exports.requireAdmin = requireAdmin;

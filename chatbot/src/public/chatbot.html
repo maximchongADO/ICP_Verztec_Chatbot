@@ -29,6 +29,25 @@
           <p>Your intelligent companion</p>
         </div>
 
+        <!-- Profile section -->
+        <div class="sidebar-profile" id="sidebarProfile" onclick="toggleProfileDropdown(event)">
+          <div class="profile-summary">
+            <div class="profile-avatar">
+              <img src="/images/image.png" alt="User Avatar" />
+            </div>
+            <div class="profile-info">
+              <span id="profileName">User</span>
+              <span id="profileRole" class="profile-role">Role</span>
+            </div>
+            <span class="profile-caret">&#9662;</span>
+          </div>
+          <div class="profile-dropdown" id="profileDropdown">
+            <div><strong>Name:</strong> <span id="profileDropdownName"></span></div>
+            <div><strong>Email:</strong> <span id="profileDropdownEmail"></span></div>
+            <div><strong>Role:</strong> <span id="profileDropdownRole"></span></div>
+          </div>
+        </div>
+
         <nav class="sidebar-nav">
           <div class="nav-item" onclick="clearChatHistory()">
             <svg viewBox="0 0 24 24">
@@ -65,14 +84,21 @@
             Avatar
           </div>
         </nav>
-          <div class="nav-item" onclick="logout()">
-            <svg viewBox="0 0 24 24">
-              <path
-                d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4M16 17l5-5-5-5M21 12H9"
-              />
-            </svg>
-            Logout
-          </div>
+        <!-- Admin-only: Add/Edit User button (hidden by default, shown by JS), placed above logout -->
+        <div class="nav-item" id="adminAddUserBtn" style="display:none;" onclick="window.location.href='/admin.html'">
+          <svg viewBox="0 0 24 24">
+            <path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4zm6-1v2h2v2h2v-2h2v-2h-2v-2h-2v2h-2z"/>
+          </svg>
+          Add/Edit Users
+        </div>
+        <div class="nav-item" onclick="logout()">
+          <svg viewBox="0 0 24 24">
+            <path
+              d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4M16 17l5-5-5-5M21 12H9"
+            />
+          </svg>
+          Logout
+        </div>
 
           
 
@@ -111,20 +137,9 @@
             ></textarea>
             <button class="send-button" id="sendButton" onclick="sendMessage()">
               <svg class="send-icon" viewBox="0 0 24 24">
-                <path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z" />
+                <path d="M5 12l14-7-7 14v-5H5v-2h7V5z"/>
               </svg>
             </button>
-          </div>
-          <div class="audio-controls">
-            <button id="toggleSpeechButton" onclick="toggleMute()">
-              <i class="fas fa-volume-up"></i> Unmuted
-            </button>
-          </div>
-          <div class="avatar-container">
-            <div class="avatar" id="chatbotAvatar" onclick="toggleMute()">
-              <img src="/images/avatar-closed.png" alt="AI Assistant" id="avatarClosed" class="avatar-image">
-              <img src="/images/avatar-open.png" alt="AI Assistant" id="avatarOpen" class="avatar-image avatar-hidden">
-            </div>
           </div>
         </div>
       </div>
@@ -137,6 +152,29 @@
     <div id="copyPopup" class="copy-popup">Message copied to clipboard</div>
 
     <script src="/scripts/chatbot.js"></script>
+    <script>
+      // Fetch current user info and expose as window.currentUser
+      (async function() {
+        const token = localStorage.getItem("token");
+        if (!token) return;
+        try {
+          const res = await fetch('/api/users/me', {
+            headers: { Authorization: `Bearer ${token}` }
+          });
+          if (res.ok) {
+            window.currentUser = await res.json();
+            // Show admin Add User button if admin
+            if (window.currentUser.role === 'admin') {
+              document.getElementById('adminAddUserBtn').style.display = '';
+            }
+          } else {
+            window.currentUser = null;
+          }
+        } catch (e) {
+          window.currentUser = null;
+        }
+      })();
+    </script>
     <script>
       // Auto-resize textarea
       function autoResize(textarea) {

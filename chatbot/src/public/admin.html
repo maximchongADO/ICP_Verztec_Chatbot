@@ -1,0 +1,228 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Admin - Add User | Verztec AI Chatbot</title>
+  <link rel="stylesheet" href="/styles/main.css" />
+  <link rel="stylesheet" href="/styles/login.css" />
+</head>
+<body>
+  <div class="login-container">
+    <div class="login-card">
+      <div class="login-logo">
+        <img src="/images/verztec-logo.png" alt="Verztec Logo">
+      </div>
+      <div class="login-header">
+        <h1>Add / Edit User</h1>
+        <p>Admins can add new users or edit existing users here</p>
+      </div>
+      <!-- User List for Editing -->
+      <div id="userListSection" style="margin-bottom:2rem;">
+        <h2 style="font-size:1.1rem;margin-bottom:0.5rem;">Existing Users</h2>
+        <div id="userList" style="max-height:180px;overflow-y:auto;border:1px solid #eee;border-radius:8px;padding:8px 0;background:#fafafa;"></div>
+      </div>
+      <form id="addUserForm" class="login-form">
+        <div class="form-group">
+          <label for="username" class="form-label">Username</label>
+          <input type="text" id="username" name="username" class="form-input" required />
+        </div>
+        <div class="form-group">
+          <label for="email" class="form-label">Email</label>
+          <input type="email" id="email" name="email" class="form-input" required />
+        </div>
+        <div class="form-group">
+          <label for="password" class="form-label">Password</label>
+          <input type="password" id="password" name="password" class="form-input" required />
+        </div>
+        <div class="form-group">
+          <label for="role" class="form-label">Role</label>
+          <select id="role" name="role" class="form-input" required>
+            <option value="user">User</option>
+            <option value="admin">Admin</option>
+          </select>
+        </div>
+        <button type="submit" class="btn btn-primary">
+          <span class="login-text">Add User</span>
+          <span class="edit-text" style="display:none;">Save Changes</span>
+          <span class="loading-text" style="display: none">Saving...</span>
+        </button>
+        <button type="button" id="cancelEditBtn" class="btn" style="display:none;margin-top:0.5rem;">Cancel Edit</button>
+      </form>
+      <div class="login-footer">
+        <p><a href="/chatbot.html">← Back to Chatbot</a></p>
+      </div>
+    </div>
+  </div>
+  <script>
+    // Only allow admins to access this page
+    (async function() {
+      const token = localStorage.getItem("token");
+      if (!token) {
+        window.location.href = "/login.html";
+        return;
+      }
+      try {
+        const res = await fetch('/api/users/me', {
+          headers: { Authorization: `Bearer ${token}` }
+        });
+        if (!res.ok) throw new Error();
+        const user = await res.json();
+        if (user.role !== 'admin') {
+          alert("Admin access required.");
+          window.location.href = "/chatbot.html";
+        }
+      } catch {
+        window.location.href = "/login.html";
+      }
+    })();
+
+    // --- User Management Logic ---
+    document.addEventListener("DOMContentLoaded", function () {
+      const form = document.getElementById("addUserForm");
+      const submitButton = form.querySelector('button[type="submit"]');
+      const loginText = submitButton.querySelector(".login-text");
+      const editText = submitButton.querySelector(".edit-text");
+      const loadingText = submitButton.querySelector(".loading-text");
+      const cancelEditBtn = document.getElementById("cancelEditBtn");
+      const userList = document.getElementById("userList");
+      let editingUserId = null;
+
+      // Fetch and display users
+      async function loadUsers() {
+        userList.innerHTML = '<div style="color:#888;font-size:0.95rem;">Loading...</div>';
+        try {
+          const token = localStorage.getItem("token");
+          const res = await fetch("/users", {
+            headers: { Authorization: `Bearer ${token}` }
+          });
+          const users = await res.json();
+          userList.innerHTML = "";
+          users.forEach(user => {
+            const div = document.createElement("div");
+            div.style.display = "flex";
+            div.style.alignItems = "center";
+            div.style.justifyContent = "space-between";
+            div.style.padding = "4px 12px";
+            div.style.borderBottom = "1px solid #eee";
+            div.innerHTML = `
+              <span>
+                <strong>${user.username}</strong> <span style="color:#888;font-size:0.95em;">(${user.email})</span>
+                <span style="color:#fff;background:#FFD700;border-radius:6px;padding:2px 8px;font-size:0.9em;margin-left:8px;">${user.role}</span>
+              </span>
+              <button class="btn btn-secondary" style="font-size:0.9em;padding:2px 10px;" data-userid="${user.id}">Edit</button>
+            `;
+            div.querySelector("button").onclick = () => startEditUser(user);
+            userList.appendChild(div);
+          });
+        } catch {
+          userList.innerHTML = '<div style="color:#c00;">Failed to load users.</div>';
+        }
+      }
+
+      // Start editing a user
+      function startEditUser(user) {
+        editingUserId = user.id;
+        form.username.value = user.username;
+        form.email.value = user.email;
+        form.role.value = user.role;
+        form.password.value = "";
+        loginText.style.display = "none";
+        editText.style.display = "inline";
+        cancelEditBtn.style.display = "inline-block";
+        submitButton.disabled = false;
+        loadingText.style.display = "none";
+        form.scrollIntoView({ behavior: "smooth" });
+      }
+
+      // Cancel editing
+      cancelEditBtn.onclick = function() {
+        editingUserId = null;
+        form.reset();
+        loginText.style.display = "inline";
+        editText.style.display = "none";
+        cancelEditBtn.style.display = "none";
+      };
+
+      // Handle add/edit user form submit
+      form.addEventListener("submit", async function (e) {
+        e.preventDefault();
+        const username = form.username.value.trim();
+        const email = form.email.value.trim();
+        const password = form.password.value.trim();
+        const role = form.role.value;
+
+        if (!username || !email || !role || (editingUserId === null && !password)) {
+          showAlert("All fields are required.", "error");
+          return;
+        }
+
+        submitButton.disabled = true;
+        loginText.style.display = editingUserId ? "none" : "inline";
+        editText.style.display = editingUserId ? "inline" : "none";
+        loadingText.style.display = "inline";
+
+        try {
+          const token = localStorage.getItem("token");
+          let res, data;
+          if (editingUserId) {
+            // PATCH for edit
+            const body = { username, email, role };
+            if (password) body.password = password;
+            res = await fetch(`/api/users/${editingUserId}`, {
+              method: "PATCH",
+              headers: {
+                "Content-Type": "application/json",
+                "Authorization": `Bearer ${token}`
+              },
+              body: JSON.stringify(body)
+            });
+            data = await res.json();
+          } else {
+            // POST for add
+            res = await fetch("/api/users", {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+                "Authorization": `Bearer ${token}`
+              },
+              body: JSON.stringify({ username, email, password, role })
+            });
+            data = await res.json();
+          }
+          if (res.ok) {
+            showAlert(editingUserId ? "User updated successfully!" : "User created successfully!", "success");
+            form.reset();
+            editingUserId = null;
+            loginText.style.display = "inline";
+            editText.style.display = "none";
+            cancelEditBtn.style.display = "none";
+            loadUsers();
+          } else {
+            showAlert(data.message || "Failed to save user.", "error");
+          }
+        } catch (err) {
+          showAlert("Connection error. Please try again.", "error");
+        } finally {
+          submitButton.disabled = false;
+          loadingText.style.display = "none";
+        }
+      });
+
+      function showAlert(message, type) {
+        const existingAlert = document.querySelector(".alert");
+        if (existingAlert) existingAlert.remove();
+        const alert = document.createElement("div");
+        alert.className = `alert alert-${type}`;
+        alert.textContent = message;
+        form.parentNode.insertBefore(alert, form);
+        setTimeout(() => {
+          if (alert.parentNode) alert.remove();
+        }, 4000);
+      }
+
+      loadUsers();
+    });
+  </script>
+</body>
+</html>

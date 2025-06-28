@@ -438,6 +438,24 @@ function addMessage(textOrResponse, sender) {
 
   if (sender === "bot" && text) {
     setTimeout(() => speakMessage(text), 100);
+
+    // Disable all previous feedback buttons
+    const allFeedbackGroups = chatMessages.querySelectorAll('.feedback-buttons');
+    allFeedbackGroups.forEach(group => {
+      group.querySelectorAll('.feedback-btn').forEach(btn => {
+        btn.disabled = true;
+      });
+    });
+
+    // Enable feedback buttons for the latest bot message
+    setTimeout(() => {
+      const latestFeedbackGroup = messageDiv.querySelector('.feedback-buttons');
+      if (latestFeedbackGroup) {
+        latestFeedbackGroup.querySelectorAll('.feedback-btn').forEach(btn => {
+          btn.disabled = false;
+        });
+      }
+    }, 0);
   }
 
   chatMessages.appendChild(messageDiv);
@@ -506,10 +524,48 @@ function exportChat() {
 function handleFileUpload(event) {
   // Prevent default file input behavior
   event.preventDefault();
-  
-  // Redirect to the file upload page
-  window.location.href = "/fileupload.html";
+
+  // Check admin before redirecting
+  fetch('/api/users/me', {
+    headers: { Authorization: `Bearer ${token}` }
+  })
+    .then(res => res.ok ? res.json() : null)
+    .then(user => {
+      if (user && user.role === 'admin') {
+        window.location.href = "/fileupload.html";
+      } else {
+        showNoAccessPopup();
+      }
+    })
+    .catch(() => {
+      showNoAccessPopup();
+    });
 }
+
+// Show a non-intrusive popup in the middle of the page for no access
+function showNoAccessPopup() {
+  if (document.getElementById('noAccessPopup')) return;
+  const popup = document.createElement('div');
+  popup.id = 'noAccessPopup';
+  popup.textContent = "You do not have access to the file upload feature.";
+  popup.style.position = "fixed";
+  popup.style.top = "50%";
+  popup.style.left = "50%";
+  popup.style.transform = "translate(-50%, -50%)";
+  popup.style.background = "#222";
+  popup.style.color = "#FFD700";
+  popup.style.padding = "22px 44px";
+  popup.style.borderRadius = "18px";
+  popup.style.fontSize = "1.2rem";
+  popup.style.boxShadow = "0 4px 24px rgba(255,215,0,0.18)";
+  popup.style.zIndex = "9999";
+  popup.style.opacity = "0.97";
+  document.body.appendChild(popup);
+  setTimeout(() => {
+    popup.remove();
+  }, 3500);
+}
+
 // Initialize sidebar state on page load
 document.addEventListener("DOMContentLoaded", function () {
   // Close sidebar on mobile by default
@@ -623,9 +679,20 @@ function handleFeedback(button, isPositive) {
 
     button.classList.add('selected');
 
-    const messageContent = messageContainer.querySelector('.message-content').textContent.trim();
+    // Get bot response text
+    const bot_response = messageContainer.querySelector('.message-content').textContent.trim();
 
-    // Send feedback to server with correct endpoint
+    // Get the previous user message (search backwards for .message-user)
+    let user_message = '';
+    let prev = messageContainer.previousElementSibling;
+    while (prev) {
+        if (prev.classList.contains('message-user')) {
+            user_message = prev.querySelector('.message-content').textContent.trim();
+            break;
+        }
+        prev = prev.previousElementSibling;
+    }
+
     fetch('/api/chatbot/feedback', {
         method: 'POST',
         headers: {
@@ -633,9 +700,7 @@ function handleFeedback(button, isPositive) {
             'Authorization': `Bearer ${token}`
         },
         body: JSON.stringify({
-            message: messageContent,
-            feedback: isPositive ? 'helpful' : 'not helpful',
-            timestamp: new Date().toISOString()
+            feedback: isPositive ? 'helpful' : 'not helpful'
         })
     }).catch(error => console.error('Error sending feedback:', error));
 
@@ -697,4 +762,60 @@ function showCopyPopup() {
     popup.classList.remove('show');
   }, 1400);
 }
+
+// Helper to get current user info (populated by the HTML script)
+function getCurrentUser() {
+  return window.currentUser || null;
+}
+
+// Helper to check if current user is admin
+function isAdmin() {
+  return getCurrentUser() && getCurrentUser().role === 'admin';
+}
+
+// Profile dropdown logic
+function populateProfileSection() {
+  const user = getCurrentUser();
+  if (!user) return;
+  // Sidebar summary
+  document.getElementById("profileName").textContent = user.username || "User";
+  document.getElementById("profileRole").textContent = user.role || "";
+  // Dropdown
+  document.getElementById("profileDropdownName").textContent = user.username || "";
+  document.getElementById("profileDropdownEmail").textContent = user.email || "";
+  document.getElementById("profileDropdownRole").textContent = user.role || "";
+}
+function toggleProfileDropdown(event) {
+  event.stopPropagation();
+  const profile = document.getElementById("sidebarProfile");
+  profile.classList.toggle("active");
+  // Close on outside click
+  if (profile.classList.contains("active")) {
+    document.addEventListener("click", closeProfileDropdownOnClick);
+  }
+}
+function closeProfileDropdownOnClick(e) {
+  const profile = document.getElementById("sidebarProfile");
+  if (!profile.contains(e.target)) {
+    profile.classList.remove("active");
+    document.removeEventListener("click", closeProfileDropdownOnClick);
+  }
+}
+
+// Wait for user info to be loaded and then populate profile
+document.addEventListener("DOMContentLoaded", function () {
+  // ...existing code...
+  // Wait for window.currentUser to be set (from HTML inline script)
+  let tries = 0;
+  function tryPopulateProfile() {
+    if (window.currentUser) {
+      populateProfileSection();
+    } else if (tries < 20) {
+      tries++;
+      setTimeout(tryPopulateProfile, 100);
+    }
+  }
+  tryPopulateProfile();
+  // ...existing code...
+});
 

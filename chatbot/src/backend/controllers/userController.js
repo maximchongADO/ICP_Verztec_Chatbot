@@ -96,6 +96,76 @@ const createUser = async (req, res, next, _generateAccessToken = generateAccessT
     }
 }
 
+// Admin-only: create user with role
+const adminCreateUser = async (req, res) => {
+    // Only allow if admin
+    if (!req.user || req.user.role !== 'admin') {
+        return res.status(403).json({ message: 'Admin access required' });
+    }
+    const { username, email, password, role } = req.body;
+    if (!username || !email || !password || !role) {
+        return res.status(400).json({ message: 'Missing required fields' });
+    }
+    if (!['user', 'admin'].includes(role)) {
+        return res.status(400).json({ message: 'Role must be user or admin' });
+    }
+    try {
+        const hashedPassword = await hashPassword(password);
+        const createdUser = await User.createUser({
+            username,
+            email,
+            password: hashedPassword,
+            role
+        });
+        res.status(201).json({
+            message: 'User created successfully',
+            user: {
+                id: createdUser.id,
+                username: createdUser.username,
+                email: createdUser.email,
+                role: createdUser.role
+            }
+        });
+    } catch (error) {
+        console.error('Error creating user (admin):', error);
+        res.status(500).json({ message: 'Internal server error' });
+    }
+};
+
+// Admin-only: update user profile
+const adminUpdateUser = async (req, res) => {
+    if (!req.user || req.user.role !== 'admin') {
+        return res.status(403).json({ message: 'Admin access required' });
+    }
+    const userId = req.params.id;
+    const { username, email, role, password } = req.body;
+    if (!username && !email && !role && !password) {
+        return res.status(400).json({ message: 'No fields to update' });
+    }
+    if (role && !['user', 'admin'].includes(role)) {
+        return res.status(400).json({ message: 'Role must be user or admin' });
+    }
+    try {
+        let updateFields = {};
+        if (username) updateFields.username = username;
+        if (email) updateFields.email = email;
+        if (role) updateFields.role = role;
+        if (password) updateFields.password = await hashPassword(password);
+
+        const updatedUser = await User.updateUser(userId, updateFields);
+        if (!updatedUser) {
+            return res.status(404).json({ message: 'User not found' });
+        }
+        res.json({
+            message: 'User updated successfully',
+            user: updatedUser
+        });
+    } catch (error) {
+        console.error('Error updating user (admin):', error);
+        res.status(500).json({ message: 'Internal server error' });
+    }
+};
+
 const decodeJWT = async (req, res) => {
     const token = req.headers.authorization?.split(' ')[1];
     if (!token) {
@@ -110,6 +180,18 @@ const decodeJWT = async (req, res) => {
     }
 }
 
+const getCurrentUser = async (req, res) => {
+    try {
+        const userId = req.user?.userId;
+        if (!userId) return res.status(401).json({ message: "Not authenticated" });
+        const user = await User.getUserByIdFull(userId);
+        if (!user) return res.status(404).json({ message: "User not found" });
+        res.json(user);
+    } catch (error) {
+        res.status(500).json({ message: "Internal server error" });
+    }
+};
+
 module.exports = {
     getAllUsers,
     getUserById,
@@ -117,5 +199,8 @@ module.exports = {
     createUser,
     decodeJWT,
     hashPassword,
-    generateAccessToken
+    generateAccessToken,
+    getCurrentUser,
+    adminCreateUser,
+    adminUpdateUser
 };
