@@ -20,13 +20,13 @@ export const UI = ({ hidden, ...props }) => {
     <>
       <div className="fixed top-0 left-0 right-0 bottom-0 z-10 flex justify-between p-4 flex-col pointer-events-none">
         <div className="self-start backdrop-blur-md bg-white bg-opacity-50 p-4 rounded-lg">
-          <h1 className="font-black text-xl">My Virtual GF</h1>
-          <p>I will always love you ❤️</p>
+          <h1 className="font-black text-xl">Verztec AI Chatbot</h1>
+          <p>How may I help you?</p>
         </div>
         <div className="w-full flex flex-col items-end justify-center gap-4">
           <button
             onClick={() => setCameraZoomed(!cameraZoomed)}
-            className="pointer-events-auto bg-pink-500 hover:bg-pink-600 text-white p-4 rounded-md"
+            className="pointer-events-auto bg-yellow-200 hover:bg-yellow-300 text-yellow-900 p-4 rounded-md"
           >
             {cameraZoomed ? (
               <svg
@@ -69,7 +69,7 @@ export const UI = ({ hidden, ...props }) => {
                 body.classList.add("greenScreen");
               }
             }}
-            className="pointer-events-auto bg-pink-500 hover:bg-pink-600 text-white p-4 rounded-md"
+            className="pointer-events-auto bg-yellow-200 hover:bg-yellow-300 text-yellow-900 p-4 rounded-md"
           >
             <svg
               xmlns="http://www.w3.org/2000/svg"
@@ -100,7 +100,7 @@ export const UI = ({ hidden, ...props }) => {
           <button
             disabled={loading || message}
             onClick={sendMessage}
-            className={`bg-pink-500 hover:bg-pink-600 text-white p-4 px-10 font-semibold uppercase rounded-md ${
+            className={`bg-yellow-200 hover:bg-yellow-300 text-yellow-900 p-4 px-10 font-semibold uppercase rounded-md ${
               loading || message ? "cursor-not-allowed opacity-30" : ""
             }`}
           >
