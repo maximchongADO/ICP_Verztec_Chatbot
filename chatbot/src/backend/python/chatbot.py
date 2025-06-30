@@ -647,6 +647,8 @@ def generate_answer_histoy_retrieval(user_query: str, user_id:str, chat_id:str):
     """
     
     key = f"{user_id}_{chat_id}"  # Use a separator to avoid accidental key collisions
+    logger.info(f"Retrieving memory for key: {key}")
+    logger.info(f"User ID: {user_id}, Chat ID: {chat_id}")
 
     if key in memory_store:
         chat_history = memory_store[key]

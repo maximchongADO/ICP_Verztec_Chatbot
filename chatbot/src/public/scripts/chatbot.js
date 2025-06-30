@@ -37,6 +37,8 @@ function stopAvatarAnimation() {
 function sendMessage() {
   const input = document.getElementById("messageInput");
   const message = input.value.trim();
+  const user_id = 'blahblahb';
+  const chat_id = 'chat123'; // Replace with actual chat ID logic
 
   if (!message) return;
 
@@ -46,6 +48,7 @@ function sendMessage() {
   // Disable send button
   const sendButton = document.getElementById("sendButton");
   sendButton.disabled = true;
+  const fullMessage = `${message} YABABDODD`;
 
   // Add user message to chat
   addMessage(message, "user");
@@ -62,7 +65,8 @@ function sendMessage() {
 
   // Call chatbot API
   // this needs to be changed to take userid and chatid to enable changing history 
-  callChatbotAPI(message)
+  callChatbotAPI(fullMessage,user_id, chat_id)
+
     .then((response) => {
       // Remove typing indicator
       hideTypingIndicator();
@@ -160,9 +164,9 @@ async function get_frequentmsg() {
 }
 
 
-async function callChatbotAPI(message
-  //chat_id
-  //user_id
+async function callChatbotAPI(message,
+  User_id,
+  Chat_id
 ) {
   const chatHistory = JSON.parse(sessionStorage.getItem("chatHistory") || "[]");
 
@@ -178,8 +182,8 @@ async function callChatbotAPI(message
       body: JSON.stringify({
         message: message,
         chat_history: chatHistory,
-        // user_id :user_id,
-        // chat_id: chat_id
+        user_id :User_id,
+        chat_id: Chat_id
       }),
     });
 
