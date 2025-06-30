@@ -571,6 +571,7 @@ def generate_answer(user_query: str, chat_history: ConversationBufferMemory ):
             "You will only use the provided documents in your response. "
             "If the query is out of scope, say so. "
             "If there are any image tags or screenshots mentioned in the documents, "
+            "IF QUERY SHOULD BE ESCALATED TO HR, RESPOND WITH <ESCALATE> "
             "please reference them in your response where appropriate, such as 'See Screenshot 1' or 'Refer to the image above'.\n\n"
             + clean_query
         )
