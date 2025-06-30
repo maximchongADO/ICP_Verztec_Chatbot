@@ -15,9 +15,10 @@ vecstore = FAISS.load_local(str(store_dir), embed_fn, allow_dangerous_deserializ
 print("🔢 Vectors in store:", vecstore.index.ntotal)
 
 # ── 2️⃣  Ask a question ─────────────────────────────────────────
-question = "What services does Verztec provide for pharmaceutical companies?"
+question = "what industries does Verztec operate in?"
+print(f"❓ Question: {question}")
 
-docs = vecstore.similarity_search(question, k=5)   # returns LangChain Documents
+docs = vecstore.similarity_search(question, k=10)   # returns LangChain Documents
 
 # ── 3️⃣  Show results ───────────────────────────────────────────
 for i, d in enumerate(docs, 1):

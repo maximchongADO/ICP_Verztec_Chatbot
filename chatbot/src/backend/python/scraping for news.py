@@ -18,41 +18,18 @@ from crawl4ai.markdown_generation_strategy import DefaultMarkdownGenerator
 from sentence_transformers import SentenceTransformer
 from langchain_community.vectorstores import FAISS     
 import json
+
+from search import get_search_results
+
 embedding_model = SentenceTransformer('BAAI/bge-large-en-v1.5')
 browser_cfg = BrowserConfig(
     headless=False,  # opens a visible browser window so you can see page loads
     verbose=True,     # enables detailed logging from Playwright & the crawler
-    text_mode=True,
-    user_agent_mode="random"
+    text_mode=False,
+    user_agent_mode="random",
     
-    
-  
 )
 
-
-
-
-def get_search_results(query: str, num_results: int = 10) -> list[dict]:
-    """
-    Return up to `num_results` Google search results as a list of dicts.
-
-    Each dict has keys: 'url', 'title', 'description'.
-    """
-    results_iter = search(
-        query,
-        advanced=True,         # include title + snippet
-        region="Singapore",    # Google SG domain
-        unique=True,           # skip duplicates
-        num_results=num_results
-    )
-
-    data = [
-        {"url": r.url, "title": r.title, "description": r.description}
-        for r in results_iter
-    ][:num_results]
-    
-
-    return data
 
 
 
@@ -61,18 +38,35 @@ def get_search_results(query: str, num_results: int = 10) -> list[dict]:
 # 2️⃣  build an LLM extraction strategy that calls Groq
 deepseek_strategy = LLMExtractionStrategy(
     input_format="fit_markdown",            # better than raw HTML
-    instruction=(
-    "Extract structured information about the company, grouped by category. "
-    "Return one JSON object with top-level keys like 'Vision', 'Brand Promise', 'Corporate Values', etc., "
-    "and under each, provide a list of relevant text items."
-    "Return only valid JSON."
-    ),
+    instruction = (
+    "You are given well-formed Markdown taken from a web page. "
+    "Read the entire content carefully, then extract **detailed, retrieval-ready facts** "
+    "about the company, organised by category. "
+
+    "• Produce **one JSON object only**.  \n"
+    "• Each **top-level key** must be a clear category name—e.g. "
+    "\"Vision\", \"Brand Promise\", \"Corporate Values\", \"Services Offered\", "
+    "\"Notable Projects\", \"Industry Focus\", \"Testimonials\", etc.  \n"
+    "• Under every key, return a **list of richly written text items**. Each item should be "
+    "two-to-four full sentences that:  \n"
+    "  – give precise facts and context (dates, metrics, client names, outcomes, locations)  \n"
+    "  – are self-contained so they can be fed directly into a retrieval-augmented generation (RAG) system.  \n"
+    "• Aim for **comprehensive coverage**: capture all distinct services, values, case studies, awards, and any other salient information. "
+    "It is better to be verbose and exhaustive than brief.  \n"
+    "• Do **not** invent information. Paraphrase faithfully.  \n"
+    "• Output must be valid JSON—no comments, no trailing commas, no markdown."
+),
     llm_config=LLMConfig(
         provider="ollama/llama3",        # ← model name inside provider
         base_url="http://localhost:11434"   # default Ollama endpoint
                     # optional
         # api_token is NOT needed for local Ollama
     ),
+    extra_args={
+        "temperature": 0.7
+    },
+    apply_chunking=False
+
 )
 
 filter_chain = FilterChain([
@@ -81,13 +75,12 @@ filter_chain = FilterChain([
 ])
 from crawl4ai.deep_crawling import BFSDeepCrawlStrategy   # breadth-first search
 deep_crawl = BFSDeepCrawlStrategy(
-    max_depth=0,           # 0 = only start URL, 1 = +direct links, 2 = +links-of-links
-    include_external=True, # stay on the same domain
-    max_pages=10,        # optional overall cap
+    max_depth=0,   # 0 = only start URL, 1 = +direct links, 2 = +links-of-links
+    include_external=False, # stay on the same domain      # optional overall cap
     filter_chain=filter_chain
 
     
-)
+) 
 
 
 async def crawl_with_strategy(
@@ -149,39 +142,20 @@ async def crawl_with_strategy(
                 )
     return results_out
 
-async def main():
-    # 1️⃣ get URL list (strings or dicts)
-    urls = get_search_results("What does verztec do", num_results=1)
-    for i in urls:
-        print(f"🔗 {i['url']} - {i['title']}\n   {i['description']}")
-
-    # 2️⃣ run crawler with DeepSeek strategy
-    results = await crawl_with_strategy(urls, deepseek_strategy,browser_cfg)
-
-    # 3️⃣ print results
-    for r in results:
-        print(f"\n🔍 {r['url']}")
-        if r["success"]:
-            print("✅ Extracted:\n", r["extracted"])
-            
-        else:
-            print("❌ Failed.")
-            
-            
-            
-dimension = 384  # embedding dimension for MiniLM
-index = faiss.IndexFlatIP(dimension)  # for cosine, use normalized vectors
-
 # Store metadata alongside
 doc_metadata = []
 async def main():
     # 1️⃣ Seed URLs
-    seeds = get_search_results("What does verztec do", num_results=1)
+    seeds = get_search_results("What does verztec do", num_results=5)
     urls  = [s["url"] for s in seeds]
+    urls.append("https://www.verztec.com")  # add a known page
     print("🔗 Seeds:", urls)
 
     # 2️⃣ Crawl & extract
     crawl_results = await crawl_with_strategy(urls, deepseek_strategy, browser_cfg)
+
+    # 3️⃣ Build LangChain docs
+    seen_texts: set[str] = set()
 
     # 3️⃣ Build LangChain docs
     docs: list[Document] = []
@@ -189,38 +163,53 @@ async def main():
         if not r["success"]:
             continue
 
-        extracted = r["extracted"]               # could be str, dict, or list
+        extracted = r["extracted"]
+        if r["success"]:
+            print("✅ Extracted:\n", r["extracted"])
 
-        # ── a. String → parse JSON
+        # a) JSON-string → dict/list
         if isinstance(extracted, str):
             try:
                 extracted = json.loads(extracted)
             except json.JSONDecodeError:
-                print("⚠️  Plain string, not JSON — skipping")
                 continue
 
-        # ── b. Dict   → convert to list of blocks
+        # b) dict → list-of-blocks
         if isinstance(extracted, dict):
             extracted = [
                 {"tag": k, "content": v, "error": False}
-                for k, v in extracted.items()
-                if isinstance(v, list)
+                for k, v in extracted.items() if isinstance(v, list)
             ]
 
-        # ── c. Guard: must be list now
+        # c) guard
         if not isinstance(extracted, list):
-            print(f"⚠️  Unsupported type {type(extracted)} — skipping")
             continue
 
-        # ── d. Iterate blocks
+        # d) iterate blocks
         for block in extracted:
+            # ✨ NORMALISE block ➜ dict shape ------------------------------------
+            if isinstance(block, list):
+                # unknown tag; wrap as a dict
+                block = {"tag": "Unknown", "content": block, "error": False}
+            elif not isinstance(block, dict):
+                # anything else we can’t handle → skip
+                continue
+
             if block.get("error"):
                 continue
-            tag = block.get("tag", "Unknown").strip()
+
+            tag = str(block.get("tag", "Unknown")).strip()
+
             for txt in block.get("content", []):
+                tagged_txt = f"[{tag}] {txt}"
+
+                if tagged_txt in seen_texts:
+                    continue
+                seen_texts.add(tagged_txt)
+
                 docs.append(
                     Document(
-                        page_content=f"[{tag}] {txt}",
+                        page_content=tagged_txt,
                         metadata={"url": r["url"], "tag": tag},
                     )
                 )

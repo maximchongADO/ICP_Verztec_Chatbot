@@ -4,10 +4,10 @@ const dbConfig = require('../database/dbConfig');
 
 const PYTHON_CHATBOT_URL = process.env.PYTHON_CHATBOT_URL || 'http://localhost:3000';
 
-const callPythonChatbot = async (message, userId = null, chatHistory = []) => {
+const callPythonChatbot = async (message, userId = "YABBABAABBBABBABAAB", chatHistory = []) => {
     try {
         console.log('Calling Python chatbot with:', { message, userId, chatHistory });
-        
+        const fullMessage = `${message} YABABDODD`;   // ← append here
         const response = await fetch(`${PYTHON_CHATBOT_URL}/chatbot`, {
             method: 'POST',
             headers: {
@@ -15,7 +15,7 @@ const callPythonChatbot = async (message, userId = null, chatHistory = []) => {
                 'Accept': 'application/json'
             },
             body: JSON.stringify({
-                message: message,
+                message: fullMessage,
                 user_id: userId,
                 chat_history: chatHistory || []
             })
