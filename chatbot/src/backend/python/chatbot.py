@@ -155,6 +155,27 @@ def store_chat_log_updated(user_message, bot_response, query_score, relevance_sc
     cursor.close()
     conn.close()
     
+    
+def store_chat_log_updated(user_message, bot_response, query_score, relevance_score, chat_id, user_id):
+    conn = mysql.connector.connect(**DB_CONFIG)
+    cursor = conn.cursor()
+
+    timestamp = datetime.utcnow()
+    feedback = None  # placeholder if no feedback given
+
+    insert_query = '''
+        INSERT INTO chat_logs (timestamp, user_message, bot_response, feedback, query_score, relevance_score, user_id, chat_id)
+        VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+    '''
+    cursor.execute(insert_query, (timestamp, user_message, bot_response, feedback, query_score, relevance_score, user_id, chat_id))
+    conn.commit()
+    logger.info("Stored chat log for session %s %s at %s", user_id, chat_id, timestamp)
+
+    cursor.close()
+    conn.close()
+    
+    
+    
 # checking how alike a query the users question is
 def is_query_score(text: str) -> float:
     """
@@ -367,6 +388,7 @@ def generate_answer(user_query: str, chat_history: ConversationBufferMemory ):
     Returns a tuple: (answer_text, image_list)
     """
     session_id = str(uuid.uuid4())
+    cleaned_answer = ""  # Ensure cleaned_answer is always defined
     try:
         total_start_time = time.time()  # Start timing for the whole query
 
@@ -533,7 +555,8 @@ def generate_answer(user_query: str, chat_history: ConversationBufferMemory ):
             MAX_TURNS = 4
             if len(memory.chat_memory.messages) > 2 * MAX_TURNS:
                 memory.chat_memory.messages = memory.chat_memory.messages[-2 * MAX_TURNS:]
-            store_chat_log(user_message=user_query, bot_response=cleaned_fallback, session_id=session_id, query_score=is_task_query, relevance_score=avg_score)
+            #store_chat_log(user_message=user_query, bot_response=cleaned_fallback, session_id=session_id, query_score=is_task_query, relevance_score=avg_score)
+            store_chat_log_updated(user_message=user_query, bot_response=cleaned_fallback, query_score=is_task_query, relevance_score=avg_score, user_id=user_id, chat_id=chat_id)
     
             return cleaned_fallback, top_3_img
         
@@ -802,7 +825,7 @@ def generate_answer_histoy_retrieval(user_query: str, user_id:str, chat_id:str):
             if len(memory.chat_memory.messages) > 2 * MAX_TURNS:
                 memory.chat_memory.messages = memory.chat_memory.messages[-2 * MAX_TURNS:]
             #store_chat_log(user_message=user_query, bot_response=cleaned_fallback, session_id=session_id, query_score=is_task_query, relevance_score=avg_score)
-            store_chat_log_updated(user_message=user_query, bot_response=cleaned_answer, query_score=is_task_query, relevance_score=avg_score, user_id=user_id, chat_id=chat_id)
+            store_chat_log_updated(user_message=user_query, bot_response=cleaned_fallback, query_score=is_task_query, relevance_score=avg_score, user_id=user_id, chat_id=chat_id)
     
             return cleaned_fallback, top_3_img
         
@@ -840,9 +863,11 @@ def generate_answer_histoy_retrieval(user_query: str, user_id:str, chat_id:str):
 
         # Check if full <think> block exists
         has_think_block = bool(think_block_pattern.search(raw_answer))
+        logger.info(f"Has full <think> block: {has_think_block}")
 
         # Clean the <think> block regardless
         cleaned_answer = think_block_pattern.sub("", raw_answer).strip()
+        logger.info(f"Cleaned answer after removing <think> block: {cleaned_answer}")
         has_tag = False
         import concurrent.futures
 
@@ -889,10 +914,11 @@ def generate_answer_histoy_retrieval(user_query: str, user_id:str, chat_id:str):
             i += 1
         ## one last cleanup to ensure no <think> tags remain
         # Remove any remaining <think> tagsbetter have NO MOR NO MORE NO MO NO MOMRE 
+    
         cleaned_answer = re.sub(r"</?think>", "", cleaned_answer).strip()
         cleaned_answer = re.sub(r"</?think>", "", cleaned_answer).strip()
         cleaned_answer = re.sub(r'[\*#]+', '', cleaned_answer).strip()
-
+        
     
         store_chat_log_updated(user_message=user_query, bot_response=cleaned_answer, query_score=is_task_query, relevance_score=avg_score, user_id=user_id, chat_id=chat_id)##brian u need to update sql for this to work
         # also need to update the store_chat_bot method, to incoude user id and chat id

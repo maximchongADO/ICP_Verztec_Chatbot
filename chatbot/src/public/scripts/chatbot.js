@@ -37,7 +37,7 @@ function stopAvatarAnimation() {
 function sendMessage() {
   const input = document.getElementById("messageInput");
   const message = input.value.trim();
-  const user_id = 'blahblahb';
+  const user_id = localStorage.getItem("userId") || "defaultUser"; // Replace with actual user ID logic
   const chat_id = 'chat123'; // Replace with actual chat ID logic
 
   if (!message) return;
@@ -65,7 +65,7 @@ function sendMessage() {
 
   // Call chatbot API
   // this needs to be changed to take userid and chatid to enable changing history 
-  callChatbotAPI(fullMessage,user_id, chat_id)
+  callChatbotAPI(message,user_id, chat_id)
 
     .then((response) => {
       // Remove typing indicator
