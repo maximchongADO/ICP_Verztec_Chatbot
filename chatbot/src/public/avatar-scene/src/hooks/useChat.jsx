@@ -1,11 +1,21 @@
 import { createContext, useContext, useEffect, useState } from "react";
 
+const ChatContext = createContext(); // <-- Add this line
+
 const backendUrl = process.env.REACT_APP_API_URL || "http://localhost:8000";
 export const ChatProvider = ({ children }) => {
+  const [messages, setMessages] = useState([]);
+  const [message, setMessage] = useState();
+  const [loading, setLoading] = useState(false);
+  const [cameraZoomed, setCameraZoomed] = useState(true);
+
+  // Get token from localStorage (or however you store it)
+  const token = localStorage.getItem("token"); // <-- Add this line
+
   const chat = async (message) => {
     setLoading(true);
     try {
-      const response = await fetch("http://localhost:8000/chatbot_avatar", {
+      const response = await fetch(`${backendUrl}/chatbot_avatar`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -19,7 +29,6 @@ export const ChatProvider = ({ children }) => {
 
       const data = await response.json();
 
-      // ✅ Fix: Use 'message' not 'messages'
       const resp = [{ type: "bot", text: data.message }];
       setMessages((messages) => [...messages, ...resp]);
     } catch (error) {
@@ -28,11 +37,6 @@ export const ChatProvider = ({ children }) => {
       setLoading(false);
     }
   };
-
-  const [messages, setMessages] = useState([]);
-  const [message, setMessage] = useState();
-  const [loading, setLoading] = useState(false);
-  const [cameraZoomed, setCameraZoomed] = useState(true);
 
   const onMessagePlayed = () => {
     setMessages((messages) => messages.slice(1));
