@@ -16,62 +16,30 @@
   </head>
   <body>
     <div class="app-container">
-      <!-- Remove hamburger button -->
-      
-      <!-- Add hover trigger area -->
       <div class="sidebar-trigger"></div>
-
-      <!-- Sidebar -->
       <div class="sidebar" id="sidebar">
         <div class="sidebar-header">
           <div class="ai-avatar">AI</div>
           <h1>Verztec AI Chatbot</h1>
           <p>Your intelligent companion</p>
         </div>
-
-        <!-- Profile section -->
-        <div class="sidebar-profile" id="sidebarProfile" onclick="toggleProfileDropdown(event)">
-          <div class="profile-summary">
-            <div class="profile-avatar">
-              <img src="/images/image.png" alt="User Avatar" />
-            </div>
-            <div class="profile-info">
-              <span id="profileName">User</span>
-              <span id="profileRole" class="profile-role">Role</span>
-            </div>
-            <span class="profile-caret">&#9662;</span>
-          </div>
-          <div class="profile-dropdown" id="profileDropdown">
-            <div><strong>Name:</strong> <span id="profileDropdownName"></span></div>
-            <div><strong>Email:</strong> <span id="profileDropdownEmail"></span></div>
-            <div><strong>Role:</strong> <span id="profileDropdownRole"></span></div>
-          </div>
-        </div>
-
+        <!-- Main menu -->
         <nav class="sidebar-nav">
           <div class="nav-item" onclick="clearChatHistory()">
             <svg viewBox="0 0 24 24">
-              <path
-                d="M3 6h18M8 6V4a2 2 0 012-2h4a2 2 0 012 2v2m3 0v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6h14zM10 11v6M14 11v6"
-              />
+              <path d="M3 6h18M8 6V4a2 2 0 012-2h4a2 2 0 012 2v2m3 0v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6h14zM10 11v6M14 11v6"/>
             </svg>
             Clear Chat
           </div>
-
           <div class="nav-item" onclick="exportChat()">
             <svg viewBox="0 0 24 24">
-              <path
-                d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M17 8l-5-5-5 5M12 3v12"
-              />
+              <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M17 8l-5-5-5 5M12 3v12"/>
             </svg>
             Export Chat
           </div>
-
           <div class="nav-item" onclick="handleFileUpload(event)">
             <svg viewBox="0 0 24 24">
-              <path
-                d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8zM14 2v6h6M16 13H8M16 17H8M10 9H8"
-              />
+              <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8zM14 2v6h6M16 13H8M16 17H8M10 9H8"/>
             </svg>
             File Upload
           </div>
@@ -84,29 +52,40 @@
             Avatar
           </div>
         </nav>
-        <!-- Admin-only: Add/Edit User button (hidden by default, shown by JS), placed above logout -->
-        <div class="nav-item" id="adminAddUserBtn" style="display:none;" onclick="window.location.href='/admin.html'">
-          <svg viewBox="0 0 24 24">
-            <path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4zm6-1v2h2v2h2v-2h2v-2h-2v-2h-2v2h-2z"/>
-          </svg>
-          Add/Edit Users
-        </div>
-        <div class="nav-item" onclick="logout()">
-          <svg viewBox="0 0 24 24">
-            <path
-              d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4M16 17l5-5-5-5M21 12H9"
-            />
-          </svg>
-          Logout
-        </div>
-
-          
-
-        <div class="sidebar-logo">
-          <img src="/images/verztec-logo.png" alt="Verztec Logo">
+        <!-- Bottom section: admin, logout, user profile (moved here) -->
+        <div class="sidebar-bottom">
+          <div class="nav-item" id="adminAddUserBtn" style="display:none;" onclick="window.location.href='/admin.html'">
+            <svg viewBox="0 0 24 24">
+              <path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4zm6-1v2h2v2h2v-2h2v-2h-2v-2h-2v2h-2z"/>
+            </svg>
+            Add/Edit Users
+          </div>
+          <div class="nav-item" onclick="logout()">
+            <svg viewBox="0 0 24 24">
+              <path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4M16 17l5-5-5-5M21 12H9"/>
+            </svg>
+            Logout
+          </div>
+          <!-- User profile section moved here -->
+          <div class="sidebar-profile" id="sidebarProfile" onclick="toggleProfileDropdown(event)">
+            <div class="profile-summary">
+              <div class="profile-avatar">
+                <img src="/images/image.png" alt="User Avatar" />
+              </div>
+              <div class="profile-info">
+                <span id="profileName">User</span>
+                <span id="profileRole" class="profile-role">Role</span>
+              </div>
+              <span class="profile-caret">&#9662;</span>
+            </div>
+            <div class="profile-dropdown" id="profileDropdown">
+              <div><strong>Name:</strong> <span id="profileDropdownName"></span></div>
+              <div><strong>Email:</strong> <span id="profileDropdownEmail"></span></div>
+              <div><strong>Role:</strong> <span id="profileDropdownRole"></span></div>
+            </div>
+          </div>
         </div>
       </div>
-
       <!-- Main Chat Area -->
       <div class="chat-container">
         <div class="chat-header">
