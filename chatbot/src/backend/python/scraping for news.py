@@ -70,12 +70,12 @@ deepseek_strategy = LLMExtractionStrategy(
 )
 
 filter_chain = FilterChain([
-    DomainFilter(blocked_domains=["linkedin.com"]),
-    # or: URLPatternFilter(patterns=["*linkedin*"])
+    #DomainFilter(blocked_domains=["linkedin.com"]),
+    URLPatternFilter(patterns=["*linkedin*"])
 ])
 from crawl4ai.deep_crawling import BFSDeepCrawlStrategy   # breadth-first search
 deep_crawl = BFSDeepCrawlStrategy(
-    max_depth=0,   # 0 = only start URL, 1 = +direct links, 2 = +links-of-links
+    max_depth=1,   # 0 = only start URL, 1 = +direct links, 2 = +links-of-links
     include_external=False, # stay on the same domain      # optional overall cap
     filter_chain=filter_chain
 

@@ -87,6 +87,7 @@ try:
         allow_dangerous_deserialization=True
     )
     logger.info("FAISS index loaded successfully on CPU")
+    
 except Exception as e:
     logger.error(f"Failed to load FAISS index: {str(e)}", exc_info=True)
     index = None
@@ -380,7 +381,17 @@ class HybridRetriever(BaseRetriever):
     
     async def aget_relevant_documents(self, query: str) -> List[Document]:
         return self.get_relevant_documents(query)
-
+    
+    
+# Initialize the hybrid retriever
+hybrid_retriever_obj = HybridRetriever(
+                retr_direct=retr_direct,
+                retr_bg=retr_bg,
+                cross_encoder=cross_encoder,
+                top_k_direct=8,
+                top_k_bg=20,
+                top_k_final=5
+            )
 
 
 def generate_answer(user_query: str, chat_history: ConversationBufferMemory ):
@@ -407,17 +418,12 @@ def generate_answer(user_query: str, chat_history: ConversationBufferMemory ):
         )
         
         
-        hybrid_retriever_obj = HybridRetriever(
-            retr_direct=retr_direct,
-            retr_bg=retr_bg,
-            cross_encoder=cross_encoder,
-            top_k_direct=8,
-            top_k_bg=20,
-            top_k_final=5
-        )
+        
         
         avg_score = get_avg_score(index, embedding_model, user_query)
         avg_score_gk = get_avg_score(index2, embedding_model, user_query)
+        
+        
         
         
         ## QA chain setup with mrmory 
@@ -430,7 +436,7 @@ def generate_answer(user_query: str, chat_history: ConversationBufferMemory ):
         )
         logger.info(memory)
     
-    
+        
         # Refine query
        
         clean_query = clean_with_grammar_model(user_query)
@@ -555,8 +561,8 @@ def generate_answer(user_query: str, chat_history: ConversationBufferMemory ):
             MAX_TURNS = 4
             if len(memory.chat_memory.messages) > 2 * MAX_TURNS:
                 memory.chat_memory.messages = memory.chat_memory.messages[-2 * MAX_TURNS:]
-            #store_chat_log(user_message=user_query, bot_response=cleaned_fallback, session_id=session_id, query_score=is_task_query, relevance_score=avg_score)
-            store_chat_log_updated(user_message=user_query, bot_response=cleaned_fallback, query_score=is_task_query, relevance_score=avg_score, user_id=user_id, chat_id=chat_id)
+            store_chat_log(user_message=user_query, bot_response=cleaned_fallback, session_id=session_id, query_score=is_task_query, relevance_score=avg_score)
+            #store_chat_log_updated(user_message=user_query, bot_response=cleaned_fallback, query_score=is_task_query, relevance_score=avg_score, user_id=user_id, chat_id=chat_id)
     
             return cleaned_fallback, top_3_img
         
@@ -698,13 +704,14 @@ def generate_answer_histoy_retrieval(user_query: str, user_id:str, chat_id:str):
             search_type="similarity",
             search_kwargs={"k": 10}
         )
-        avg_score = get_avg_score(index, embedding_model, user_query)
+        
+        
         
         
         ## QA chain setup with mrmory 
         qa_chain = ConversationalRetrievalChain.from_llm(
             llm=deepseek_chain,
-            retriever=retriever,
+            retriever=hybrid_retriever_obj,
             memory=chat_history,
             return_source_documents=True,
             output_key="answer"
@@ -735,35 +742,35 @@ def generate_answer_histoy_retrieval(user_query: str, user_id:str, chat_id:str):
         
         ## retrieving images from top 3 chunks (if any)
         # Retrieve images from top 3 chunks (if any)
-        top_3_img = []
-        sources_set = set()
-        sources_list = []
-        top_docs = []
-        seen_contents = set()
+        THRESHOLD      = 0.70          # keep docs whose score < threshold   (lower L2 → more similar)
+        MAX_IMAGES     = 3             # cap images
+        sources_set    = set()         # remember unique source filenames
+        sources_list   = []            # ordered list of unique sources
+        seen_contents  = set()         # avoid duplicate page_content
+        top_docs       = []            # docs we actually keep
+        top_3_img      = []            # up to 3 image paths / URLs
 
         for doc, score in results:
-            if score < 0.7:
-                # Use the filename or document name as the source
-                source = doc.metadata.get('source')
-                if source and source not in sources_set:
-                    sources_set.add(source)
-                    sources_list.append(source)
+            if score >= THRESHOLD:      # skip weak matches
+                continue
 
-                # Track unique docs (based on content) for appending source metadata later
-                if doc.page_content not in seen_contents:
-                    seen_contents.add(doc.page_content)
-                    top_docs.append(doc)
+            # ---- source handling ------------------------------------
+            src = doc.metadata.get("source")
+            if src and src not in sources_set:
+                sources_set.add(src)
+                sources_list.append(src)
 
-                # Add up to 3 images only
-                images = doc.metadata.get('images', [])
-                for img in images:
-                    if len(top_3_img) < 3:
-                        top_3_img.append(img)
-                    else:
+            # ---- unique doc content ---------------------------------
+            if doc.page_content not in seen_contents:
+                seen_contents.add(doc.page_content)
+                top_docs.append(doc)
+
+            # ---- gather up to 3 images ------------------------------
+            if len(top_3_img) < MAX_IMAGES:
+                for img in doc.metadata.get("images", []):
+                    top_3_img.append(img)
+                    if len(top_3_img) >= MAX_IMAGES:
                         break
-
-                if len(top_3_img) >= 3:
-                    break
 
 
             # Ensures a flat list of strings

@@ -64,4 +64,7 @@ def build_memory_from_results(results):
 
     return memory
 if __name__=='__main__':
-    print('moew')
+    r= retrieve_user_messages_and_scores("2", "chat123")
+    for each in r:
+        print("-" * 20)
+        print(f"Timestamp: {each['timestamp']}, User: {each['user_message']},\n\nBot: {each['bot_response']}, Query Score: {each['query_score']}, Relevance Score: {each['relevance_score']}")
