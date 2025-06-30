@@ -39,7 +39,7 @@ const callPythonChatbot = async (message, userId = "YABBABAABBBABBABAAB", chatHi
 
 const processMessage = async (req, res) => {
     try {
-        const { message } = req.body;
+        const { message, chat_id } = req.body;
         if (!message?.trim()) {
             return res.status(400).json({
                 success: false,
@@ -48,6 +48,7 @@ const processMessage = async (req, res) => {
         }
 
         const userId = req.user?.userId;
+        const chatId = chat_id || req.session.chat_id;
         const chatHistory = req.session?.chatHistory || [];
 
         const response = await callPythonChatbot(message, userId, chatHistory);
@@ -64,12 +65,14 @@ const processMessage = async (req, res) => {
             message,
             timestamp: new Date().toISOString()
         });
+        req.session.chat_id = chatId; // Store chat_id in session for later use
 
-        // Store chat in database
+        // Store chat in database using user_id and chat_id
         const connection = await mysql.createConnection(dbConfig);
         await connection.execute(
-            'INSERT INTO chat_logs (timestamp, user_message, bot_response, session_id, feedback) VALUES (?, ?, ?, ?, NULL)',
-            [new Date(), message, response.message, req.sessionID]
+            'INSERT INTO chat_logs (timestamp, user_message, bot_response, feedback, query_score, relevance_score, user_id, chat_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+
+            [new Date(), message, response.message, null, response.query_score || null, response.relevance_score || null, userId, chatId]
         );
         await connection.end();
 
@@ -101,12 +104,41 @@ const getChatHistory = (req, res) => {
 };
 
 // Clear chat history
-const clearChatHistory = (req, res) => {
+const clearChatHistory = async (req, res) => {
     req.session.chatHistory = [];
-    res.json({
-        success: true,
-        message: 'Chat history cleared'
-    });
+    try {
+        const userId = req.user?.userId;
+        const chatId = req.body.chat_id || req.session.chat_id;
+        console.log('ClearChatHistory called with:', { userId, chatId });
+        if (!userId || !chatId) {
+            console.error('Missing userId or chatId:', { userId, chatId });
+            return res.status(400).json({
+                success: false,
+                message: 'userId and chatId are required to clear chat history',
+                userId,
+                chatId
+            });
+        }
+        const connection = await mysql.createConnection(dbConfig);
+        const [result] = await connection.execute(
+            'DELETE FROM chat_logs WHERE user_id = ? AND chat_id = ?',
+            [userId, chatId]
+        );
+        console.log('Rows affected by delete:', result.affectedRows);
+        await connection.end();
+        res.json({
+            success: true,
+            message: 'Chat history cleared from session and database',
+            deleted: result.affectedRows
+        });
+    } catch (error) {
+        console.error('Error clearing chat history:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Error clearing chat history',
+            error: error.message
+        });
+    }
 };
 
 // Handle feedback from user

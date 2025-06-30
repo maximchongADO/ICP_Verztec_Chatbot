@@ -11,8 +11,6 @@ function handleKeyPress(event) {
   }
 }
 
-
-
 // Add these new variables at the top of the file with other global variables
 let currentSpeechText = null;
 let isCurrentlySpeaking = false;
@@ -211,13 +209,26 @@ async function callChatbotAPI(message,
 
 // Add function to clear chat history
 async function clearChatHistory() {
+  // Use actual user_id and chat_id logic if available
+  const user_id = localStorage.getItem("userId") || "defaultUser";
+  const chat_id = 'chat123'; // Replace with your actual chat ID logic or retrieve dynamically
   try {
     const response = await fetch("/api/chatbot/history", {
-      method: "DELETE",
+      method: "POST", // Use POST to allow a body
       headers: {
+        "Content-Type": "application/json",
         Authorization: `Bearer ${token}`,
       },
+      body: JSON.stringify({ user_id, chat_id })
     });
+
+    let result;
+    try {
+      result = await response.json();
+    } catch (jsonErr) {
+      // If not JSON, fallback to text
+      result = await response.text();
+    }
 
     if (response.ok) {
       // Clear session storage
@@ -233,36 +244,25 @@ async function clearChatHistory() {
             Feel free to ask me anything!
           </p>
           <div class="suggestions">
-            <div
-              class="suggestion"
-              onclick="sendSuggestion('How can I reset my password?')"
-            >
-              How can I reset my password?
-            </div>
-            <div
-              class="suggestion"
-              onclick="sendSuggestion('What are the office hours?')"
-            >
-              What are the office hours?
-            </div>
-            <div
-              class="suggestion"
-              onclick="sendSuggestion('How do I submit a support ticket?')"
-            >
-              How do I submit a support ticket?
-            </div>
-            <div
-              class="suggestion"
-              onclick="sendSuggestion('Where can I find company policies?')"
-            >
-              Where can I find company policies?
-            </div>
+            <div class="suggestion" onclick="sendSuggestion('How can I reset my password?')">How can I reset my password?</div>
+            <div class="suggestion" onclick="sendSuggestion('What are the office hours?')">What are the office hours?</div>
+            <div class="suggestion" onclick="sendSuggestion('How do I submit a support ticket?')">How do I submit a support ticket?</div>
+            <div class="suggestion" onclick="sendSuggestion('Where can I find company policies?')">Where can I find company policies?</div>
           </div>
         </div>
       `;
+    } else {
+      let errorMsg = 'Unknown error';
+      if (typeof result === 'object' && result !== null && result.message) {
+        errorMsg = result.message;
+      } else if (typeof result === 'string') {
+        errorMsg = result;
+      }
+      alert('Failed to clear chat: ' + errorMsg);
     }
   } catch (error) {
     console.error("Error clearing chat history:", error);
+    alert('Error clearing chat history: ' + error.message);
   }
 }
 
@@ -822,4 +822,31 @@ document.addEventListener("DOMContentLoaded", function () {
   tryPopulateProfile();
   // ...existing code...
 });
+
+// Show the confirmation popup for clearing chat
+function showClearChatConfirmPopup() {
+  const popup = document.getElementById("clearChatConfirmPopup");
+  if (popup) popup.style.display = "flex";
+}
+// Hide the confirmation popup
+function hideClearChatConfirmPopup() {
+  const popup = document.getElementById("clearChatConfirmPopup");
+  if (popup) popup.style.display = "none";
+}
+
+// Attach popup logic on DOMContentLoaded
+window.addEventListener("DOMContentLoaded", function () {
+  const clearBtn = document.getElementById("confirmClearChatBtn");
+  const cancelBtn = document.getElementById("cancelClearChatBtn");
+  if (clearBtn) clearBtn.onclick = function() {
+    hideClearChatConfirmPopup();
+    clearChatHistory();
+  };
+  if (cancelBtn) cancelBtn.onclick = hideClearChatConfirmPopup;
+});
+
+// Replace sidebar clear chat click to show popup
+function triggerClearChat() {
+  showClearChatConfirmPopup();
+}
 

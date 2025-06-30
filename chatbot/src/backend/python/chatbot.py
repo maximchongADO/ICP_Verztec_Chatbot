@@ -38,7 +38,7 @@ logger = logging.getLogger(__name__)
 
 # Initialize models and clients
 embedding_model = SentenceTransformer('BAAI/bge-large-en-v1.5')
-api_key = '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'
+api_key = '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'
 
 model = "deepseek-r1-distill-llama-70b" 
 deepseek = ChatGroq(api_key=api_key, model=model) # type: ignore
@@ -112,51 +112,6 @@ except Exception as e:
     logger.error(f"Failed to load spacymodel:  {str(e)}", exc_info=True)
   
 
-def store_chat_log(user_message, bot_response, session_id,
-                   query_score, relevance_score):
-    conn = mysql.connector.connect(**DB_CONFIG)
-    session_id = str(uuid.uuid4()) if session_id is None else session_id
-    cursor = conn.cursor()
-
-    timestamp = datetime.utcnow()
-
-    insert_query = '''
-        INSERT INTO chat_logs (timestamp, user_message, bot_response,
-                               query_score, relevance_score)
-        VALUES (%s, %s, %s, %s, %s)
-    '''  # ─────────── five placeholders ──────────^
-
-    cursor.execute(
-        insert_query,
-        (timestamp, user_message, bot_response,
-         query_score, relevance_score)          # five values
-    )
-    conn.commit()
-    logger.info("Stored chat log for session %s at %s", session_id, timestamp)
-
-    cursor.close()
-    conn.close()
-
-# for stroing with user and chat id 
-def store_chat_log_updated(user_message, bot_response, query_score, relevance_score,chat_id, user_id):
-    conn = mysql.connector.connect(**DB_CONFIG)
-    cursor = conn.cursor()
-    
-
-    timestamp = datetime.utcnow()
-
-    insert_query = '''
-        INSERT INTO chat_logs (timestamp, user_message, bot_response, feedback,query_score, relevance_score,user_id ,chat_id)
-        VALUES (%s, %s, %s, %s, %s, %s)
-    '''
-    cursor.execute(insert_query, (timestamp, user_message, bot_response,query_score, relevance_score,user_id,chat_id))
-    conn.commit()
-    logger.info("Stored chat log for session %s %s at %s", user_id, chat_id, timestamp)
-
-    cursor.close()
-    conn.close()
-    
-    
 def store_chat_log_updated(user_message, bot_response, query_score, relevance_score, chat_id, user_id):
     conn = mysql.connector.connect(**DB_CONFIG)
     cursor = conn.cursor()

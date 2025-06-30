@@ -13,6 +13,12 @@ const chatbotRoute = (app) => {
     authenticateToken,
     chatbotController.getChatHistory
   );
+  // Support POST for clearing chat history (for frontend compatibility)
+  app.post(
+    "/api/chatbot/history",
+    authenticateToken,
+    chatbotController.clearChatHistory
+  );
   app.delete(
     "/api/chatbot/history",
     authenticateToken,
