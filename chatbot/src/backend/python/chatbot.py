@@ -10,8 +10,8 @@ import numpy as np
 import mysql.connector
 import spacy
 from spacy.matcher import PhraseMatcher
-from typing import List, Optional
-import os
+from typing import List
+from dotenv import load_dotenv
 from sentence_transformers import SentenceTransformer
 from transformers import AutoModelForSeq2SeqLM, AutoTokenizer
 from langchain.tools import tool
@@ -25,15 +25,22 @@ from langchain.embeddings import HuggingFaceEmbeddings
 from langchain_community.vectorstores import FAISS
 import uuid
 from memory_retrieval import build_memory_from_results, retrieve_user_messages_and_scores
+from langchain.retrievers import ContextualCompressionRetriever
+from langchain.llms import HuggingFaceHub 
+from sentence_transformers import CrossEncoder
+from langchain.schema import BaseRetriever
+# Load reranker model locally
 
 
 # Set up logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
 
+
 # Initialize models and clients
 embedding_model = SentenceTransformer('BAAI/bge-large-en-v1.5')
-api_key = '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'
+load_dotenv()
+api_key = os.getenv("GROQ_API_KEY")
 
 model = "deepseek-r1-distill-llama-70b" 
 deepseek = ChatGroq(api_key=api_key, model=model) # type: ignore
@@ -59,6 +66,7 @@ DB_CONFIG = {
 try:
     script_dir = os.path.dirname(os.path.abspath(__file__))
     faiss_index_path = os.path.join(script_dir, "faiss_master_index")
+    faiss_index_path2=os.path.join(script_dir, "faiss_GK_index")
     
     if not os.path.exists(faiss_index_path):
         raise FileNotFoundError(f"FAISS index not found at {faiss_index_path}")
@@ -74,7 +82,14 @@ try:
         embedding_model,
         allow_dangerous_deserialization=True
     )
+    
+    index2=  FAISS.load_local(
+        faiss_index_path2,
+        embedding_model,
+        allow_dangerous_deserialization=True
+    )
     logger.info("FAISS index loaded successfully on CPU")
+    
 except Exception as e:
     logger.error(f"Failed to load FAISS index: {str(e)}", exc_info=True)
     index = None
@@ -92,55 +107,32 @@ try:
     patterns = [nlp.make_doc(text) for text in casual_phrases]
     tokenizer = AutoTokenizer.from_pretrained("pszemraj/flan-t5-large-grammar-synthesis")
     model = AutoModelForSeq2SeqLM.from_pretrained("pszemraj/flan-t5-large-grammar-synthesis")
+    reranker_model = CrossEncoder("BAAI/bge-reranker-large")  # will auto-download once
     matcher.add("CASUAL", patterns)
     logger.info("SpaCy model and matcher initialized successfully")
 except Exception as e:
     logger.error(f"Failed to load spacymodel:  {str(e)}", exc_info=True)
   
 
-def store_chat_log(user_message, bot_response, session_id,
-                   query_score, relevance_score):
+def store_chat_log_updated(user_message, bot_response, query_score, relevance_score, chat_id, user_id):
     conn = mysql.connector.connect(**DB_CONFIG)
-    session_id = str(uuid.uuid4()) if session_id is None else session_id
     cursor = conn.cursor()
 
     timestamp = datetime.utcnow()
+    feedback = None  # placeholder if no feedback given
 
     insert_query = '''
-        INSERT INTO chat_logs (timestamp, user_message, bot_response,
-                               query_score, relevance_score)
-        VALUES (%s, %s, %s, %s, %s)
-    '''  # ─────────── five placeholders ──────────^
-
-    cursor.execute(
-        insert_query,
-        (timestamp, user_message, bot_response,
-         query_score, relevance_score)          # five values
-    )
-    conn.commit()
-    logger.info("Stored chat log for session %s at %s", session_id, timestamp)
-
-    cursor.close()
-    conn.close()
-
-# for stroing with user and chat id 
-def store_chat_log_updated(user_message, bot_response, query_score, relevance_score,chat_id, user_id):
-    conn = mysql.connector.connect(**DB_CONFIG)
-    cursor = conn.cursor()
-    
-
-    timestamp = datetime.utcnow()
-
-    insert_query = '''
-        INSERT INTO chat_logs (timestamp, user_message, bot_response, feedback,query_score, relevance_score,user_id ,chat_id)
-        VALUES (%s, %s, %s, %s, %s, %s)
+        INSERT INTO chat_logs (timestamp, user_message, bot_response, feedback, query_score, relevance_score, user_id, chat_id)
+        VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
     '''
-    cursor.execute(insert_query, (timestamp, user_message, bot_response,query_score, relevance_score,user_id,chat_id))
+    cursor.execute(insert_query, (timestamp, user_message, bot_response, feedback, query_score, relevance_score, user_id, chat_id))
     conn.commit()
     logger.info("Stored chat log for session %s %s at %s", user_id, chat_id, timestamp)
 
     cursor.close()
     conn.close()
+    
+    
     
 # checking how alike a query the users question is
 def is_query_score(text: str) -> float:
@@ -287,11 +279,84 @@ def append_sources(cleaned_response: str, docs: list) -> str:
     return cleaned_response.strip() + source_block
 
 
-def generate_answer(user_query: str, chat_history: ConversationBufferMemory):
+retr_direct  = index.as_retriever(search_kwargs={"k": 8})
+retr_bg      = index2.as_retriever(   search_kwargs={"k": 20})
+
+cross_encoder = CrossEncoder("BAAI/bge-reranker-large")
+
+
+
+from pydantic import Field, ConfigDict
+
+class HybridRetriever(BaseRetriever):
+    # ---- Pydantic-declared fields --------------------------------
+    retr_direct: BaseRetriever
+    retr_bg: BaseRetriever
+    cross_encoder: object
+
+    top_k_direct: int = 8
+    top_k_bg: int     = 20
+    top_k_final: int  = 10
+    
+    KEEP_BG_IF_DIRECT_WINS: int = 2   # when direct is stronger
+    KEEP_BG_IF_BG_WINS:     int = 5   # when BG is clearly stronger
+
+
+    MARGIN: float = 0.1              # e.g. BG needs to be 0.05 better
+
+    model_config = ConfigDict(arbitrary_types_allowed=True)
+    
+    # --------------------------------------------------------------
+
+    # optional: keep __init__ if you want positional kwargs, but not required
+    # Pydantic will auto-generate one using the type hints above.
+
+    def _best_score(self, docs: List[Document]) -> float:
+        return max((getattr(d, "score", 0.0) for d in docs), default=0.0)
+
+    def get_relevant_documents(self, query: str) -> List[Document]:
+        direct_docs = self.retr_direct.get_relevant_documents(query, k=self.top_k_direct)
+        bg_docs = self.retr_bg.get_relevant_documents(query, k=self.top_k_bg)
+
+        best_d = self._best_score(direct_docs)
+        best_b = self._best_score(bg_docs)
+
+
+        # -------- selection logic -----------------------------
+        if best_b >= best_d + self.MARGIN:
+            # BG is clearly better
+            selected_dir = direct_docs[: max(self.MIN_DIRECT, 1)]
+            selected_bg  = bg_docs[: self.KEEP_BG_IF_BG_WINS]
+        else:
+            # Direct wins (or scores are close)
+            selected_dir = direct_docs                       # keep ALL direct
+            selected_bg  = bg_docs[: self.KEEP_BG_IF_DIRECT_WINS]
+
+        seen = {id(d) for d in direct_docs}
+        return direct_docs + [d for d in selected_bg if id(d) not in seen]
+    
+    
+    async def aget_relevant_documents(self, query: str) -> List[Document]:
+        return self.get_relevant_documents(query)
+    
+    
+# Initialize the hybrid retriever
+hybrid_retriever_obj = HybridRetriever(
+                retr_direct=retr_direct,
+                retr_bg=retr_bg,
+                cross_encoder=cross_encoder,
+                top_k_direct=8,
+                top_k_bg=20,
+                top_k_final=5
+            )
+
+
+def generate_answer(user_query: str, chat_history: ConversationBufferMemory ):
     """
     Returns a tuple: (answer_text, image_list)
     """
     session_id = str(uuid.uuid4())
+    cleaned_answer = ""  # Ensure cleaned_answer is always defined
     try:
         total_start_time = time.time()  # Start timing for the whole query
 
@@ -300,24 +365,35 @@ def generate_answer(user_query: str, chat_history: ConversationBufferMemory):
         # Chain the Groq model with the parser
         deepseek_chain = deepseek | parser
         
+        
+        
+        ## INCASE HAVE TO SWITCH BACK TO SINGLE RETRIEVER 
+        #  THIS HAS NO GENERAL KNOWLEDGE RETRIEVER
         retriever = index.as_retriever(
             search_type="similarity",
             search_kwargs={"k": 10}
         )
+        
+        
+        
+        
         avg_score = get_avg_score(index, embedding_model, user_query)
+        avg_score_gk = get_avg_score(index2, embedding_model, user_query)
+        
+        
         
         
         ## QA chain setup with mrmory 
         qa_chain = ConversationalRetrievalChain.from_llm(
             llm=deepseek_chain,
-            retriever=retriever,
+            retriever=hybrid_retriever_obj,
             memory=chat_history,
             return_source_documents=True,
             output_key="answer"
         )
         logger.info(memory)
     
-    
+        
         # Refine query
        
         clean_query = clean_with_grammar_model(user_query)
@@ -327,6 +403,15 @@ def generate_answer(user_query: str, chat_history: ConversationBufferMemory):
         results = index.similarity_search_with_score(clean_query, k=5)
         scores = [score for _, score in results]
         avg_score = float(np.mean(scores)) if scores else 1.0
+        
+        
+        results_gk = index2.similarity_search_with_score(clean_query, k=5)
+        scores_gk = [score for _, score in results_gk]
+        avg_score_gk = float(np.mean(scores_gk)) if scores_gk else 1.0
+        logger.info(f"Average score for GK index: {avg_score_gk:.4f}")
+        
+        
+        
         seen = set()
         unique_docs = []
 
@@ -341,35 +426,37 @@ def generate_answer(user_query: str, chat_history: ConversationBufferMemory):
         
         ## retrieving images from top 3 chunks (if any)
         # Retrieve images from top 3 chunks (if any)
-        top_3_img = []
-        sources_set = set()
-        sources_list = []
-        top_docs = []
-        seen_contents = set()
+        THRESHOLD      = 0.70          # keep docs whose score < threshold   (lower L2 → more similar)
+        MAX_IMAGES     = 3             # cap images
+        sources_set    = set()         # remember unique source filenames
+        sources_list   = []            # ordered list of unique sources
+        seen_contents  = set()         # avoid duplicate page_content
+        top_docs       = []            # docs we actually keep
+        top_3_img      = []            # up to 3 image paths / URLs
 
         for doc, score in results:
-            if score < 0.7:
-                # Use the filename or document name as the source
-                source = doc.metadata.get('source')
-                if source and source not in sources_set:
-                    sources_set.add(source)
-                    sources_list.append(source)
+            if score >= THRESHOLD:      # skip weak matches
+                continue
 
-                # Track unique docs (based on content) for appending source metadata later
-                if doc.page_content not in seen_contents:
-                    seen_contents.add(doc.page_content)
-                    top_docs.append(doc)
+            # ---- source handling ------------------------------------
+            src = doc.metadata.get("source")
+            if src and src not in sources_set:
+                sources_set.add(src)
+                sources_list.append(src)
 
-                # Add up to 3 images only
-                images = doc.metadata.get('images', [])
-                for img in images:
-                    if len(top_3_img) < 3:
-                        top_3_img.append(img)
-                    else:
+            # ---- unique doc content ---------------------------------
+            if doc.page_content not in seen_contents:
+                seen_contents.add(doc.page_content)
+                top_docs.append(doc)
+
+            # ---- gather up to 3 images ------------------------------
+            if len(top_3_img) < MAX_IMAGES:
+                for img in doc.metadata.get("images", []):
+                    top_3_img.append(img)
+                    if len(top_3_img) >= MAX_IMAGES:
                         break
 
-                if len(top_3_img) >= 3:
-                    break
+                    
 
 
             # Ensures a flat list of strings
@@ -432,6 +519,7 @@ def generate_answer(user_query: str, chat_history: ConversationBufferMemory):
             if len(memory.chat_memory.messages) > 2 * MAX_TURNS:
                 memory.chat_memory.messages = memory.chat_memory.messages[-2 * MAX_TURNS:]
             store_chat_log(user_message=user_query, bot_response=cleaned_fallback, session_id=session_id, query_score=is_task_query, relevance_score=avg_score)
+            #store_chat_log_updated(user_message=user_query, bot_response=cleaned_fallback, query_score=is_task_query, relevance_score=avg_score, user_id=user_id, chat_id=chat_id)
     
             return cleaned_fallback, top_3_img
         
@@ -446,6 +534,7 @@ def generate_answer(user_query: str, chat_history: ConversationBufferMemory):
             "You will only use the provided documents in your response. "
             "If the query is out of scope, say so. "
             "If there are any image tags or screenshots mentioned in the documents, "
+            "IF QUERY SHOULD BE ESCALATED TO HR, RESPOND WITH <ESCALATE> "
             "please reference them in your response where appropriate, such as 'See Screenshot 1' or 'Refer to the image above'.\n\n"
             + clean_query
         )
@@ -454,6 +543,8 @@ def generate_answer(user_query: str, chat_history: ConversationBufferMemory):
         response = qa_chain.invoke({"question": modified_query})
         qa_elapsed_time = time.time() - qa_start_time
         raw_answer = response['answer']
+        source_docs = response['source_documents']
+        logger.info(f"Source docs from QA chain: {source_docs}")
         logger.info(f"Full response before cleanup: {raw_answer} (QA chain time taken: {qa_elapsed_time:.2f}s)")
         
         # Clean the chat memory to keep it manageable
@@ -543,6 +634,8 @@ def generate_answer_histoy_retrieval(user_query: str, user_id:str, chat_id:str):
     """
     
     key = f"{user_id}_{chat_id}"  # Use a separator to avoid accidental key collisions
+    logger.info(f"Retrieving memory for key: {key}")
+    logger.info(f"User ID: {user_id}, Chat ID: {chat_id}")
 
     if key in memory_store:
         chat_history = memory_store[key]
@@ -568,13 +661,14 @@ def generate_answer_histoy_retrieval(user_query: str, user_id:str, chat_id:str):
             search_type="similarity",
             search_kwargs={"k": 10}
         )
-        avg_score = get_avg_score(index, embedding_model, user_query)
+        
+        
         
         
         ## QA chain setup with mrmory 
         qa_chain = ConversationalRetrievalChain.from_llm(
             llm=deepseek_chain,
-            retriever=retriever,
+            retriever=hybrid_retriever_obj,
             memory=chat_history,
             return_source_documents=True,
             output_key="answer"
@@ -605,35 +699,35 @@ def generate_answer_histoy_retrieval(user_query: str, user_id:str, chat_id:str):
         
         ## retrieving images from top 3 chunks (if any)
         # Retrieve images from top 3 chunks (if any)
-        top_3_img = []
-        sources_set = set()
-        sources_list = []
-        top_docs = []
-        seen_contents = set()
+        THRESHOLD      = 0.70          # keep docs whose score < threshold   (lower L2 → more similar)
+        MAX_IMAGES     = 3             # cap images
+        sources_set    = set()         # remember unique source filenames
+        sources_list   = []            # ordered list of unique sources
+        seen_contents  = set()         # avoid duplicate page_content
+        top_docs       = []            # docs we actually keep
+        top_3_img      = []            # up to 3 image paths / URLs
 
         for doc, score in results:
-            if score < 0.7:
-                # Use the filename or document name as the source
-                source = doc.metadata.get('source')
-                if source and source not in sources_set:
-                    sources_set.add(source)
-                    sources_list.append(source)
+            if score >= THRESHOLD:      # skip weak matches
+                continue
 
-                # Track unique docs (based on content) for appending source metadata later
-                if doc.page_content not in seen_contents:
-                    seen_contents.add(doc.page_content)
-                    top_docs.append(doc)
+            # ---- source handling ------------------------------------
+            src = doc.metadata.get("source")
+            if src and src not in sources_set:
+                sources_set.add(src)
+                sources_list.append(src)
 
-                # Add up to 3 images only
-                images = doc.metadata.get('images', [])
-                for img in images:
-                    if len(top_3_img) < 3:
-                        top_3_img.append(img)
-                    else:
+            # ---- unique doc content ---------------------------------
+            if doc.page_content not in seen_contents:
+                seen_contents.add(doc.page_content)
+                top_docs.append(doc)
+
+            # ---- gather up to 3 images ------------------------------
+            if len(top_3_img) < MAX_IMAGES:
+                for img in doc.metadata.get("images", []):
+                    top_3_img.append(img)
+                    if len(top_3_img) >= MAX_IMAGES:
                         break
-
-                if len(top_3_img) >= 3:
-                    break
 
 
             # Ensures a flat list of strings
@@ -696,7 +790,7 @@ def generate_answer_histoy_retrieval(user_query: str, user_id:str, chat_id:str):
             if len(memory.chat_memory.messages) > 2 * MAX_TURNS:
                 memory.chat_memory.messages = memory.chat_memory.messages[-2 * MAX_TURNS:]
             #store_chat_log(user_message=user_query, bot_response=cleaned_fallback, session_id=session_id, query_score=is_task_query, relevance_score=avg_score)
-            store_chat_log_updated(user_message=user_query, bot_response=cleaned_answer, query_score=is_task_query, relevance_score=avg_score, user_id=user_id, chat_id=chat_id)
+            store_chat_log_updated(user_message=user_query, bot_response=cleaned_fallback, query_score=is_task_query, relevance_score=avg_score, user_id=user_id, chat_id=chat_id)
     
             return cleaned_fallback, top_3_img
         
@@ -734,9 +828,11 @@ def generate_answer_histoy_retrieval(user_query: str, user_id:str, chat_id:str):
 
         # Check if full <think> block exists
         has_think_block = bool(think_block_pattern.search(raw_answer))
+        logger.info(f"Has full <think> block: {has_think_block}")
 
         # Clean the <think> block regardless
         cleaned_answer = think_block_pattern.sub("", raw_answer).strip()
+        logger.info(f"Cleaned answer after removing <think> block: {cleaned_answer}")
         has_tag = False
         import concurrent.futures
 
@@ -783,10 +879,11 @@ def generate_answer_histoy_retrieval(user_query: str, user_id:str, chat_id:str):
             i += 1
         ## one last cleanup to ensure no <think> tags remain
         # Remove any remaining <think> tagsbetter have NO MOR NO MORE NO MO NO MOMRE 
+    
         cleaned_answer = re.sub(r"</?think>", "", cleaned_answer).strip()
         cleaned_answer = re.sub(r"</?think>", "", cleaned_answer).strip()
         cleaned_answer = re.sub(r'[\*#]+', '', cleaned_answer).strip()
-
+        
     
         store_chat_log_updated(user_message=user_query, bot_response=cleaned_answer, query_score=is_task_query, relevance_score=avg_score, user_id=user_id, chat_id=chat_id)##brian u need to update sql for this to work
         # also need to update the store_chat_bot method, to incoude user id and chat id

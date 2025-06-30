@@ -37,8 +37,9 @@ app.add_middleware(
 
 class ChatRequest(BaseModel):
     message: str
-    user_id: Optional[str] = None
     chat_history: Optional[List[str]] = []
+    user_id: Optional[str] = None
+    chat_id: Optional[str] = None
 
 class ChatResponse(BaseModel):
     message: str
@@ -92,7 +93,7 @@ async def history_retreival(request: Request):
     return JSONResponse(content=results)
 
 @app.post('/chatbot_avatar')
-async def avataer_endpoint(request:ChatRequest):
+async def avatar_endpoint(request:ChatRequest):
     logger.info(f"Received chat request: {request}")
     try:
         if not request.message.strip():
@@ -101,9 +102,9 @@ async def avataer_endpoint(request:ChatRequest):
         if index is None:
             raise HTTPException(status_code=503, detail="Search index is not available")
         
-        response_message, image_list = generate_answer(request.message, memory)
-        # response_message, image_list= generate_answer_histoy_retrieval(request.message , request.user_id, request.chat_id)
-        logger.info(f"Generated response: {response_message}")
+        #response_message, image_list = generate_answer(request.message, memory)
+        response_message, image_list= generate_answer_histoy_retrieval(request.message , request.user_id, request.chat_id)
+        logger.info(f"Generated response:S {response_message}")
         logger.info(f"Image list: {image_list}")
         
         
@@ -138,8 +139,8 @@ async def chat_endpoint(request: ChatRequest):
         if index is None:
             raise HTTPException(status_code=503, detail="Search index is not available")
         
-        response_message, image_list = generate_answer(request.message, memory)
-        # response_message, image_list= generate_answer_histoy_retrieval(request.message , request.user_id, request.chat_id)
+        response_message, image_list = generate_answer_histoy_retrieval(request.message, request.user_id, request.chat_id)
+        #response_message, image_list= generate_answer_histoy_retrieval(request.message , request.user_id, request.chat_id)
         logger.info(f"Generated response: {response_message}")
         logger.info(f"Image list: {image_list}")
         

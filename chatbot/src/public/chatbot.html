@@ -25,7 +25,7 @@
         </div>
         <!-- Main menu -->
         <nav class="sidebar-nav">
-          <div class="nav-item" onclick="clearChatHistory()">
+          <div class="nav-item" onclick="triggerClearChat()">
             <svg viewBox="0 0 24 24">
               <path d="M3 6h18M8 6V4a2 2 0 012-2h4a2 2 0 012 2v2m3 0v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6h14zM10 11v6M14 11v6"/>
             </svg>
@@ -129,6 +129,19 @@
 
     <!-- Copy notification popup -->
     <div id="copyPopup" class="copy-popup">Message copied to clipboard</div>
+
+    <!-- Confirmation Popup for Clearing Chat -->
+    <div id="clearChatConfirmPopup" class="popup-overlay" style="display:none;">
+      <div class="popup-dialog">
+        <div class="popup-title">Clear Conversation?</div>
+        <div class="popup-message">Are you sure you want to clear the entire conversation? This action cannot be undone.</div>
+        <div class="popup-actions">
+          <button id="confirmClearChatBtn" class="popup-btn popup-btn-danger">Yes, clear</button>
+          <button id="cancelClearChatBtn" class="popup-btn">Cancel</button>
+        </div>
+      </div>
+    </div>
+    <!-- End Confirmation Popup -->
 
     <script src="/scripts/chatbot.js"></script>
     <script>

@@ -35,9 +35,14 @@ def retrieve_user_messages_and_scores(User_id, chat_id):
 
 def build_memory_from_results(results):
     # Sort results by timestamp descending and take top 10
+    def parse_timestamp(ts):
+        try:
+            return datetime.strptime(ts, "%Y-%m-%d %H:%M:%S")
+        except ValueError:
+            return datetime.strptime(ts, "%Y-%m-%dT%H:%M:%S")
     sorted_results = sorted(
         results,
-        key=lambda x: datetime.strptime(x["timestamp"], "%Y-%m-%d %H:%M:%S"),
+        key=lambda x: parse_timestamp(x["timestamp"]),
         reverse=True
     )[:10]
 
@@ -58,5 +63,28 @@ def build_memory_from_results(results):
         memory.chat_memory.messages.append(AIMessage(content=bot_msg))
 
     return memory
+## DELETES WHOLE CHAT CAREFUL WHEN CALLING THIS 
+def delete_messages_by_user_and_chat(User_id, chat_id):
+    conn = mysql.connector.connect(**DB_CONFIG)
+    cursor = conn.cursor()
+
+    delete_query = '''
+        DELETE FROM chat_logs
+        WHERE user_id = %s AND chat_id = %s
+    '''
+
+    cursor.execute(delete_query, (User_id, chat_id))
+    conn.commit()
+
+    cursor.close()
+    conn.close()
+    
+    
+    
 if __name__=='__main__':
-    print('moew')
+    delete_messages_by_user_and_chat("2", "chat123")
+    
+    r= retrieve_user_messages_and_scores("2", "chat123")
+    for each in r:
+        print("-" * 20)
+        print(f"Timestamp: {each['timestamp']}, \n\nUser: {each['user_message']},\n\nBot: {each['bot_response']}, \n\nQuery Score: {each['query_score']}, Relevance Score: {each['relevance_score']}")
