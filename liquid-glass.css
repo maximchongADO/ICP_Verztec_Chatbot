@@ -1,0 +1,43 @@
+/* Liquid Glass Effect for iOS 16+ look */
+
+.liquid-glass,
+.liquid-glass-btn,
+.liquid-glass-input,
+.liquid-glass-sidebar-btn {
+  background: rgba(255, 255, 255, 0.25);
+  border-radius: 16px;
+  box-shadow: 0 4px 24px 0 rgba(0,0,0,0.07);
+  backdrop-filter: blur(16px) saturate(180%);
+  -webkit-backdrop-filter: blur(16px) saturate(180%);
+  border: 1px solid rgba(255,255,255,0.3);
+  transition: background 0.2s, border 0.2s;
+  color: #222;
+}
+
+/* Dark mode support */
+@media (prefers-color-scheme: dark) {
+  .liquid-glass,
+  .liquid-glass-btn,
+  .liquid-glass-input,
+  .liquid-glass-sidebar-btn {
+    background: rgba(30, 30, 30, 0.35);
+    border: 1px solid rgba(255,255,255,0.12);
+    color: #f5f5f7;
+  }
+}
+
+/* Optional: subtle hover/focus effect */
+.liquid-glass-btn:hover,
+.liquid-glass-sidebar-btn:hover,
+.liquid-glass-input:focus {
+  background: rgba(255,255,255,0.35);
+  border: 1.5px solid rgba(255,255,255,0.5);
+}
+@media (prefers-color-scheme: dark) {
+  .liquid-glass-btn:hover,
+  .liquid-glass-sidebar-btn:hover,
+  .liquid-glass-input:focus {
+    background: rgba(50,50,50,0.45);
+    border: 1.5px solid rgba(255,255,255,0.18);
+  }
+}

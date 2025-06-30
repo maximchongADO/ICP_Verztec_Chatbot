@@ -1,10 +1,12 @@
 .App {
   text-align: center;
+  border-radius: 0 !important;
 }
 
 .App-logo {
   height: 40vmin;
   pointer-events: none;
+  border-radius: 0 !important;
 }
 
 @media (prefers-reduced-motion: no-preference) {
@@ -22,6 +24,7 @@
   justify-content: center;
   font-size: calc(10px + 2vmin);
   color: white;
+  border-radius: 0 !important;
 }
 
 .App-link {
