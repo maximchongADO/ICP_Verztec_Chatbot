@@ -2,7 +2,7 @@ import { createContext, useContext, useEffect, useState } from "react";
 
 const ChatContext = createContext(); // <-- Add this line
 
-const backendUrl = process.env.REACT_APP_API_URL || "http://localhost:8000";
+const backendUrl = "http://localhost:3000";
 export const ChatProvider = ({ children }) => {
   const [messages, setMessages] = useState([]);
   const [message, setMessage] = useState();
