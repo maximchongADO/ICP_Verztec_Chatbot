@@ -30,6 +30,12 @@ const chatbotRoute = (app) => {
     authenticateToken,
     chatbotController.handleFeedback
   );
+  // New Chat endpoint
+  app.post(
+    "/api/chatbot/newchat",
+    authenticateToken,
+    chatbotController.newChat
+  );
 };
 
 module.exports = chatbotRoute;
