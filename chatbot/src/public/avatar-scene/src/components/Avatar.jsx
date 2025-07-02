@@ -330,7 +330,7 @@ export function Avatar(props) {
       <skinnedMesh
         name="Wolf3D_Outfit_Bottom"
         geometry={nodes.Wolf3D_Outfit_Bottom.geometry}
-        material={materials.Wolf3D.Outfit_Bottom}
+        material={materials.Wolf3D_Outfit_Bottom}
         skeleton={nodes.Wolf3D_Outfit_Bottom.skeleton}
       />
       <skinnedMesh
