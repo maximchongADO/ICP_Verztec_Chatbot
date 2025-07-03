@@ -923,3 +923,77 @@ window.addEventListener("DOMContentLoaded", async function () {
   get_frequentmsg();
 });
 
+// Open profile modal
+function openProfileModal(event) {
+  event.stopPropagation();
+  const modal = document.getElementById("profileModal");
+  if (!modal) return;
+  // Populate user info
+  const user = getCurrentUser();
+  document.getElementById("modalProfileName").textContent = user?.username || "";
+  document.getElementById("modalProfileId").textContent = user?.id ? `User ID: ${user.id}` : "";
+  document.getElementById("modalProfileEmail").textContent = user?.email || "";
+  document.getElementById("modalProfileRole").textContent = user?.role || "";
+  // Render analytics
+  renderProfileAnalytics();
+  modal.style.display = "flex";
+  // Close on outside click
+  setTimeout(() => {
+    document.addEventListener("mousedown", closeProfileModalOnOutsideClick);
+  }, 0);
+}
+
+// Close profile modal
+function closeProfileModal() {
+  const modal = document.getElementById("profileModal");
+  if (modal) modal.style.display = "none";
+  document.removeEventListener("mousedown", closeProfileModalOnOutsideClick);
+}
+
+// Close modal if click outside dialog
+function closeProfileModalOnOutsideClick(e) {
+  const modal = document.getElementById("profileModal");
+  if (!modal) return;
+  const dialog = modal.querySelector(".profile-modal-dialog");
+  if (modal.style.display !== "none" && !dialog.contains(e.target)) {
+    closeProfileModal();
+  }
+}
+
+// Render analytics dashboard in modal
+function renderProfileAnalytics() {
+  const dashboard = document.getElementById("profileAnalyticsDashboard");
+  if (!dashboard) return;
+
+  // Show loading state
+  dashboard.innerHTML = `<div>Loading analytics...</div>`;
+
+  const user = getCurrentUser();
+  if (!user || !user.id) {
+    dashboard.innerHTML = `<div>Unable to load analytics.</div>`;
+    return;
+  }
+
+  fetch(`/api/users/analytics?userId=${encodeURIComponent(user.id)}`, {
+    headers: { Authorization: `Bearer ${localStorage.getItem("token")}` }
+  })
+    .then(res => res.ok ? res.json() : null)
+    .then(data => {
+      if (!data) {
+        dashboard.innerHTML = `<div>Unable to load analytics.</div>`;
+        return;
+      }
+      dashboard.innerHTML = `
+        <div><strong>Number of Chats:</strong> ${data.chatCount}</div>
+        <div><strong>Queries Sent:</strong> ${data.queryCount}</div>
+        <div><strong>Feedback Given:</strong> ${data.feedbackCount}</div>
+        <div><strong>Last Interaction:</strong> ${data.lastInteraction ? new Date(data.lastInteraction).toLocaleString() : 'N/A'}</div>
+        <div style="margin-top:10px;color:#a08a3c;font-size:0.97em;">(Analytics are based on your chat history)</div>
+        <div style="margin-top:8px;color:#888;font-size:0.95em;"><em>Click for more details</em></div>
+      `;
+    })
+    .catch(() => {
+      dashboard.innerHTML = `<div>Unable to load analytics.</div>`;
+    });
+}
+

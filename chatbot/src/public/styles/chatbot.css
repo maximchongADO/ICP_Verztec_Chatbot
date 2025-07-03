@@ -113,10 +113,8 @@ body {
   flex-direction: column;
   align-items: stretch;
   padding: 18px 24px 8px 24px;
-  border-bottom: 1px solid #e5e3dc;
   background: rgba(245, 244, 240, 0.85);
   color: #232323;
-  border-radius: 0;
   cursor: pointer;
   user-select: none;
   position: relative;
@@ -1237,4 +1235,186 @@ body {
   background: #232323;
 }
 
-/* ...existing code... */
+/* Profile Modal Overlay */
+.profile-modal-overlay {
+  position: fixed;
+  top: 0; left: 0; right: 0; bottom: 0;
+  background: rgba(0,0,0,0.45);
+  z-index: 2001;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  animation: fadeIn 0.2s;
+}
+
+.profile-modal-dialog {
+  background: #fff;
+  color: #232323;
+  border-radius: 22px;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.18);
+  padding: 36px 32px 32px 32px;
+  min-width: 340px;
+  max-width: 98vw;
+  width: 420px;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  animation: popup-fade-in 0.2s;
+}
+
+@keyframes popup-fade-in {
+  from { opacity: 0; transform: scale(0.97);}
+  to { opacity: 1; transform: scale(1);}
+}
+
+.profile-modal-close {
+  position: absolute;
+  top: 18px;
+  right: 22px;
+  background: none;
+  border: none;
+  font-size: 2rem;
+  color: #a08a3c;
+  cursor: pointer;
+  z-index: 2;
+  transition: color 0.2s;
+}
+.profile-modal-close:hover { color: #d4b24c; }
+
+.profile-modal-header {
+  display: flex;
+  align-items: center;
+  gap: 22px;
+  margin-bottom: 18px;
+  width: 100%;
+}
+.profile-modal-avatar img {
+  width: 64px;
+  height: 64px;
+  border-radius: 50%;
+  border: 2px solid #d4b24c;
+  background: #f7f6f2;
+  box-shadow: 0 2px 8px 0 rgba(255,215,0,0.08);
+}
+.profile-modal-info {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.profile-modal-name {
+  font-size: 1.25rem;
+  font-weight: 700;
+  color: #a08a3c;
+}
+.profile-modal-email {
+  font-size: 1rem;
+  color: #232323;
+  opacity: 0.85;
+}
+.profile-modal-role {
+  font-size: 1rem;
+  color: #d4b24c;
+  font-weight: 500;
+}
+
+.profile-modal-actions {
+  width: 100%;
+  display: flex;
+  justify-content: flex-end;
+  margin-bottom: 18px;
+}
+
+.profile-modal-analytics {
+  width: 100%;
+  background: #f7f6f2;
+  border-radius: 16px;
+  padding: 18px 18px 18px 18px;
+  margin-top: 8px;
+  box-shadow: 0 1px 8px 0 rgba(255,215,0,0.06);
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 0.5rem;
+}
+.profile-modal-analytics h3 {
+  color: #a08a3c;
+  font-size: 1.1rem;
+  margin-bottom: 10px;
+  font-weight: 700;
+}
+#goToAnalyticsBtn {
+  margin-top: 8px;
+  width: 100%;
+  font-size: 1.08rem;
+  padding: 12px 0;
+  border-radius: 12px;
+  background: #d4b24c;
+  color: #fff;
+  border: none;
+  transition: background 0.18s, color 0.18s;
+  cursor: pointer;
+}
+#goToAnalyticsBtn:hover,
+#goToAnalyticsBtn:focus {
+  background: #bfa000;
+  color: #fff;
+}
+
+/* Responsive */
+@media (max-width: 600px) {
+  .profile-modal-dialog {
+    width: 98vw;
+    min-width: 0;
+    padding: 18px 6px 18px 6px;
+  }
+  .profile-modal-header {
+    flex-direction: column;
+    gap: 10px;
+    align-items: center;
+  }
+}
+
+/* Dark mode overrides */
+[data-theme="dark"] .profile-modal-dialog {
+  background: #23272e;
+  color: #ffd700;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.32);
+}
+[data-theme="dark"] .profile-modal-close {
+  color: #ffd700;
+}
+[data-theme="dark"] .profile-modal-close:hover {
+  color: #ffe066;
+}
+[data-theme="dark"] .profile-modal-avatar img {
+  border-color: #ffd700;
+  background: #23272e;
+}
+[data-theme="dark"] .profile-modal-info .profile-modal-name {
+  color: #ffd700;
+}
+[data-theme="dark"] .profile-modal-info .profile-modal-role {
+  color: #ffd700;
+}
+[data-theme="dark"] .profile-modal-analytics {
+  background: #232323;
+  color: #ffd700;
+  box-shadow: 0 1px 8px 0 rgba(255,215,0,0.10);
+}
+[data-theme="dark"] #profileAnalyticsDashboard {
+  color: #ffd700;
+}
+.analytics-scroll-wrapper {
+  height: 100vh;
+  width: 100vw;
+  overflow-y: auto;
+  overflow-x: hidden;
+  background: linear-gradient(135deg, #f6f6f4 0%, #ecebe7 100%);
+  /* Hide scrollbar for all browsers */
+  scrollbar-width: none; /* Firefox */
+  -ms-overflow-style: none; /* IE and Edge */
+}
+.analytics-scroll-wrapper::-webkit-scrollbar {
+  display: none; /* Chrome, Safari, Opera */
+}
