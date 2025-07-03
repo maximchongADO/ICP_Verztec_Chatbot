@@ -35,8 +35,9 @@ function stopAvatarAnimation() {
 function sendMessage() {
   const input = document.getElementById("messageInput");
   const message = input.value.trim();
-  const user_id = localStorage.getItem("userId") || "defaultUser"; // Replace with actual user ID logic
-  const chat_id = 'chat123'; // Replace with actual chat ID logic
+  const user_id = localStorage.getItem("userId") || "defaultUser";
+  // Always use the latest chat_id from localStorage or sessionStorage
+  const chat_id = localStorage.getItem("chat_id") || sessionStorage.getItem("chat_id") || "chat123";
 
   if (!message) return;
 
@@ -61,10 +62,8 @@ function sendMessage() {
   setTimeout(() => updateTypingIndicatorStatus("Generating response..."), 2200);
   setTimeout(() => updateTypingIndicatorStatus("Finalizing..."), 3200);
 
-  // Call chatbot API
-  // this needs to be changed to take userid and chatid to enable changing history 
-  callChatbotAPI(message,user_id, chat_id)
-
+  // Call chatbot API with correct chat_id
+  callChatbotAPI(message, user_id, chat_id)
     .then((response) => {
       // Remove typing indicator
       hideTypingIndicator();
@@ -209,9 +208,9 @@ async function callChatbotAPI(message,
 
 // Add function to clear chat history
 async function clearChatHistory() {
-  // Use actual user_id and chat_id logic if available
   const user_id = localStorage.getItem("userId") || "defaultUser";
-  const chat_id = 'chat123'; // Replace with your actual chat ID logic or retrieve dynamically
+  // Always use the latest chat_id from localStorage or sessionStorage
+  const chat_id = localStorage.getItem("chat_id") || sessionStorage.getItem("chat_id") || "chat123";
   try {
     const response = await fetch("/api/chatbot/history", {
       method: "POST", // Use POST to allow a body
@@ -231,9 +230,7 @@ async function clearChatHistory() {
     }
 
     if (response.ok) {
-      // Clear session storage
       sessionStorage.removeItem("chatHistory");
-
       // Clear chat messages on screen and show welcome message
       const chatMessages = document.getElementById("chatMessages");
       chatMessages.innerHTML = `
@@ -849,4 +846,80 @@ window.addEventListener("DOMContentLoaded", function () {
 function triggerClearChat() {
   showClearChatConfirmPopup();
 }
+
+// Start a new chat: call backend to get a new chat_id, reset UI and session
+async function startNewChat() {
+  try {
+    const token = localStorage.getItem("token");
+    const response = await fetch("/api/chatbot/newchat", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({ user_id: localStorage.getItem("userId") || "defaultUser" })
+    });
+
+    // Defensive: check content-type before parsing as JSON
+    const contentType = response.headers.get("content-type") || "";
+    let data = null;
+    if (contentType.includes("application/json")) {
+      data = await response.json();
+    } else {
+      const text = await response.text();
+      console.error("Non-JSON response from /api/chatbot/newchat:", text);
+      alert("Failed to start a new chat. Server did not return valid JSON.");
+      return;
+    }
+
+    // Log for debugging
+    console.log("/api/chatbot/newchat response:", data);
+
+    if (response.ok && data && data.chat_id) {
+      localStorage.setItem("chat_id", data.chat_id);
+      sessionStorage.setItem("chat_id", data.chat_id);
+      sessionStorage.removeItem("chatHistory");
+      // Reset chat UI
+      const chatMessages = document.getElementById("chatMessages");
+      chatMessages.innerHTML = `
+        <div class="welcome-message">
+          <h2>Welcome to AI Assistant</h2>
+          <p>
+            I'm here to help you with any questions or tasks you might have.
+            Feel free to ask me anything!
+          </p>
+          <div class="suggestions">
+            <div class="suggestion" onclick="sendSuggestion('How can I reset my password?')">How can I reset my password?</div>
+            <div class="suggestion" onclick="sendSuggestion('What are the office hours?')">What are the office hours?</div>
+            <div class="suggestion" onclick="sendSuggestion('How do I submit a support ticket?')">How do I submit a support ticket?</div>
+            <div class="suggestion" onclick="sendSuggestion('Where can I find company policies?')">Where can I find company policies?</div>
+          </div>
+        </div>
+      `;
+    } else {
+      // Log error details for debugging
+      console.error("Failed to start new chat. Response:", data, "Status:", response.status);
+      alert("Failed to start a new chat. Please try again.\n" + (data && data.message ? data.message : ""));
+    }
+  } catch (error) {
+    console.error("Error in startNewChat:", error);
+    alert("Error starting new chat: " + error.message);
+  }
+}
+
+// On page load, start a new chat if not already present (persist chat_id across reloads)
+window.addEventListener("DOMContentLoaded", async function () {
+  // Use localStorage for chat_id persistence
+  if (!localStorage.getItem("chat_id")) {
+    await startNewChat();
+  } else {
+    // If chat_id exists in localStorage, sync it to sessionStorage for compatibility
+    sessionStorage.setItem("chat_id", localStorage.getItem("chat_id"));
+  }
+  if (window.innerWidth <= 768) {
+    document.getElementById("sidebar").classList.add("collapsed");
+  }
+  // Fetch default welcome suggestions
+  get_frequentmsg();
+});
 

@@ -1,37 +1,37 @@
+
 from langchain.memory import ConversationBufferMemory
 from langchain.schema import HumanMessage, AIMessage
 import re
 from datetime import datetime
-import mysql.connector
+import pymysql
+
 
 DB_CONFIG = {
     'host': 'localhost',
     'user': 'chatbot_user',
     'password': 'strong_password',
     'database': 'chatbot_db',
-    'raise_on_warnings': True
+    'cursorclass': pymysql.cursors.DictCursor,
+    'autocommit': True
 }
 ## SQL DB needs to be updated to include user and chatid 
 def retrieve_user_messages_and_scores(User_id, chat_id):
-    conn = mysql.connector.connect(**DB_CONFIG)
-    cursor = conn.cursor(dictionary=True)
-
-    select_query = '''
-        SELECT timestamp, user_message, bot_response, query_score, relevance_score
-        FROM chat_logs
-        WHERE user_id = %s AND chat_id = %s
-    '''
-
-    cursor.execute(select_query, (User_id, chat_id))
-    results = cursor.fetchall()
-    
-    for row in results:
-        row['timestamp'] = row['timestamp'].isoformat()
-
-    cursor.close()
-    conn.close()
-
-    return results
+    conn = pymysql.connect(**DB_CONFIG)
+    try:
+        with conn.cursor() as cursor:
+            select_query = '''
+                SELECT timestamp, user_message, bot_response, query_score, relevance_score
+                FROM chat_logs
+                WHERE user_id = %s AND chat_id = %s
+            '''
+            cursor.execute(select_query, (User_id, chat_id))
+            results = cursor.fetchall()
+            for row in results:
+                if isinstance(row['timestamp'], datetime):
+                    row['timestamp'] = row['timestamp'].isoformat()
+        return results
+    finally:
+        conn.close()
 
 def build_memory_from_results(results):
     # Sort results by timestamp descending and take top 10
@@ -65,19 +65,17 @@ def build_memory_from_results(results):
     return memory
 ## DELETES WHOLE CHAT CAREFUL WHEN CALLING THIS 
 def delete_messages_by_user_and_chat(User_id, chat_id):
-    conn = mysql.connector.connect(**DB_CONFIG)
-    cursor = conn.cursor()
-
-    delete_query = '''
-        DELETE FROM chat_logs
-        WHERE user_id = %s AND chat_id = %s
-    '''
-
-    cursor.execute(delete_query, (User_id, chat_id))
-    conn.commit()
-
-    cursor.close()
-    conn.close()
+    conn = pymysql.connect(**DB_CONFIG)
+    try:
+        with conn.cursor() as cursor:
+            delete_query = '''
+                DELETE FROM chat_logs
+                WHERE user_id = %s AND chat_id = %s
+            '''
+            cursor.execute(delete_query, (User_id, chat_id))
+        conn.commit()
+    finally:
+        conn.close()
     
     
     

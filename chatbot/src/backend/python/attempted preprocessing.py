@@ -183,19 +183,20 @@ def extract_keywords(
     print(results)
     return results
 
-import mysql.connector
+import pymysql
 DB_CONFIG = {
     'host': 'localhost',
     'user': 'chatbot_user',
     'password': 'strong_password',
     'database': 'chatbot_db',
-    'raise_on_warnings': True
+    'cursorclass': pymysql.cursors.DictCursor,
+    'autocommit': True
 }
 
 def retrieve_user_messages_and_scores():
     """Fetch all text_content values from extracted_texts and return them as a list of strings."""
-    conn = mysql.connector.connect(**DB_CONFIG)
-    cursor = conn.cursor(dictionary=True)
+    conn = pymysql.connect(**DB_CONFIG)
+    cursor = conn.cursor()
 
     query = """
         SELECT text_content, doc_filename
