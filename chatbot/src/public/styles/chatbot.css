@@ -446,8 +446,26 @@ body {
   display: flex;
   align-items: center;
   justify-content: center;
+  position: relative;
   box-shadow: 0 2px 12px 0 rgba(0,0,0,0.06);
   border-radius: 22px 22px 0 0;
+}
+
+.chat-header .theme-toggle-btn {
+  position: absolute;
+  left: 24px;
+  top: 50%;
+  transform: translateY(-50%);
+  margin-top: 0;
+  margin-right: 0;
+  z-index: 2;
+}
+
+/* Responsive: adjust left position for mobile */
+@media (max-width: 768px) {
+  .chat-header .theme-toggle-btn {
+    left: 8px;
+  }
 }
 
 .chat-title {
