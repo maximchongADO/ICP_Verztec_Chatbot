@@ -15,7 +15,7 @@ from chatbot import (
     logger, 
     index
 )
-from memory_retrieval import retrieve_user_messages_and_scores
+from memory_retrieval import (retrieve_user_messages_and_scores,get_all_chats_with_messages_for_user)
 from Freq_queries import (get_suggestions)
 from fileUpload import process_upload
 from fastapi.staticfiles import StaticFiles
@@ -92,6 +92,19 @@ async def history_retreival(request: Request):
     results.reverse()  # Optional: oldest to newest
     return JSONResponse(content=results)
 
+@app.get("/chat_history")
+async def get_all_chats(user_id: str):
+    """
+    Retrieve all chat sessions and their messages for a user.
+    Returns a list of chat sessions with their chat_id and messages.
+    """
+    try:
+        results = get_all_chats_with_messages_for_user(user_id)
+        results.reverse()  # Optional: oldest to newest
+        return JSONResponse(content=results)
+    except Exception as e:
+        logger.error(f"Error retrieving chats for user {user_id}: {str(e)}")
+        raise HTTPException(status_code=500, detail="Failed to retrieve chat history")
 @app.post('/chatbot_avatar')
 async def avatar_endpoint(request:ChatRequest):
     logger.info(f"Received chat request: {request}")

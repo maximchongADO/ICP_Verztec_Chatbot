@@ -1,4 +1,3 @@
-
 from langchain.memory import ConversationBufferMemory
 from langchain.schema import HumanMessage, AIMessage
 import re
@@ -80,8 +79,8 @@ def delete_messages_by_user_and_chat(User_id, chat_id):
     
     
 def gather_for_analytics(user_id):
-    conn = mysql.connector.connect(**DB_CONFIG)
-    cursor = conn.cursor(dictionary=True)
+    conn = pymysql.connect(**DB_CONFIG)  # Fixed to use pymysql and DictCursor
+    cursor = conn.cursor()
 
     select_query = '''
         SELECT timestamp ,user_message, bot_response, query_score, feedback,  relevance_score, user_id, chat_id
@@ -103,15 +102,77 @@ def build_chatname_from_user_id(user_id, chat_id):
         return "No messages found for this user and chat ID."
     else:
         return "meoqw"    
-    
-    
-    
 
+def all_user_chatid(user_id):
+    """
+    Retrieve all unique chat IDs for a given user from the chat_logs table.
+    Args:
+        user_id (str or int): The user's unique identifier.
+    Returns:
+        list: List of chat_id values (str or int) for the user.
+    """
+    conn = pymysql.connect(**DB_CONFIG)
+    cursor = conn.cursor()
+    select_query = '''
+        SELECT DISTINCT chat_id
+        FROM chat_logs
+        WHERE user_id = %s
+    '''
+    cursor.execute(select_query, (user_id,))
+    results = cursor.fetchall()
+    cursor.close()
+    conn.close()
+    return [row['chat_id'] for row in results]
+
+def get_all_chats_with_messages_for_user(user_id):
+    """
+    Retrieve all chat sessions and their messages for a user, formatted for frontend/API use.
+    Each chat session is represented as a dict with its chat_id and a list of messages.
+    Messages are sorted by timestamp (oldest first) and only relevant fields are included.
+    Args:
+        user_id (str or int): The user's unique identifier.
+    Returns:
+        list: List of dicts, each with 'chat_id' and 'messages' (list of dicts).
+    Example:
+        [
+            {
+                'chat_id': 'abc123',
+                'messages': [
+                    {'timestamp': ..., 'user_message': ..., 'bot_response': ..., ...},
+                    ...
+                ]
+            },
+            ...
+        ]
+    """
+    chat_ids = all_user_chatid(user_id)
+    all_chats = []
+    for chat_id in chat_ids:
+        messages = retrieve_user_messages_and_scores(user_id, chat_id)
+        # Sort messages by timestamp ascending (oldest first)
+        messages_sorted = sorted(
+            messages,
+            key=lambda x: x['timestamp']
+        )
+        # Only include relevant fields for frontend
+        formatted_msgs = [
+            {
+                'timestamp': m['timestamp'],
+                'user_message': m['user_message'],
+                'bot_response': m['bot_response'],
+                'query_score': m.get('query_score'),
+                'relevance_score': m.get('relevance_score')
+            }
+            for m in messages_sorted
+        ]
+        all_chats.append({
+            'chat_id': chat_id,
+            'messages': formatted_msgs
+        })
+    return all_chats
     
 if __name__=='__main__':
-    delete_messages_by_user_and_chat("2", "chat123")
-    
-    r= retrieve_user_messages_and_scores("2", "chat123")
-    for each in r:
-        print("-" * 20)
-        print(f"Timestamp: {each['timestamp']}, \n\nUser: {each['user_message']},\n\nBot: {each['bot_response']}, \n\nQuery Score: {each['query_score']}, Relevance Score: {each['relevance_score']}")
+    # Test and print all chats/messages for user 2 as JSON
+    all_chats = get_all_chats_with_messages_for_user("2")
+    import json
+    print(json.dumps(all_chats, indent=2))
