@@ -5,7 +5,7 @@ from rapidfuzz import fuzz
 from collections import defaultdict, Counter
 import re
 import string
-import mysql.connector
+import pymysql
 from typing import List
 
 DB_CONFIG = {
@@ -13,12 +13,13 @@ DB_CONFIG = {
     'user': 'chatbot_user',
     'password': 'strong_password',
     'database': 'chatbot_db',
-    'raise_on_warnings': True
+    'cursorclass': pymysql.cursors.DictCursor,
+    'autocommit': True
 }
 ## some stuff to generate suggestionsm i might just use the same api pathway cos idk how ot redo ir HHHAHA
 def retrieve_user_messages_and_scores():
-    conn = mysql.connector.connect(**DB_CONFIG)
-    cursor = conn.cursor(dictionary=True)
+    conn = pymysql.connect(**DB_CONFIG)
+    cursor = conn.cursor()
 
     select_query = '''
         SELECT user_message, query_score, relevance_score

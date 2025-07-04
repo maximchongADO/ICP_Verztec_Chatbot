@@ -1,6 +1,7 @@
 const fetch = require('node-fetch');
 const mysql = require('mysql2/promise');
 const dbConfig = require('../database/dbConfig');
+const crypto = require('crypto');
 
 const PYTHON_CHATBOT_URL = process.env.PYTHON_CHATBOT_URL || 'http://localhost:3000';
 
@@ -178,9 +179,33 @@ const handleFeedback = async (req, res) => {
     }
 };
 
+// Create a new chat and return a new chat_id
+const newChat = async (req, res) => {
+    try {
+        // Log the incoming request for debugging
+        console.log('newChat endpoint called. req.user:', req.user, 'req.body:', req.body);
+        const userId = req.user?.userId || req.user?.id || req.user?.sub || req.body.user_id || "defaultUser";
+        // Generate a random chat_id (UUID v4 style)
+        let chatId;
+        if (crypto.randomUUID) {
+            chatId = crypto.randomUUID();
+        } else {
+            chatId = crypto.randomBytes(16).toString('hex');
+        }
+        // Log the generated chatId and userId
+        console.log('Generated new chat_id:', chatId, 'for userId:', userId);
+        // Always return a JSON object with chat_id and success
+        res.status(200).json({ success: true, chat_id: chatId });
+    } catch (error) {
+        console.error('Error in newChat endpoint:', error);
+        res.status(500).json({ success: false, message: 'Failed to create new chat', error: error.message });
+    }
+};
+
 module.exports = {
     processMessage,
     getChatHistory,
     clearChatHistory,
-    handleFeedback
+    handleFeedback,
+    newChat
 };

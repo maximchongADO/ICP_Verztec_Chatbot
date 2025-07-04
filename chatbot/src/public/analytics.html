@@ -1,0 +1,2146 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Analytics | Verztec AI Chatbot</title>
+  <link rel="stylesheet" href="/styles/main.css" />
+  <link rel="stylesheet" href="/styles/chatbot.css" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet"/>
+  <style>
+    body {
+      margin: 0;
+      padding: 0;
+      overflow: hidden;
+    }
+    .analytics-layout {
+      display: flex;
+      flex-direction: row;
+      min-height: 100vh;
+      width: 100vw;
+      background: none;
+    }
+    .admin-sidebar {
+      display: none;
+      position: fixed;
+      left: 0;
+      top: 0;
+      height: 100vh;
+      width: 220px;
+      background: #f7f6f2;
+      border-right: 1.5px solid #e5e3dc;
+      box-shadow: 2px 0 12px 0 rgba(212,178,76,0.06);
+      z-index: 100;
+      flex-direction: column;
+      padding-top: 48px;
+      gap: 0;
+      justify-content: flex-start;
+    }
+    .admin-sidebar.active {
+      display: flex;
+    }
+    .admin-sidebar .sidebar-title {
+      font-size: 1.1rem;
+      font-weight: 700;
+      color: #a08a3c;
+      margin-bottom: 1.5rem;
+      text-align: center;
+    }
+    .admin-sidebar .sidebar-link {
+      padding: 16px 24px;
+      font-size: 1.08rem;
+      color: #232323;
+      background: none;
+      border: none;
+      text-align: left;
+      cursor: pointer;
+      width: 100%;
+      border-bottom: 1px solid #ecebe7;
+      transition: background 0.15s, color 0.15s;
+    }
+    .admin-sidebar .sidebar-link.active,
+    .admin-sidebar .sidebar-link:hover {
+      background: #ecebe7;
+      color: #a08a3c;
+    }
+    .admin-sidebar .sidebar-link:last-child {
+      border-bottom: none;
+    }
+    .analytics-main-content {
+      flex: 1 1 0;
+      min-width: 0;
+      min-height: 0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: flex-start;
+      margin-left: 0;
+      transition: margin-left 0.2s;
+      width: 100%;
+      box-sizing: border-box;
+      height: 100vh;
+      overflow-y: auto;
+      /* Hide scrollbar for Chrome, Safari and Opera */
+      scrollbar-width: none; /* Firefox */
+      -ms-overflow-style: none;  /* IE and Edge */
+    }
+    .analytics-main-content::-webkit-scrollbar {
+      display: none;
+    }
+    .admin-sidebar.active ~ .analytics-main-content {
+      margin-left: 220px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: flex-start;
+    }
+    .analytics-scroll-wrapper {
+      width: 100%;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: flex-start;
+      min-height: 100vh;
+      max-width: 1400px;
+      margin: 40px auto 0 auto;
+      height: auto;
+      /* Remove overflow-y here */
+    }
+    .analytics-container {
+      width: 100%;
+      max-width: 1400px;
+      margin: 0 auto 40px auto;
+      background: #fff;
+      border-radius: 22px;
+      box-shadow: 0 4px 24px rgba(0,0,0,0.07);
+      padding: 2.5rem 2.5rem 2rem 2.5rem;
+      font-family: 'Inter', sans-serif;
+      align-self: center;
+    }
+    .analytics-header {
+      text-align: center;
+      margin-bottom: 2rem;
+    }
+    .analytics-header h1 {
+      font-size: 2rem;
+      font-weight: 700;
+      color: #232323;
+      margin-bottom: 0.5rem;
+    }
+    .analytics-header p {
+      color: #a08a3c;
+      font-size: 1.1rem;
+      margin: 0;
+    }
+    .analytics-summary {
+      background: #f7f6f2;
+      border-radius: 16px;
+      padding: 1.5rem 2rem;
+      margin-bottom: 2rem;
+      box-shadow: 0 1px 8px 0 rgba(212,178,76,0.06);
+      display: flex;
+      flex-wrap: wrap;
+      gap: 2rem;
+      justify-content: space-between;
+      max-width: 1400px;
+      margin-left: auto;
+      margin-right: auto;
+    }
+    .analytics-summary-item {
+      flex: 1 1 180px;
+      min-width: 160px;
+      text-align: center;
+      margin-bottom: 0.5rem;
+    }
+    .analytics-summary-item strong {
+      display: block;
+      font-size: 1.2rem;
+      color: #a08a3c;
+      margin-bottom: 0.2rem;
+    }
+    .analytics-summary-item span {
+      font-size: 1.6rem;
+      font-weight: 700;
+      color: #232323;
+    }
+    .analytics-summary-item .satisfaction-label {
+      display: block;
+      font-size: 0.98rem;
+      color: #888;
+      margin-top: 0.2rem;
+      font-weight: 500;
+    }
+    .analytics-section {
+      margin-bottom: 2.5rem;
+      max-width: 1400px;
+      margin-left: auto;
+      margin-right: auto;
+    }
+    .analytics-section h2 {
+      font-size: 1.2rem;
+      color: #a08a3c;
+      margin-bottom: 0.7rem;
+      font-weight: 600;
+    }
+    .analytics-table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-bottom: 1.5rem;
+    }
+    .analytics-table th, .analytics-table td {
+      border: 1px solid #e5e3dc;
+      padding: 0.7rem 1rem;
+      text-align: left;
+    }
+    .analytics-table th {
+      background: #f7f6f2;
+      color: #a08a3c;
+      font-weight: 600;
+    }
+    .analytics-table td {
+      background: #fff;
+      color: #232323;
+    }
+    .analytics-back {
+      display: inline-block;
+      margin-bottom: 1.5rem;
+      color: #a08a3c;
+      background: #f7f6f2;
+      border: 1.5px solid #d4b24c;
+      border-radius: 12px;
+      padding: 8px 22px;
+      font-size: 1rem;
+      font-weight: 500;
+      text-decoration: none;
+      transition: background 0.18s, color 0.18s, border 0.18s;
+    }
+    .analytics-back:hover {
+      background: #ecebe7;
+      color: #232323;
+      border-color: #d4b24c;
+    }
+    @media (max-width: 1500px) {
+      .analytics-container,
+      .analytics-summary,
+      .analytics-section,
+      .topic-analytics-section {
+        max-width: 99vw;
+      }
+    }
+    @media (max-width: 600px) {
+      .analytics-container { padding: 1rem 0.5rem; }
+      .analytics-summary { flex-direction: column; gap: 1rem; }
+    }
+    .topic-analytics-section {
+      margin-bottom: 2rem;
+      max-width: 1400px;
+      margin-left: auto;
+      margin-right: auto;
+    }
+    .topic-analytics-title {
+      font-size: 1.4rem;
+      font-weight: 600;
+      color: #232323;
+      margin-bottom: 1rem;
+      text-align: center;
+    }
+    .topic-analytics-list {
+      list-style: none;
+      padding: 0;
+      margin: 0;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 1rem;
+      justify-content: center;
+    }
+    .topic-analytics-list li {
+      background: #f7f6f2;
+      border-radius: 12px;
+      padding: 0.8rem 1.2rem;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex: 1 1 150px;
+      min-width: 120px;
+    }
+    .topic-analytics-list span {
+      font-size: 1.2rem;
+      color: #232323;
+    }
+    .topic-analytics-count {
+      background: #d4b24c;
+      color: #fff;
+      border-radius: 10px;
+      padding: 0.3rem 0.8rem;
+      font-weight: 500;
+      font-size: 1rem;
+    }
+    .topic-analytics-chart-container {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      margin-bottom: 2.5rem;
+      width: 100%;
+      max-width: 700px;
+      margin-left: auto;
+      margin-right: auto;
+    }
+    .topic-analytics-chart-title {
+      font-size: 1.2rem;
+      font-weight: 600;
+      color: #a08a3c;
+      margin-bottom: 0.7rem;
+      text-align: center;
+    }
+    .admin-analytics-section {
+      background: #f7f6f2;
+      border-radius: 18px;
+      box-shadow: 0 2px 12px 0 rgba(212,178,76,0.07);
+      padding: 2rem 2.5rem 2rem 2.5rem;
+      margin-bottom: 2.5rem;
+      max-width: 1400px;
+      margin-left: auto;
+      margin-right: auto;
+    }
+    .admin-analytics-title {
+      font-size: 1.5rem;
+      font-weight: 700;
+      color: #a08a3c;
+      margin-bottom: 1.2rem;
+      text-align: center;
+    }
+    .admin-analytics-table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-bottom: 1.5rem;
+      background: #fff;
+      border-radius: 12px;
+      overflow: hidden;
+    }
+    .admin-analytics-table th, .admin-analytics-table td {
+      border: 1px solid #e5e3dc;
+      padding: 0.7rem 1rem;
+      text-align: left;
+    }
+    .admin-analytics-table th {
+      background: #f7f6f2;
+      color: #a08a3c;
+      font-weight: 600;
+    }
+    .admin-analytics-table td {
+      background: #fff;
+      color: #232323;
+    }
+    .admin-user-link {
+      color: #a08a3c;
+      text-decoration: underline;
+      cursor: pointer;
+      font-weight: 600;
+    }
+    .admin-user-link:hover {
+      color: #d4b24c;
+    }
+    @media (max-width: 900px) {
+      .admin-analytics-section { padding: 1rem 0.5rem; }
+      .admin-analytics-table th, .admin-analytics-table td { padding: 0.5rem 0.5rem; }
+    }
+    @media (max-width: 900px) {
+      .analytics-layout { flex-direction: column; }
+      .admin-sidebar { display: none !important; }
+      .analytics-main-content { margin-left: 0 !important; }
+      .analytics-scroll-wrapper { margin: 20px auto 0 auto; }
+    }
+    .user-list-link {
+      color: #a08a3c;
+      text-decoration: underline;
+      cursor: pointer;
+      font-weight: 600;
+      /* Add pointer-events for clarity */
+      pointer-events: auto;
+    }
+    .user-list-link:hover {
+      color: #d4b24c;
+    }
+    .user-list-section {
+      max-height: 500px;
+      overflow-y: auto;
+      margin-bottom: 2rem;
+      background: #f8f7f3;
+      border-radius: 18px;
+      box-shadow: 0 2px 12px 0 rgba(212,178,76,0.08);
+      padding: 0.5rem 0.5rem 0.5rem 0.5rem;
+      border: 1.5px solid #ecebe7;
+      /* Hide scrollbar for Chrome, Safari, Opera */
+      scrollbar-width: none; /* Firefox */
+      -ms-overflow-style: none;  /* IE and Edge */
+      transition: box-shadow 0.18s;
+    }
+    .user-list-section::-webkit-scrollbar {
+      display: none;
+    }
+    .user-list-table {
+      width: 100%;
+      border-collapse: separate;
+      border-spacing: 0;
+      background: transparent;
+      border-radius: 14px;
+      overflow: hidden;
+      font-size: 1.04rem;
+      box-shadow: 0 1px 8px 0 rgba(212,178,76,0.04);
+    }
+    .user-list-table th {
+      background: #f7f6f2;
+      color: #a08a3c;
+      font-weight: 700;
+      padding: 0.9rem 1.1rem;
+      border-bottom: 2px solid #e5e3dc;
+      text-align: left;
+      font-size: 1.07rem;
+      letter-spacing: 0.01em;
+    }
+    .user-list-table td {
+      background: #fff;
+      color: #232323;
+      padding: 0.85rem 1.1rem;
+      border-bottom: 1px solid #f0ede2;
+      transition: background 0.15s;
+    }
+    .user-list-table tr:last-child td {
+      border-bottom: none;
+    }
+    .user-list-table tr:hover td {
+      background: #f7f6f2;
+    }
+    .user-list-link {
+      color: #a08a3c;
+      text-decoration: underline;
+      cursor: pointer;
+      font-weight: 600;
+      pointer-events: auto;
+      border-radius: 6px;
+      padding: 2px 6px;
+      transition: background 0.13s, color 0.13s;
+      background: #f7f6f2;
+    }
+    .user-list-link:hover {
+      color: #fff;
+      background: #d4b24c;
+      text-decoration: none;
+    }
+    .analytics-header h1 {
+      font-size: 2.2rem;
+      font-weight: 800;
+      color: #a08a3c;
+      margin-bottom: 0.5rem;
+      letter-spacing: 0.01em;
+      text-shadow: 0 2px 8px rgba(212,178,76,0.06);
+    }
+    .analytics-header p {
+      color: #b7a04c;
+      font-size: 1.13rem;
+      margin: 0;
+      font-weight: 500;
+      letter-spacing: 0.01em;
+    }
+    .analytics-section {
+      background: #f8f7f3;
+      border-radius: 18px;
+      box-shadow: 0 2px 12px 0 rgba(212,178,76,0.08);
+      padding: 1.5rem 1.5rem 1.2rem 1.5rem;
+      margin-bottom: 2.5rem;
+      max-width: 1400px;
+      margin-left: auto;
+      margin-right: auto;
+      border: 1.5px solid #ecebe7;
+    }
+    .analytics-section h2 {
+      font-size: 1.18rem;
+      color: #a08a3c;
+      margin-bottom: 0.7rem;
+      font-weight: 700;
+      letter-spacing: 0.01em;
+    }
+    .analytics-summary {
+      background: linear-gradient(90deg, #f7f6f2 60%, #f7e6a2 100%);
+      border-radius: 16px;
+      padding: 1.5rem 2rem;
+      margin-bottom: 2rem;
+      box-shadow: 0 1px 8px 0 rgba(212,178,76,0.06);
+      display: flex;
+      flex-wrap: wrap;
+      gap: 2rem;
+      justify-content: space-between;
+      max-width: 1400px;
+      margin-left: auto;
+      margin-right: auto;
+      border: 1.5px solid #ecebe7;
+    }
+    .analytics-summary-item {
+      flex: 1 1 180px;
+      min-width: 160px;
+      text-align: center;
+      margin-bottom: 0.5rem;
+      background: #fffbe7;
+      border-radius: 12px;
+      box-shadow: 0 1px 4px 0 rgba(212,178,76,0.04);
+      padding: 1.1rem 0.5rem 0.7rem 0.5rem;
+      margin: 0 0.5rem;
+      border: 1px solid #f4e285;
+      transition: box-shadow 0.13s;
+    }
+    .analytics-summary-item strong {
+      display: block;
+      font-size: 1.18rem;
+      color: #a08a3c;
+      margin-bottom: 0.2rem;
+      font-weight: 700;
+      letter-spacing: 0.01em;
+    }
+    .analytics-summary-item span {
+      font-size: 1.7rem;
+      font-weight: 800;
+      color: #232323;
+      letter-spacing: 0.01em;
+    }
+    .analytics-back {
+      display: inline-block;
+      margin-bottom: 1.5rem;
+      color: #a08a3c;
+      background: #f7f6f2;
+      border: 1.5px solid #d4b24c;
+      border-radius: 12px;
+      padding: 8px 22px;
+      font-size: 1.07rem;
+      font-weight: 600;
+      text-decoration: none;
+      transition: background 0.18s, color 0.18s, border 0.18s;
+      box-shadow: 0 1px 8px 0 rgba(212,178,76,0.04);
+      letter-spacing: 0.01em;
+    }
+    .analytics-back:hover {
+      background: #ecebe7;
+      color: #232323;
+      border-color: #d4b24c;
+    }
+    .admin-sidebar .sidebar-back {
+      margin: 0 18px 18px 18px;
+      padding: 10px 0;
+      background: #f7f6f2;
+      color: #a08a3c;
+      border: 1.5px solid #d4b24c;
+      border-radius: 12px;
+      font-size: 1.07rem;
+      font-weight: 600;
+      text-align: center;
+      text-decoration: none;
+      transition: background 0.18s, color 0.18s, border 0.18s;
+      box-shadow: 0 1px 8px 0 rgba(212,178,76,0.04);
+      letter-spacing: 0.01em;
+      cursor: pointer;
+      display: block;
+    }
+    .admin-sidebar .sidebar-back:hover {
+      background: #ecebe7;
+      color: #232323;
+      border-color: #d4b24c;
+      text-decoration: none;
+    }
+    @media (max-width: 1500px) {
+      .analytics-container,
+      .analytics-summary,
+      .analytics-section,
+      .topic-analytics-section {
+        max-width: 99vw;
+      }
+    }
+    @media (max-width: 600px) {
+      .analytics-container { padding: 1rem 0.5rem; }
+      .analytics-summary { flex-direction: column; gap: 1rem; }
+    }
+    .company-analytics-summary-flex {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 2rem;
+      justify-content: space-between;
+      align-items: stretch;
+      margin-bottom: 1.5rem;
+    }
+    @media (max-width: 900px) {
+      .company-analytics-summary-flex {
+        flex-direction: column;
+        gap: 1rem;
+      }
+    }
+  </style>
+</head>
+<body style="margin:0;padding:0;overflow:hidden;">
+    <div class="analytics-layout">
+      <!-- Admin Sidebar (hidden for non-admins) -->
+      <div id="adminSidebar" class="admin-sidebar">
+        <div class="sidebar-title">Admin Analytics</div>
+        <button class="sidebar-link" id="sidebarMyAnalytics">My Analytics</button>
+        <button class="sidebar-link" id="sidebarCompanyAnalytics">Company Analytics</button>
+        <button class="sidebar-link" id="sidebarAllUsers">All Users</button>
+        <div style="flex:1 1 auto;"></div>
+        <a href="/chatbot.html" class="sidebar-back">← Back to Chatbot</a>
+      </div>
+      <!-- Main Content Area -->
+      <div class="analytics-main-content" id="analyticsMainContent">
+        <div class="analytics-scroll-wrapper">
+          <div class="analytics-container" id="analyticsContainer">
+            <!-- Content dynamically rendered here -->
+          </div>
+        </div>
+      </div>
+    </div>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script>
+      // Helper: get token and user info
+      function getToken() { return localStorage.getItem("token"); }
+      function getCurrentUser() { return window.currentUser || null; }
+
+      // --- NOTE: The backend must return satisfaction as if "no feedback" is also counted as "helpful" ---
+      // The frontend just displays the value from the API.
+
+      // Fetch current user info and expose as window.currentUser
+      async function fetchCurrentUser() {
+        const token = getToken();
+        if (!token) return null;
+        try {
+          const res = await fetch('/api/users/me', {
+            headers: { Authorization: `Bearer ${token}` }
+          });
+          if (res.ok) {
+            const user = await res.json();
+            window.currentUser = user;
+            return user;
+          }
+        } catch {}
+        window.currentUser = null;
+        return null;
+      }
+
+      // Show/hide admin analytics section based on user role
+      async function showAdminAnalyticsIfAdmin() {
+        const user = await fetchCurrentUser();
+        const adminSection = document.getElementById('adminAnalyticsSection');
+        if (user && user.role === 'admin') {
+          adminSection.style.display = '';
+          renderCompanyAnalytics();
+          renderAllUsersAnalytics();
+        } else {
+          adminSection.style.display = 'none';
+        }
+      }
+
+      // --- Sidebar and View Logic ---
+      let currentView = "my"; // "my", "company", "users", "userdetail"
+      let selectedUserId = null;
+
+      // Render the correct analytics view
+      async function renderAnalyticsView() {
+        const container = document.getElementById('analyticsContainer');
+        container.innerHTML = ""; // Clear
+
+        if (currentView === "my") {
+          // Render current user's analytics (same as before)
+          container.innerHTML = `
+            <a href="/chatbot.html" class="analytics-back">← Back to Chatbot</a>
+            <div class="analytics-header">
+              <h1>Chatbot Analytics Dashboard</h1>
+              <p>See your chat usage and feedback in detail</p>
+            </div>
+            <div class="analytics-summary" id="analyticsSummary"></div>
+            <div id="topicAnalyticsSection" class="topic-analytics-section"></div>
+            <div class="topic-analytics-chart-container">
+              <div class="topic-analytics-chart-title">Topic Distribution (Pie Chart)</div>
+              <canvas id="topicAnalyticsPieChart" width="220" height="220" style="max-width:100%;"></canvas>
+            </div>
+            <div class="analytics-section">
+              <h2>Recent Chats</h2>
+              <table class="analytics-table" id="recentChatsTable">
+                <thead>
+                  <tr>
+                    <th>Date</th>
+                    <th>First Message</th>
+                    <th>Number of Messages</th>
+                    <th>Feedback Given</th>
+                  </tr>
+                </thead>
+                <tbody></tbody>
+              </table>
+            </div>
+            <div class="analytics-section">
+              <h2>Feedback History</h2>
+              <table class="analytics-table" id="feedbackTable">
+                <thead>
+                  <tr>
+                    <th>Date</th>
+                    <th>User Message</th>
+                    <th>Bot Response</th>
+                    <th>Feedback</th>
+                  </tr>
+                </thead>
+                <tbody></tbody>
+              </table>
+            </div>
+            <div class="analytics-section">
+              <h2>Usage Trends</h2>
+              <div id="usageTrends" style="min-height:180px;color:#888;">(Coming soon: charts for daily/weekly usage)</div>
+            </div>
+          `;
+          renderAnalyticsSummary();
+          renderTopicAnalyticsSection();
+          renderRecentChats();
+          renderFeedbackHistory();
+        } else if (currentView === "company") {
+          // Render company-wide analytics
+          container.innerHTML = `
+            <a href="#" class="analytics-back" onclick="switchView('my')">← Back to My Analytics</a>
+            <div class="analytics-header">
+              <h1>Company-wide Analytics</h1>
+              <p>Overview of all chatbot usage</p>
+            </div>
+            <div class="analytics-summary" id="companyAnalyticsSummary"></div>
+            <div id="companyTopicAnalyticsSection" class="topic-analytics-section"></div>
+            <div class="topic-analytics-chart-container">
+              <div class="topic-analytics-chart-title">Company Topic Distribution (Pie Chart)</div>
+              <canvas id="companyTopicAnalyticsPieChart" width="220" height="220" style="max-width:100%;"></canvas>
+            </div>
+          `;
+          renderCompanyAnalytics();
+        } else if (currentView === "users") {
+          // Render all users list
+          container.innerHTML = `
+            <a href="#" class="analytics-back" onclick="switchView('my')">← Back to My Analytics</a>
+            <div class="analytics-header">
+              <h1>All Users</h1>
+              <p>Click a user to view their analytics</p>
+            </div>
+            <div class="analytics-section user-list-section">
+              <table class="user-list-table" id="userListTable">
+                <thead>
+                  <tr>
+                    <th>User ID</th>
+                    <th>Chats</th>
+                    <th>Queries</th>
+                    <th>Feedback</th>
+                    <th>Last Interaction</th>
+                  </tr>
+                </thead>
+                <tbody></tbody>
+              </table>
+            </div>
+          `;
+          renderUserListTable();
+        } else if (currentView === "userdetail" && selectedUserId) {
+          // Render selected user's analytics (same layout as "my")
+          container.innerHTML = `
+            <a href="#" class="analytics-back" onclick="switchView('users')">← Back to User List</a>
+            <div class="analytics-header">
+              <h1>User Analytics</h1>
+              <p>User ID: <span style="color:#a08a3c;">${selectedUserId}</span></p>
+            </div>
+            <div class="analytics-summary" id="analyticsSummary"></div>
+            <div id="topicAnalyticsSection" class="topic-analytics-section"></div>
+            <div class="topic-analytics-chart-container">
+              <div class="topic-analytics-chart-title">Topic Distribution (Pie Chart)</div>
+              <canvas id="topicAnalyticsPieChart" width="220" height="220" style="max-width:100%;"></canvas>
+            </div>
+            <div class="analytics-section">
+              <h2>Recent Chats</h2>
+              <table class="analytics-table" id="recentChatsTable">
+                <thead>
+                  <tr>
+                    <th>Date</th>
+                    <th>First Message</th>
+                    <th>Number of Messages</th>
+                    <th>Feedback Given</th>
+                  </tr>
+                </thead>
+                <tbody></tbody>
+              </table>
+            </div>
+            <div class="analytics-section">
+              <h2>Feedback History</h2>
+              <table class="analytics-table" id="feedbackTable">
+                <thead>
+                  <tr>
+                    <th>Date</th>
+                    <th>User Message</th>
+                    <th>Bot Response</th>
+                    <th>Feedback</th>
+                  </tr>
+                </thead>
+                <tbody></tbody>
+              </table>
+            </div>
+            <div class="analytics-section">
+              <h2>Usage Trends</h2>
+              <div id="usageTrends" style="min-height:180px;color:#888;">(Coming soon: charts for daily/weekly usage)</div>
+            </div>
+          `;
+          renderAnalyticsSummary(selectedUserId);
+          renderTopicAnalyticsSection(selectedUserId);
+          renderRecentChats(selectedUserId);
+          renderFeedbackHistory(selectedUserId);
+        }
+      }
+
+      // Sidebar navigation logic
+      function switchView(view, userId = null) {
+        currentView = view;
+        selectedUserId = userId;
+        // Highlight active sidebar link
+        document.querySelectorAll('.admin-sidebar .sidebar-link').forEach(btn => btn.classList.remove('active'));
+        if (view === "my") document.getElementById('sidebarMyAnalytics').classList.add('active');
+        if (view === "company") document.getElementById('sidebarCompanyAnalytics').classList.add('active');
+        if (view === "users") document.getElementById('sidebarAllUsers').classList.add('active');
+        renderAnalyticsView();
+      }
+
+      // Show/hide sidebar for admin
+      async function setupAdminSidebar() {
+        const user = await fetchCurrentUser();
+        const sidebar = document.getElementById('adminSidebar');
+        if (user && user.role === 'admin') {
+          sidebar.classList.add('active');
+          // Sidebar button events
+          document.getElementById('sidebarMyAnalytics').onclick = () => switchView('my');
+          document.getElementById('sidebarCompanyAnalytics').onclick = () => switchView('company');
+          document.getElementById('sidebarAllUsers').onclick = () => switchView('users');
+        } else {
+          sidebar.classList.remove('active');
+        }
+      }
+
+      // --- Analytics Rendering Functions (support userId param for admin views) ---
+
+      async function renderAnalyticsSummary(userId = null) {
+        const summaryDiv = document.getElementById("analyticsSummary");
+        summaryDiv.innerHTML = "Loading...";
+        let user = getCurrentUser();
+        if (!userId && !user) {
+          // Try to fetch user info
+          try {
+            const res = await fetch('/api/users/me', {
+              headers: { Authorization: `Bearer ${getToken()}` }
+            });
+            if (res.ok) user = await res.json();
+          } catch {}
+        }
+        const id = userId || (user && user.id);
+        if (!id) {
+          summaryDiv.innerHTML = "<div>Unable to load analytics.</div>";
+          return;
+        }
+        try {
+          const res = await fetch(`/api/users/analytics?userId=${encodeURIComponent(id)}`, {
+            headers: { Authorization: `Bearer ${getToken()}` }
+          });
+          const data = await res.json();
+          summaryDiv.innerHTML = `
+            <div class="analytics-summary-item">
+              <strong>Number of Chats</strong>
+              <span>${data.chatCount ?? 0}</span>
+            </div>
+            <div class="analytics-summary-item">
+              <strong>Queries Sent</strong>
+              <span>${data.queryCount ?? 0}</span>
+            </div>
+            <div class="analytics-summary-item">
+              <strong>Feedback Given</strong>
+              <span>${data.feedbackCount ?? 0}</span>
+            </div>
+            <div class="analytics-summary-item">
+              <strong>Last Interaction</strong>
+              <span style="font-size:1rem;">${data.lastInteraction ? new Date(data.lastInteraction).toLocaleString() : 'N/A'}</span>
+            </div>
+            <div class="analytics-summary-item">
+              <strong>Satisfaction</strong>
+              <span>${data.satisfaction !== null ? data.satisfaction + '%' : 'N/A'}</span>
+              <span class="satisfaction-label">of chats marked as Helpful or with no feedback</span>
+            </div>
+          `;
+        } catch {
+          summaryDiv.innerHTML = "<div>Unable to load analytics.</div>";
+        }
+      }
+
+      async function renderTopicAnalyticsSection(userId = null) {
+        const container = document.getElementById('topicAnalyticsSection');
+        const pieCanvas = document.getElementById('topicAnalyticsPieChart');
+        container.innerHTML = "Loading...";
+        if (pieCanvas) {
+          const ctx = pieCanvas.getContext('2d');
+          if (window.topicPieChart) {
+            window.topicPieChart.destroy();
+          }
+          ctx.clearRect(0, 0, pieCanvas.width, pieCanvas.height);
+        }
+        let user = getCurrentUser();
+        if (!userId && !user) {
+          try {
+            const res = await fetch('/api/users/me', {
+              headers: { Authorization: `Bearer ${getToken()}` }
+            });
+            if (res.ok) user = await res.json();
+          } catch {}
+        }
+        const id = userId || (user && user.id);
+        if (!id) {
+          container.innerHTML = "<div>Unable to load topic analytics.</div>";
+          return;
+        }
+        try {
+          const res = await fetch(`/api/users/analytics?userId=${encodeURIComponent(id)}`, {
+            headers: { Authorization: `Bearer ${getToken()}` }
+          });
+          const data = await res.json();
+          if (!data || !Array.isArray(data.topicAnalytics) || data.topicAnalytics.length === 0) {
+            container.innerHTML = "<div style='color:#888;text-align:center;'>No topic analytics available yet.</div>";
+            if (pieCanvas) pieCanvas.style.display = "none";
+            return;
+          }
+          let html = `<div class="topic-analytics-title">Your Interactions by Topic</div><ul class="topic-analytics-list">`;
+          for (const t of data.topicAnalytics) {
+            html += `<li><span>${t.label}</span><span class="topic-analytics-count">${t.count}</span></li>`;
+          }
+          html += `</ul>`;
+          container.innerHTML = html;
+
+          // Pie chart logic
+          if (pieCanvas) {
+            pieCanvas.style.display = "";
+            const labels = data.topicAnalytics.map(t => t.label);
+            const counts = data.topicAnalytics.map(t => t.count);
+            const colors = [
+              "#d4b24c", "#a08a3c", "#f7c873", "#f7f6f2", "#f7e6a2", "#b7a04c", "#e5e3dc", "#f4e285", "#f7d774"
+            ];
+            window.topicPieChart = new Chart(pieCanvas, {
+              type: 'pie',
+              data: {
+                labels: labels,
+                datasets: [{
+                  data: counts,
+                  backgroundColor: colors.slice(0, labels.length),
+                  borderColor: "#fff",
+                  borderWidth: 2
+                }]
+              },
+              options: {
+                responsive: true,
+                plugins: {
+                  legend: {
+                    display: true,
+                    position: 'bottom',
+                    labels: {
+                      color: "#232323",
+                      font: { family: "'Inter', sans-serif", size: 16 }
+                    }
+                  },
+                  tooltip: {
+                    callbacks: {
+                      label: function(context) {
+                        const label = context.label || '';
+                        const value = context.parsed || 0;
+                        return `${label}: ${value}`;
+                      }
+                    }
+                  }
+                }
+              }
+            });
+          }
+        } catch {
+          container.innerHTML = "<div>Unable to load topic analytics.</div>";
+          if (pieCanvas) pieCanvas.style.display = "none";
+        }
+      }
+
+      async function renderRecentChats(userId = null) {
+        const table = document.getElementById("recentChatsTable").querySelector("tbody");
+        table.innerHTML = "<tr><td colspan='4'>Loading...</td></tr>";
+        let user = getCurrentUser();
+        if (!userId && !user) {
+          try {
+            const res = await fetch('/api/users/me', {
+              headers: { Authorization: `Bearer ${getToken()}` }
+            });
+            if (res.ok) user = await res.json();
+          } catch {}
+        }
+        const id = userId || (user && user.id);
+        if (!id) {
+          table.innerHTML = "<tr><td colspan='4'>Unable to load chats.</td></tr>";
+          return;
+        }
+        try {
+          const res = await fetch(`/api/users/chats?userId=${encodeURIComponent(id)}`, {
+            headers: { Authorization: `Bearer ${getToken()}` }
+          });
+          const chats = await res.json();
+          if (!Array.isArray(chats) || chats.length === 0) {
+            table.innerHTML = "<tr><td colspan='4'>No chats found.</td></tr>";
+            return;
+          }
+          table.innerHTML = "";
+          chats.slice(0, 5).forEach(chat => {
+            table.innerHTML += `
+              <tr>
+                <td>${chat.firstTimestamp ? new Date(chat.firstTimestamp).toLocaleString() : "N/A"}</td>
+                <td>${chat.firstMessage ? chat.firstMessage.substring(0, 60) : ""}</td>
+                <td>${chat.messageCount ?? 0}</td>
+                <td>${chat.feedbackCount ?? 0}</td>
+              </tr>
+            `;
+          });
+        } catch {
+          table.innerHTML = "<tr><td colspan='4'>Unable to load chats.</td></tr>";
+        }
+      }
+
+      async function renderFeedbackHistory(userId = null) {
+        const table = document.getElementById("feedbackTable").querySelector("tbody");
+        table.innerHTML = "<tr><td colspan='4'>Loading...</td></tr>";
+        let user = getCurrentUser();
+        if (!userId && !user) {
+          try {
+            const res = await fetch('/api/users/me', {
+              headers: { Authorization: `Bearer ${getToken()}` }
+            });
+            if (res.ok) user = await res.json();
+          } catch {}
+        }
+        const id = userId || (user && user.id);
+        if (!id) {
+          table.innerHTML = "<tr><td colspan='4'>Unable to load feedback.</td></tr>";
+          return;
+        }
+        try {
+          const res = await fetch(`/api/users/feedback?userId=${encodeURIComponent(id)}`, {
+            headers: { Authorization: `Bearer ${getToken()}` }
+          });
+          const feedbacks = await res.json();
+          if (!Array.isArray(feedbacks) || feedbacks.length === 0) {
+            table.innerHTML = "<tr><td colspan='4'>No feedback found.</td></tr>";
+            return;
+          }
+          table.innerHTML = "";
+          feedbacks.slice(0, 10).forEach(fb => {
+            table.innerHTML += `
+              <tr>
+                <td>${fb.timestamp ? new Date(fb.timestamp).toLocaleString() : "N/A"}</td>
+                <td>${fb.user_message ? fb.user_message.substring(0, 60) : ""}</td>
+                <td>${fb.bot_response ? fb.bot_response.substring(0, 60) : ""}</td>
+                <td>${fb.feedback}</td>
+              </tr>
+            `;
+          });
+        } catch {
+          table.innerHTML = "<tr><td colspan='4'>Unable to load feedback.</td></tr>";
+        }
+      }
+
+      // Company-wide analytics rendering
+      async function renderCompanyAnalytics() {
+        const summaryDiv = document.getElementById('companyAnalyticsSummary');
+        summaryDiv.innerHTML = "Loading...";
+        try {
+          const res = await fetch('/api/users/company-analytics', {
+            headers: { Authorization: `Bearer ${getToken()}` }
+          });
+          if (!res.ok) throw new Error();
+          const data = await res.json();
+          summaryDiv.innerHTML = `
+        <div class="company-analytics-summary-flex">
+          <div class="analytics-summary-item">
+            <strong>Total Users</strong>
+            <span>${data.userCount ?? 0}</span>
+          </div>
+          <div class="analytics-summary-item">
+            <strong>Total Chats</strong>
+            <span>${data.chatCount ?? 0}</span>
+          </div>
+          <div class="analytics-summary-item">
+            <strong>Total Queries</strong>
+            <span>${data.queryCount ?? 0}</span>
+          </div>
+          <div class="analytics-summary-item">
+            <strong>Total Feedback</strong>
+            <span>${data.feedbackCount ?? 0}</span>
+          </div>
+          <div class="analytics-summary-item">
+            <strong>Last Interaction</strong>
+            <span style="font-size:1rem;">${data.lastInteraction ? new Date(data.lastInteraction).toLocaleString() : 'N/A'}</span>
+          </div>
+          <div class="analytics-summary-item">
+            <strong>Satisfaction</strong>
+            <span>${data.satisfaction !== null ? data.satisfaction + '%' : 'N/A'}</span>
+            <span class="satisfaction-label">of chats marked as Helpful or with no feedback</span>
+          </div>
+        </div>
+      `;
+          // Topic analytics
+          const topicSection = document.getElementById('companyTopicAnalyticsSection');
+          if (topicSection) {
+            let html = `<div class="topic-analytics-title">Company-wide Interactions by Topic</div><ul class="topic-analytics-list">`;
+            for (const t of data.topicAnalytics || []) {
+              html += `<li><span>${t.label}</span><span class="topic-analytics-count">${t.count}</span></li>`;
+            }
+            html += `</ul>`;
+            topicSection.innerHTML = html;
+          }
+          // Pie chart
+          const pieCanvas = document.getElementById('companyTopicAnalyticsPieChart');
+          if (pieCanvas) {
+            const ctx = pieCanvas.getContext('2d');
+            if (window.companyTopicPieChart) window.companyTopicPieChart.destroy();
+            ctx.clearRect(0, 0, pieCanvas.width, pieCanvas.height);
+            const labels = (data.topicAnalytics || []).map(t => t.label);
+            const counts = (data.topicAnalytics || []).map(t => t.count);
+            const colors = [
+              "#d4b24c", "#a08a3c", "#f7c873", "#f7f6f2", "#f7e6a2", "#b7a04c", "#e5e3dc", "#f4e285", "#f7d774"
+            ];
+            window.companyTopicPieChart = new Chart(pieCanvas, {
+              type: 'pie',
+              data: {
+                labels: labels,
+                datasets: [{
+                  data: counts,
+                  backgroundColor: colors.slice(0, labels.length),
+                  borderColor: "#fff",
+                  borderWidth: 2
+                }]
+              },
+              options: {
+                responsive: true,
+                plugins: {
+                  legend: {
+                    display: true,
+                    position: 'bottom',
+                    labels: {
+                      color: "#232323",
+                      font: { family: "'Inter', sans-serif", size: 16 }
+                    }
+                  }
+                }
+              }
+            });
+          }
+        } catch {
+          summaryDiv.innerHTML = "<div>Unable to load company analytics.</div>";
+          const topicSection = document.getElementById('companyTopicAnalyticsSection');
+          if (topicSection) topicSection.innerHTML = "";
+          const pieCanvas = document.getElementById('companyTopicAnalyticsPieChart');
+          if (pieCanvas) pieCanvas.style.display = "none";
+        }
+      }
+
+      // Render user list for admin
+      async function renderUserListTable() {
+        const table = document.getElementById('userListTable').querySelector('tbody');
+        table.innerHTML = "<tr><td colspan='6'>Loading...</td></tr>";
+        try {
+          const res = await fetch('/api/users/all-analytics', {
+            headers: { Authorization: `Bearer ${getToken()}` }
+          });
+          if (!res.ok) throw new Error();
+          const users = await res.json();
+          if (!Array.isArray(users) || users.length === 0) {
+            table.innerHTML = "<tr><td colspan='6'>No user analytics found.</td></tr>";
+            return;
+          }
+          table.innerHTML = "";
+          users.forEach(user => {
+            table.innerHTML += `
+              <tr>
+                <td><span class="user-list-link" data-userid="${user.userId}">${user.userId}</span></td>
+                <td>${user.chatCount ?? 0}</td>
+                <td>${user.queryCount ?? 0}</td>
+                <td>${user.feedbackCount ?? 0}</td>
+                <td>${user.lastInteraction ? new Date(user.lastInteraction).toLocaleString() : 'N/A'}</td>
+                <td>${user.satisfaction !== null ? user.satisfaction + '%' : 'N/A'}</td>
+              </tr>
+            `;
+          });
+        } catch {
+          table.innerHTML = "<tr><td colspan='6'>Unable to load user analytics.</td></tr>";
+        }
+      }
+      // On load, setup sidebar and render default view
+      document.addEventListener("DOMContentLoaded", function () {
+        setupAdminSidebar();
+        switchView('my');
+      });
+
+      // Add delegated event listener for user links in All Users table
+      document.addEventListener("click", function (e) {
+        if (e.target.classList.contains("user-list-link")) {
+          const userId = e.target.getAttribute("data-userid") || e.target.textContent;
+          switchView('userdetail', userId);
+        }
+      });
+    </script>
+</body>
+</html>
+          `;
+        } catch {
+          summaryDiv.innerHTML = "<div>Unable to load analytics.</div>";
+        }
+      }
+
+      async function renderTopicAnalyticsSection(userId = null) {
+        const container = document.getElementById('topicAnalyticsSection');
+        const pieCanvas = document.getElementById('topicAnalyticsPieChart');
+        container.innerHTML = "Loading...";
+        if (pieCanvas) {
+          const ctx = pieCanvas.getContext('2d');
+          if (window.topicPieChart) {
+            window.topicPieChart.destroy();
+          }
+          ctx.clearRect(0, 0, pieCanvas.width, pieCanvas.height);
+        }
+        let user = getCurrentUser();
+        if (!userId && !user) {
+          try {
+            const res = await fetch('/api/users/me', {
+              headers: { Authorization: `Bearer ${getToken()}` }
+            });
+            if (res.ok) user = await res.json();
+          } catch {}
+        }
+        const id = userId || (user && user.id);
+        if (!id) {
+          container.innerHTML = "<div>Unable to load topic analytics.</div>";
+          return;
+        }
+        try {
+          const res = await fetch(`/api/users/analytics?userId=${encodeURIComponent(id)}`, {
+            headers: { Authorization: `Bearer ${getToken()}` }
+          });
+          const data = await res.json();
+          if (!data || !Array.isArray(data.topicAnalytics) || data.topicAnalytics.length === 0) {
+            container.innerHTML = "<div style='color:#888;text-align:center;'>No topic analytics available yet.</div>";
+            if (pieCanvas) pieCanvas.style.display = "none";
+            return;
+          }
+          let html = `<div class="topic-analytics-title">Your Interactions by Topic</div><ul class="topic-analytics-list">`;
+          for (const t of data.topicAnalytics) {
+            html += `<li><span>${t.label}</span><span class="topic-analytics-count">${t.count}</span></li>`;
+          }
+          html += `</ul>`;
+          container.innerHTML = html;
+
+          // Pie chart logic
+          if (pieCanvas) {
+            pieCanvas.style.display = "";
+            const labels = data.topicAnalytics.map(t => t.label);
+            const counts = data.topicAnalytics.map(t => t.count);
+            const colors = [
+              "#d4b24c", "#a08a3c", "#f7c873", "#f7f6f2", "#f7e6a2", "#b7a04c", "#e5e3dc", "#f4e285", "#f7d774"
+            ];
+            window.topicPieChart = new Chart(pieCanvas, {
+              type: 'pie',
+              data: {
+                labels: labels,
+                datasets: [{
+                  data: counts,
+                  backgroundColor: colors.slice(0, labels.length),
+                  borderColor: "#fff",
+                  borderWidth: 2
+                }]
+              },
+              options: {
+                responsive: true,
+                plugins: {
+                  legend: {
+                    display: true,
+                    position: 'bottom',
+                    labels: {
+                      color: "#232323",
+                      font: { family: "'Inter', sans-serif", size: 16 }
+                    }
+                  },
+                  tooltip: {
+                    callbacks: {
+                      label: function(context) {
+                        const label = context.label || '';
+                        const value = context.parsed || 0;
+                        return `${label}: ${value}`;
+                      }
+                    }
+                  }
+                }
+              }
+            });
+          }
+        } catch {
+          container.innerHTML = "<div>Unable to load topic analytics.</div>";
+          if (pieCanvas) pieCanvas.style.display = "none";
+        }
+      }
+
+      async function renderRecentChats(userId = null) {
+        const table = document.getElementById("recentChatsTable").querySelector("tbody");
+        table.innerHTML = "<tr><td colspan='4'>Loading...</td></tr>";
+        let user = getCurrentUser();
+        if (!userId && !user) {
+          try {
+            const res = await fetch('/api/users/me', {
+              headers: { Authorization: `Bearer ${getToken()}` }
+            });
+            if (res.ok) user = await res.json();
+          } catch {}
+        }
+        const id = userId || (user && user.id);
+        if (!id) {
+          table.innerHTML = "<tr><td colspan='4'>Unable to load chats.</td></tr>";
+          return;
+        }
+        try {
+          const res = await fetch(`/api/users/chats?userId=${encodeURIComponent(id)}`, {
+            headers: { Authorization: `Bearer ${getToken()}` }
+          });
+          const chats = await res.json();
+          if (!Array.isArray(chats) || chats.length === 0) {
+            table.innerHTML = "<tr><td colspan='4'>No chats found.</td></tr>";
+            return;
+          }
+          table.innerHTML = "";
+          chats.slice(0, 5).forEach(chat => {
+            table.innerHTML += `
+              <tr>
+                <td>${chat.firstTimestamp ? new Date(chat.firstTimestamp).toLocaleString() : "N/A"}</td>
+                <td>${chat.firstMessage ? chat.firstMessage.substring(0, 60) : ""}</td>
+                <td>${chat.messageCount ?? 0}</td>
+                <td>${chat.feedbackCount ?? 0}</td>
+              </tr>
+            `;
+          });
+        } catch {
+          table.innerHTML = "<tr><td colspan='4'>Unable to load chats.</td></tr>";
+        }
+      }
+
+      async function renderFeedbackHistory(userId = null) {
+        const table = document.getElementById("feedbackTable").querySelector("tbody");
+        table.innerHTML = "<tr><td colspan='4'>Loading...</td></tr>";
+        let user = getCurrentUser();
+        if (!userId && !user) {
+          try {
+            const res = await fetch('/api/users/me', {
+              headers: { Authorization: `Bearer ${getToken()}` }
+            });
+            if (res.ok) user = await res.json();
+          } catch {}
+        }
+        const id = userId || (user && user.id);
+        if (!id) {
+          table.innerHTML = "<tr><td colspan='4'>Unable to load feedback.</td></tr>";
+          return;
+        }
+        try {
+          const res = await fetch(`/api/users/feedback?userId=${encodeURIComponent(id)}`, {
+            headers: { Authorization: `Bearer ${getToken()}` }
+          });
+          const feedbacks = await res.json();
+          if (!Array.isArray(feedbacks) || feedbacks.length === 0) {
+            table.innerHTML = "<tr><td colspan='4'>No feedback found.</td></tr>";
+            return;
+          }
+          table.innerHTML = "";
+          feedbacks.slice(0, 10).forEach(fb => {
+            table.innerHTML += `
+              <tr>
+                <td>${fb.timestamp ? new Date(fb.timestamp).toLocaleString() : "N/A"}</td>
+                <td>${fb.user_message ? fb.user_message.substring(0, 60) : ""}</td>
+                <td>${fb.bot_response ? fb.bot_response.substring(0, 60) : ""}</td>
+                <td>${fb.feedback}</td>
+              </tr>
+            `;
+          });
+        } catch {
+          table.innerHTML = "<tr><td colspan='4'>Unable to load feedback.</td></tr>";
+        }
+      }
+
+      // Company-wide analytics rendering
+      async function renderCompanyAnalytics() {
+        const summaryDiv = document.getElementById('companyAnalyticsSummary');
+        summaryDiv.innerHTML = "Loading...";
+        try {
+          const res = await fetch('/api/users/company-analytics', {
+            headers: { Authorization: `Bearer ${getToken()}` }
+          });
+          if (!res.ok) throw new Error();
+          const data = await res.json();
+          summaryDiv.innerHTML = `
+        <div class="company-analytics-summary-flex">
+          <div class="analytics-summary-item">
+            <strong>Total Users</strong>
+            <span>${data.userCount ?? 0}</span>
+          </div>
+          <div class="analytics-summary-item">
+            <strong>Total Chats</strong>
+            <span>${data.chatCount ?? 0}</span>
+          </div>
+          <div class="analytics-summary-item">
+            <strong>Total Queries</strong>
+            <span>${data.queryCount ?? 0}</span>
+          </div>
+          <div class="analytics-summary-item">
+            <strong>Total Feedback</strong>
+            <span>${data.feedbackCount ?? 0}</span>
+          </div>
+          <div class="analytics-summary-item">
+            <strong>Last Interaction</strong>
+            <span style="font-size:1rem;">${data.lastInteraction ? new Date(data.lastInteraction).toLocaleString() : 'N/A'}</span>
+          </div>
+          <div class="analytics-summary-item">
+            <strong>Satisfaction</strong>
+            <span>${data.satisfaction !== null ? data.satisfaction + '%' : 'N/A'}</span>
+            <span class="satisfaction-label">of feedback marked as Helpful</span>
+          </div>
+        </div>
+      `;
+          // Topic analytics
+          const topicSection = document.getElementById('companyTopicAnalyticsSection');
+          if (topicSection) {
+            let html = `<div class="topic-analytics-title">Company-wide Interactions by Topic</div><ul class="topic-analytics-list">`;
+            for (const t of data.topicAnalytics || []) {
+              html += `<li><span>${t.label}</span><span class="topic-analytics-count">${t.count}</span></li>`;
+            }
+            html += `</ul>`;
+            topicSection.innerHTML = html;
+          }
+          // Pie chart
+          const pieCanvas = document.getElementById('companyTopicAnalyticsPieChart');
+          if (pieCanvas) {
+            const ctx = pieCanvas.getContext('2d');
+            if (window.companyTopicPieChart) window.companyTopicPieChart.destroy();
+            ctx.clearRect(0, 0, pieCanvas.width, pieCanvas.height);
+            const labels = (data.topicAnalytics || []).map(t => t.label);
+            const counts = (data.topicAnalytics || []).map(t => t.count);
+            const colors = [
+              "#d4b24c", "#a08a3c", "#f7c873", "#f7f6f2", "#f7e6a2", "#b7a04c", "#e5e3dc", "#f4e285", "#f7d774"
+            ];
+            window.companyTopicPieChart = new Chart(pieCanvas, {
+              type: 'pie',
+              data: {
+                labels: labels,
+                datasets: [{
+                  data: counts,
+                  backgroundColor: colors.slice(0, labels.length),
+                  borderColor: "#fff",
+                  borderWidth: 2
+                }]
+              },
+              options: {
+                responsive: true,
+                plugins: {
+                  legend: {
+                    display: true,
+                    position: 'bottom',
+                    labels: {
+                      color: "#232323",
+                      font: { family: "'Inter', sans-serif", size: 16 }
+                    }
+                  }
+                }
+              }
+            });
+          }
+        } catch {
+          summaryDiv.innerHTML = "<div>Unable to load company analytics.</div>";
+          const topicSection = document.getElementById('companyTopicAnalyticsSection');
+          if (topicSection) topicSection.innerHTML = "";
+          const pieCanvas = document.getElementById('companyTopicAnalyticsPieChart');
+          if (pieCanvas) pieCanvas.style.display = "none";
+        }
+      }
+
+      // Render user list for admin
+      async function renderUserListTable() {
+        const table = document.getElementById('userListTable').querySelector('tbody');
+        table.innerHTML = "<tr><td colspan='6'>Loading...</td></tr>";
+        try {
+          const res = await fetch('/api/users/all-analytics', {
+            headers: { Authorization: `Bearer ${getToken()}` }
+          });
+          if (!res.ok) throw new Error();
+          const users = await res.json();
+          if (!Array.isArray(users) || users.length === 0) {
+            table.innerHTML = "<tr><td colspan='6'>No user analytics found.</td></tr>";
+            return;
+          }
+          table.innerHTML = "";
+          users.forEach(user => {
+            table.innerHTML += `
+              <tr>
+                <td><span class="user-list-link" data-userid="${user.userId}">${user.userId}</span></td>
+                <td>${user.chatCount ?? 0}</td>
+                <td>${user.queryCount ?? 0}</td>
+                <td>${user.feedbackCount ?? 0}</td>
+                <td>${user.lastInteraction ? new Date(user.lastInteraction).toLocaleString() : 'N/A'}</td>
+                <td>${user.satisfaction !== null ? user.satisfaction + '%' : 'N/A'}</td>
+              </tr>
+            `;
+          });
+        } catch {
+          table.innerHTML = "<tr><td colspan='6'>Unable to load user analytics.</td></tr>";
+        }
+      }
+
+      // On load, setup sidebar and render default view
+      document.addEventListener("DOMContentLoaded", function () {
+        setupAdminSidebar();
+        switchView('my');
+      });
+
+      // Add delegated event listener for user links in All Users table
+      document.addEventListener("click", function (e) {
+        if (e.target.classList.contains("user-list-link")) {
+          const userId = e.target.getAttribute("data-userid") || e.target.textContent;
+          switchView('userdetail', userId);
+        }
+      });
+    </script>
+</body>
+</html>
+      display: block;
+    }
+    .admin-sidebar .sidebar-back:hover {
+      background: #ecebe7;
+      color: #232323;
+      border-color: #d4b24c;
+      text-decoration: none;
+    }
+    @media (max-width: 1500px) {
+      .analytics-container,
+      .analytics-summary,
+      .analytics-section,
+      .topic-analytics-section {
+        max-width: 99vw;
+      }
+    }
+    @media (max-width: 600px) {
+      .analytics-container { padding: 1rem 0.5rem; }
+      .analytics-summary { flex-direction: column; gap: 1rem; }
+    }
+    .company-analytics-summary-flex {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 2rem;
+      justify-content: space-between;
+      align-items: stretch;
+      margin-bottom: 1.5rem;
+    }
+    @media (max-width: 900px) {
+      .company-analytics-summary-flex {
+        flex-direction: column;
+        gap: 1rem;
+      }
+    }
+  </style>
+</head>
+<body style="margin:0;padding:0;overflow:hidden;">
+    <div class="analytics-layout">
+      <!-- Admin Sidebar (hidden for non-admins) -->
+      <div id="adminSidebar" class="admin-sidebar">
+        <div class="sidebar-title">Admin Analytics</div>
+        <button class="sidebar-link" id="sidebarMyAnalytics">My Analytics</button>
+        <button class="sidebar-link" id="sidebarCompanyAnalytics">Company Analytics</button>
+        <button class="sidebar-link" id="sidebarAllUsers">All Users</button>
+        <div style="flex:1 1 auto;"></div>
+        <a href="/chatbot.html" class="sidebar-back">← Back to Chatbot</a>
+      </div>
+      <!-- Main Content Area -->
+      <div class="analytics-main-content" id="analyticsMainContent">
+        <div class="analytics-scroll-wrapper">
+          <div class="analytics-container" id="analyticsContainer">
+            <!-- Content dynamically rendered here -->
+          </div>
+        </div>
+      </div>
+    </div>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script>
+      // Helper: get token and user info
+      function getToken() { return localStorage.getItem("token"); }
+      function getCurrentUser() { return window.currentUser || null; }
+
+      // Fetch current user info and expose as window.currentUser
+      async function fetchCurrentUser() {
+        const token = getToken();
+        if (!token) return null;
+        try {
+          const res = await fetch('/api/users/me', {
+            headers: { Authorization: `Bearer ${token}` }
+          });
+          if (res.ok) {
+            const user = await res.json();
+            window.currentUser = user;
+            return user;
+          }
+        } catch {}
+        window.currentUser = null;
+        return null;
+      }
+
+      // Show/hide admin analytics section based on user role
+      async function showAdminAnalyticsIfAdmin() {
+        const user = await fetchCurrentUser();
+        const adminSection = document.getElementById('adminAnalyticsSection');
+        if (user && user.role === 'admin') {
+          adminSection.style.display = '';
+          renderCompanyAnalytics();
+          renderAllUsersAnalytics();
+        } else {
+          adminSection.style.display = 'none';
+        }
+      }
+
+      // --- Sidebar and View Logic ---
+      let currentView = "my"; // "my", "company", "users", "userdetail"
+      let selectedUserId = null;
+
+      // Render the correct analytics view
+      async function renderAnalyticsView() {
+        const container = document.getElementById('analyticsContainer');
+        container.innerHTML = ""; // Clear
+
+        if (currentView === "my") {
+          // Render current user's analytics (same as before)
+          container.innerHTML = `
+            <a href="/chatbot.html" class="analytics-back">← Back to Chatbot</a>
+            <div class="analytics-header">
+              <h1>Chatbot Analytics Dashboard</h1>
+              <p>See your chat usage and feedback in detail</p>
+            </div>
+            <div class="analytics-summary" id="analyticsSummary"></div>
+            <div id="topicAnalyticsSection" class="topic-analytics-section"></div>
+            <div class="topic-analytics-chart-container">
+              <div class="topic-analytics-chart-title">Topic Distribution (Pie Chart)</div>
+              <canvas id="topicAnalyticsPieChart" width="220" height="220" style="max-width:100%;"></canvas>
+            </div>
+            <div class="analytics-section">
+              <h2>Recent Chats</h2>
+              <table class="analytics-table" id="recentChatsTable">
+                <thead>
+                  <tr>
+                    <th>Date</th>
+                    <th>First Message</th>
+                    <th>Number of Messages</th>
+                    <th>Feedback Given</th>
+                  </tr>
+                </thead>
+                <tbody></tbody>
+              </table>
+            </div>
+            <div class="analytics-section">
+              <h2>Feedback History</h2>
+              <table class="analytics-table" id="feedbackTable">
+                <thead>
+                  <tr>
+                    <th>Date</th>
+                    <th>User Message</th>
+                    <th>Bot Response</th>
+                    <th>Feedback</th>
+                  </tr>
+                </thead>
+                <tbody></tbody>
+              </table>
+            </div>
+            <div class="analytics-section">
+              <h2>Usage Trends</h2>
+              <div id="usageTrends" style="min-height:180px;color:#888;">(Coming soon: charts for daily/weekly usage)</div>
+            </div>
+          `;
+          renderAnalyticsSummary();
+          renderTopicAnalyticsSection();
+          renderRecentChats();
+          renderFeedbackHistory();
+        } else if (currentView === "company") {
+          // Render company-wide analytics
+          container.innerHTML = `
+            <a href="#" class="analytics-back" onclick="switchView('my')">← Back to My Analytics</a>
+            <div class="analytics-header">
+              <h1>Company-wide Analytics</h1>
+              <p>Overview of all chatbot usage</p>
+            </div>
+            <div class="analytics-summary" id="companyAnalyticsSummary"></div>
+            <div id="companyTopicAnalyticsSection" class="topic-analytics-section"></div>
+            <div class="topic-analytics-chart-container">
+              <div class="topic-analytics-chart-title">Company Topic Distribution (Pie Chart)</div>
+              <canvas id="companyTopicAnalyticsPieChart" width="220" height="220" style="max-width:100%;"></canvas>
+            </div>
+          `;
+          renderCompanyAnalytics();
+        } else if (currentView === "users") {
+          // Render all users list
+          container.innerHTML = `
+            <a href="#" class="analytics-back" onclick="switchView('my')">← Back to My Analytics</a>
+            <div class="analytics-header">
+              <h1>All Users</h1>
+              <p>Click a user to view their analytics</p>
+            </div>
+            <div class="analytics-section user-list-section">
+              <table class="user-list-table" id="userListTable">
+                <thead>
+                  <tr>
+                    <th>User ID</th>
+                    <th>Chats</th>
+                    <th>Queries</th>
+                    <th>Feedback</th>
+                    <th>Last Interaction</th>
+                  </tr>
+                </thead>
+                <tbody></tbody>
+              </table>
+            </div>
+          `;
+          renderUserListTable();
+        } else if (currentView === "userdetail" && selectedUserId) {
+          // Render selected user's analytics (same layout as "my")
+          container.innerHTML = `
+            <a href="#" class="analytics-back" onclick="switchView('users')">← Back to User List</a>
+            <div class="analytics-header">
+              <h1>User Analytics</h1>
+              <p>User ID: <span style="color:#a08a3c;">${selectedUserId}</span></p>
+            </div>
+            <div class="analytics-summary" id="analyticsSummary"></div>
+            <div id="topicAnalyticsSection" class="topic-analytics-section"></div>
+            <div class="topic-analytics-chart-container">
+              <div class="topic-analytics-chart-title">Topic Distribution (Pie Chart)</div>
+              <canvas id="topicAnalyticsPieChart" width="220" height="220" style="max-width:100%;"></canvas>
+            </div>
+            <div class="analytics-section">
+              <h2>Recent Chats</h2>
+              <table class="analytics-table" id="recentChatsTable">
+                <thead>
+                  <tr>
+                    <th>Date</th>
+                    <th>First Message</th>
+                    <th>Number of Messages</th>
+                    <th>Feedback Given</th>
+                  </tr>
+                </thead>
+                <tbody></tbody>
+              </table>
+            </div>
+            <div class="analytics-section">
+              <h2>Feedback History</h2>
+              <table class="analytics-table" id="feedbackTable">
+                <thead>
+                  <tr>
+                    <th>Date</th>
+                    <th>User Message</th>
+                    <th>Bot Response</th>
+                    <th>Feedback</th>
+                  </tr>
+                </thead>
+                <tbody></tbody>
+              </table>
+            </div>
+            <div class="analytics-section">
+              <h2>Usage Trends</h2>
+              <div id="usageTrends" style="min-height:180px;color:#888;">(Coming soon: charts for daily/weekly usage)</div>
+            </div>
+          `;
+          renderAnalyticsSummary(selectedUserId);
+          renderTopicAnalyticsSection(selectedUserId);
+          renderRecentChats(selectedUserId);
+          renderFeedbackHistory(selectedUserId);
+        }
+      }
+
+      // Sidebar navigation logic
+      function switchView(view, userId = null) {
+        currentView = view;
+        selectedUserId = userId;
+        // Highlight active sidebar link
+        document.querySelectorAll('.admin-sidebar .sidebar-link').forEach(btn => btn.classList.remove('active'));
+        if (view === "my") document.getElementById('sidebarMyAnalytics').classList.add('active');
+        if (view === "company") document.getElementById('sidebarCompanyAnalytics').classList.add('active');
+        if (view === "users") document.getElementById('sidebarAllUsers').classList.add('active');
+        renderAnalyticsView();
+      }
+
+      // Show/hide sidebar for admin
+      async function setupAdminSidebar() {
+        const user = await fetchCurrentUser();
+        const sidebar = document.getElementById('adminSidebar');
+        if (user && user.role === 'admin') {
+          sidebar.classList.add('active');
+          // Sidebar button events
+          document.getElementById('sidebarMyAnalytics').onclick = () => switchView('my');
+          document.getElementById('sidebarCompanyAnalytics').onclick = () => switchView('company');
+          document.getElementById('sidebarAllUsers').onclick = () => switchView('users');
+        } else {
+          sidebar.classList.remove('active');
+        }
+      }
+
+      // --- Analytics Rendering Functions (support userId param for admin views) ---
+
+      async function renderAnalyticsSummary(userId = null) {
+        const summaryDiv = document.getElementById("analyticsSummary");
+        summaryDiv.innerHTML = "Loading...";
+        let user = getCurrentUser();
+        if (!userId && !user) {
+          // Try to fetch user info
+          try {
+            const res = await fetch('/api/users/me', {
+              headers: { Authorization: `Bearer ${getToken()}` }
+            });
+            if (res.ok) user = await res.json();
+          } catch {}
+        }
+        const id = userId || (user && user.id);
+        if (!id) {
+          summaryDiv.innerHTML = "<div>Unable to load analytics.</div>";
+          return;
+        }
+        try {
+          const res = await fetch(`/api/users/analytics?userId=${encodeURIComponent(id)}`, {
+            headers: { Authorization: `Bearer ${getToken()}` }
+          });
+          const data = await res.json();
+          summaryDiv.innerHTML = `
+            <div class="analytics-summary-item">
+              <strong>Number of Chats</strong>
+              <span>${data.chatCount ?? 0}</span>
+            </div>
+            <div class="analytics-summary-item">
+              <strong>Queries Sent</strong>
+              <span>${data.queryCount ?? 0}</span>
+            </div>
+            <div class="analytics-summary-item">
+              <strong>Feedback Given</strong>
+              <span>${data.feedbackCount ?? 0}</span>
+            </div>
+            <div class="analytics-summary-item">
+              <strong>Last Interaction</strong>
+              <span style="font-size:1rem;">${data.lastInteraction ? new Date(data.lastInteraction).toLocaleString() : 'N/A'}</span>
+            </div>
+          `;
+        } catch {
+          summaryDiv.innerHTML = "<div>Unable to load analytics.</div>";
+        }
+      }
+
+      async function renderTopicAnalyticsSection(userId = null) {
+        const container = document.getElementById('topicAnalyticsSection');
+        const pieCanvas = document.getElementById('topicAnalyticsPieChart');
+        container.innerHTML = "Loading...";
+        if (pieCanvas) {
+          const ctx = pieCanvas.getContext('2d');
+          if (window.topicPieChart) {
+            window.topicPieChart.destroy();
+          }
+          ctx.clearRect(0, 0, pieCanvas.width, pieCanvas.height);
+        }
+        let user = getCurrentUser();
+        if (!userId && !user) {
+          try {
+            const res = await fetch('/api/users/me', {
+              headers: { Authorization: `Bearer ${getToken()}` }
+            });
+            if (res.ok) user = await res.json();
+          } catch {}
+        }
+        const id = userId || (user && user.id);
+        if (!id) {
+          container.innerHTML = "<div>Unable to load topic analytics.</div>";
+          return;
+        }
+        try {
+          const res = await fetch(`/api/users/analytics?userId=${encodeURIComponent(id)}`, {
+            headers: { Authorization: `Bearer ${getToken()}` }
+          });
+          const data = await res.json();
+          if (!data || !Array.isArray(data.topicAnalytics) || data.topicAnalytics.length === 0) {
+            container.innerHTML = "<div style='color:#888;text-align:center;'>No topic analytics available yet.</div>";
+            if (pieCanvas) pieCanvas.style.display = "none";
+            return;
+          }
+          let html = `<div class="topic-analytics-title">Your Interactions by Topic</div><ul class="topic-analytics-list">`;
+          for (const t of data.topicAnalytics) {
+            html += `<li><span>${t.label}</span><span class="topic-analytics-count">${t.count}</span></li>`;
+          }
+          html += `</ul>`;
+          container.innerHTML = html;
+
+          // Pie chart logic
+          if (pieCanvas) {
+            pieCanvas.style.display = "";
+            const labels = data.topicAnalytics.map(t => t.label);
+            const counts = data.topicAnalytics.map(t => t.count);
+            const colors = [
+              "#d4b24c", "#a08a3c", "#f7c873", "#f7f6f2", "#f7e6a2", "#b7a04c", "#e5e3dc", "#f4e285", "#f7d774"
+            ];
+            window.topicPieChart = new Chart(pieCanvas, {
+              type: 'pie',
+              data: {
+                labels: labels,
+                datasets: [{
+                  data: counts,
+                  backgroundColor: colors.slice(0, labels.length),
+                  borderColor: "#fff",
+                  borderWidth: 2
+                }]
+              },
+              options: {
+                responsive: true,
+                plugins: {
+                  legend: {
+                    display: true,
+                    position: 'bottom',
+                    labels: {
+                      color: "#232323",
+                      font: { family: "'Inter', sans-serif", size: 16 }
+                    }
+                  },
+                  tooltip: {
+                    callbacks: {
+                      label: function(context) {
+                        const label = context.label || '';
+                        const value = context.parsed || 0;
+                        return `${label}: ${value}`;
+                      }
+                    }
+                  }
+                }
+              }
+            });
+          }
+        } catch {
+          container.innerHTML = "<div>Unable to load topic analytics.</div>";
+          if (pieCanvas) pieCanvas.style.display = "none";
+        }
+      }
+
+      async function renderRecentChats(userId = null) {
+        const table = document.getElementById("recentChatsTable").querySelector("tbody");
+        table.innerHTML = "<tr><td colspan='4'>Loading...</td></tr>";
+        let user = getCurrentUser();
+        if (!userId && !user) {
+          try {
+            const res = await fetch('/api/users/me', {
+              headers: { Authorization: `Bearer ${getToken()}` }
+            });
+            if (res.ok) user = await res.json();
+          } catch {}
+        }
+        const id = userId || (user && user.id);
+        if (!id) {
+          table.innerHTML = "<tr><td colspan='4'>Unable to load chats.</td></tr>";
+          return;
+        }
+        try {
+          const res = await fetch(`/api/users/chats?userId=${encodeURIComponent(id)}`, {
+            headers: { Authorization: `Bearer ${getToken()}` }
+          });
+          const chats = await res.json();
+          if (!Array.isArray(chats) || chats.length === 0) {
+            table.innerHTML = "<tr><td colspan='4'>No chats found.</td></tr>";
+            return;
+          }
+          table.innerHTML = "";
+          chats.slice(0, 5).forEach(chat => {
+            table.innerHTML += `
+              <tr>
+                <td>${chat.firstTimestamp ? new Date(chat.firstTimestamp).toLocaleString() : "N/A"}</td>
+                <td>${chat.firstMessage ? chat.firstMessage.substring(0, 60) : ""}</td>
+                <td>${chat.messageCount ?? 0}</td>
+                <td>${chat.feedbackCount ?? 0}</td>
+              </tr>
+            `;
+          });
+        } catch {
+          table.innerHTML = "<tr><td colspan='4'>Unable to load chats.</td></tr>";
+        }
+      }
+
+      async function renderFeedbackHistory(userId = null) {
+        const table = document.getElementById("feedbackTable").querySelector("tbody");
+        table.innerHTML = "<tr><td colspan='4'>Loading...</td></tr>";
+        let user = getCurrentUser();
+        if (!userId && !user) {
+          try {
+            const res = await fetch('/api/users/me', {
+              headers: { Authorization: `Bearer ${getToken()}` }
+            });
+            if (res.ok) user = await res.json();
+          } catch {}
+        }
+        const id = userId || (user && user.id);
+        if (!id) {
+          table.innerHTML = "<tr><td colspan='4'>Unable to load feedback.</td></tr>";
+          return;
+        }
+        try {
+          const res = await fetch(`/api/users/feedback?userId=${encodeURIComponent(id)}`, {
+            headers: { Authorization: `Bearer ${getToken()}` }
+          });
+          const feedbacks = await res.json();
+          if (!Array.isArray(feedbacks) || feedbacks.length === 0) {
+            table.innerHTML = "<tr><td colspan='4'>No feedback found.</td></tr>";
+            return;
+          }
+          table.innerHTML = "";
+          feedbacks.slice(0, 10).forEach(fb => {
+            table.innerHTML += `
+              <tr>
+                <td>${fb.timestamp ? new Date(fb.timestamp).toLocaleString() : "N/A"}</td>
+                <td>${fb.user_message ? fb.user_message.substring(0, 60) : ""}</td>
+                <td>${fb.bot_response ? fb.bot_response.substring(0, 60) : ""}</td>
+                <td>${fb.feedback}</td>
+              </tr>
+            `;
+          });
+        } catch {
+          table.innerHTML = "<tr><td colspan='4'>Unable to load feedback.</td></tr>";
+        }
+      }
+
+      // Company-wide analytics rendering
+      async function renderCompanyAnalytics() {
+        const summaryDiv = document.getElementById('companyAnalyticsSummary');
+        summaryDiv.innerHTML = "Loading...";
+        try {
+          const res = await fetch('/api/users/company-analytics', {
+            headers: { Authorization: `Bearer ${getToken()}` }
+          });
+          if (!res.ok) throw new Error();
+          const data = await res.json();
+          summaryDiv.innerHTML = `
+        <div class="company-analytics-summary-flex">
+          <div class="analytics-summary-item">
+            <strong>Total Users</strong>
+            <span>${data.userCount ?? 0}</span>
+          </div>
+          <div class="analytics-summary-item">
+            <strong>Total Chats</strong>
+            <span>${data.chatCount ?? 0}</span>
+          </div>
+          <div class="analytics-summary-item">
+            <strong>Total Queries</strong>
+            <span>${data.queryCount ?? 0}</span>
+          </div>
+          <div class="analytics-summary-item">
+            <strong>Total Feedback</strong>
+            <span>${data.feedbackCount ?? 0}</span>
+          </div>
+          <div class="analytics-summary-item">
+            <strong>Last Interaction</strong>
+            <span style="font-size:1rem;">${data.lastInteraction ? new Date(data.lastInteraction).toLocaleString() : 'N/A'}</span>
+          </div>
+        </div>
+      `;
+          // Topic analytics
+          const topicSection = document.getElementById('companyTopicAnalyticsSection');
+          if (topicSection) {
+            let html = `<div class="topic-analytics-title">Company-wide Interactions by Topic</div><ul class="topic-analytics-list">`;
+            for (const t of data.topicAnalytics || []) {
+              html += `<li><span>${t.label}</span><span class="topic-analytics-count">${t.count}</span></li>`;
+            }
+            html += `</ul>`;
+            topicSection.innerHTML = html;
+          }
+          // Pie chart
+          const pieCanvas = document.getElementById('companyTopicAnalyticsPieChart');
+          if (pieCanvas) {
+            const ctx = pieCanvas.getContext('2d');
+            if (window.companyTopicPieChart) window.companyTopicPieChart.destroy();
+            ctx.clearRect(0, 0, pieCanvas.width, pieCanvas.height);
+            const labels = (data.topicAnalytics || []).map(t => t.label);
+            const counts = (data.topicAnalytics || []).map(t => t.count);
+            const colors = [
+              "#d4b24c", "#a08a3c", "#f7c873", "#f7f6f2", "#f7e6a2", "#b7a04c", "#e5e3dc", "#f4e285", "#f7d774"
+            ];
+            window.companyTopicPieChart = new Chart(pieCanvas, {
+              type: 'pie',
+              data: {
+                labels: labels,
+                datasets: [{
+                  data: counts,
+                  backgroundColor: colors.slice(0, labels.length),
+                  borderColor: "#fff",
+                  borderWidth: 2
+                }]
+              },
+              options: {
+                responsive: true,
+                plugins: {
+                  legend: {
+                    display: true,
+                    position: 'bottom',
+                    labels: {
+                      color: "#232323",
+                      font: { family: "'Inter', sans-serif", size: 16 }
+                    }
+                  }
+                }
+              }
+            });
+          }
+        } catch {
+          summaryDiv.innerHTML = "<div>Unable to load company analytics.</div>";
+          const topicSection = document.getElementById('companyTopicAnalyticsSection');
+          if (topicSection) topicSection.innerHTML = "";
+          const pieCanvas = document.getElementById('companyTopicAnalyticsPieChart');
+          if (pieCanvas) pieCanvas.style.display = "none";
+        }
+      }
+
+      // Render user list for admin
+      async function renderUserListTable() {
+        const table = document.getElementById('userListTable').querySelector('tbody');
+        table.innerHTML = "<tr><td colspan='5'>Loading...</td></tr>";
+        try {
+          const res = await fetch('/api/users/all-analytics', {
+            headers: { Authorization: `Bearer ${getToken()}` }
+          });
+          if (!res.ok) throw new Error();
+          const users = await res.json();
+          if (!Array.isArray(users) || users.length === 0) {
+            table.innerHTML = "<tr><td colspan='5'>No user analytics found.</td></tr>";
+            return;
+          }
+          table.innerHTML = "";
+          users.forEach(user => {
+            table.innerHTML += `
+              <tr>
+                <td><span class="user-list-link" data-userid="${user.userId}">${user.userId}</span></td>
+                <td>${user.chatCount ?? 0}</td>
+                <td>${user.queryCount ?? 0}</td>
+                <td>${user.feedbackCount ?? 0}</td>
+                <td>${user.lastInteraction ? new Date(user.lastInteraction).toLocaleString() : 'N/A'}</td>
+              </tr>
+            `;
+          });
+        } catch {
+          table.innerHTML = "<tr><td colspan='5'>Unable to load user analytics.</td></tr>";
+        }
+      }
+
+      // On load, setup sidebar and render default view
+      document.addEventListener("DOMContentLoaded", function () {
+        setupAdminSidebar();
+        switchView('my');
+      });
+
+      // Add delegated event listener for user links in All Users table
+      document.addEventListener("click", function (e) {
+        if (e.target.classList.contains("user-list-link")) {
+          const userId = e.target.getAttribute("data-userid") || e.target.textContent;
+          switchView('userdetail', userId);
+        }
+      });
+    </script>
+</body>
+</html>

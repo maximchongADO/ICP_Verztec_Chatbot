@@ -25,6 +25,38 @@ const userRoute = (app) => {
     authenticateToken.requireAdmin,
     userController.adminUpdateUser
   );
+  // User analytics dashboard (authenticated)
+  app.get(
+    "/api/users/analytics",
+    authenticateToken,
+    userController.getUserAnalytics
+  );
+  // Recent chats for analytics
+  app.get(
+    "/api/users/chats",
+    authenticateToken,
+    userController.getUserChats
+  );
+  // Recent feedback for analytics
+  app.get(
+    "/api/users/feedback",
+    authenticateToken,
+    userController.getUserFeedback
+  );
+  // Admin-only: company-wide analytics
+  app.get(
+    "/api/users/company-analytics",
+    authenticateToken,
+    authenticateToken.requireAdmin,
+    userController.getCompanyAnalytics
+  );
+  // Admin-only: all users' analytics
+  app.get(
+    "/api/users/all-analytics",
+    authenticateToken,
+    authenticateToken.requireAdmin,
+    userController.getAllUsersAnalytics
+  );
 
   console.log("User routes mounted successfully");
 };

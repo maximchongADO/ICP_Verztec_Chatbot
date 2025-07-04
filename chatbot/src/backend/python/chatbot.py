@@ -7,7 +7,7 @@ from datetime import datetime
 from time import sleep
 import uuid
 import numpy as np
-import mysql.connector
+import pymysql
 import spacy
 from spacy.matcher import PhraseMatcher
 from typing import List
@@ -40,7 +40,7 @@ logger = logging.getLogger(__name__)
 # Initialize models and clients
 embedding_model = SentenceTransformer('BAAI/bge-large-en-v1.5')
 load_dotenv()
-api_key = os.getenv("API_KEY")
+api_key = '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'
 
 model = "deepseek-r1-distill-llama-70b" 
 deepseek = ChatGroq(api_key=api_key, model=model) # type: ignore
@@ -59,7 +59,8 @@ DB_CONFIG = {
     'user': 'chatbot_user',
     'password': 'strong_password',
     'database': 'chatbot_db',
-    'raise_on_warnings': True
+    'cursorclass': pymysql.cursors.Cursor,
+    'autocommit': True
 }
 
 # Load FAISS index
@@ -115,7 +116,7 @@ except Exception as e:
   
 
 def store_chat_log_updated(user_message, bot_response, query_score, relevance_score, chat_id, user_id):
-    conn = mysql.connector.connect(**DB_CONFIG)
+    conn = pymysql.connect(**DB_CONFIG)
     cursor = conn.cursor()
 
     timestamp = datetime.utcnow()
