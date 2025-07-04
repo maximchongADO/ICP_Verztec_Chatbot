@@ -81,6 +81,35 @@ def delete_messages_by_user_and_chat(User_id, chat_id):
     
     
     
+def gather_for_analytics(user_id):
+    conn = mysql.connector.connect(**DB_CONFIG)
+    cursor = conn.cursor(dictionary=True)
+
+    select_query = '''
+        SELECT timestamp ,user_message, bot_response, query_score, feedback,  relevance_score, user_id, chat_id
+        FROM chat_logs
+        WHERE user_id = %s
+    '''
+
+    cursor.execute(select_query, (user_id,))
+    results = cursor.fetchall()
+
+    cursor.close()
+    conn.close()
+
+    return results
+
+def build_chatname_from_user_id(user_id, chat_id):
+    allmsgs = retrieve_user_messages_and_scores(user_id, chat_id)
+    if not allmsgs:
+        return "No messages found for this user and chat ID."
+    else:
+        return "meoqw"    
+    
+    
+    
+
+    
 if __name__=='__main__':
     delete_messages_by_user_and_chat("2", "chat123")
     
