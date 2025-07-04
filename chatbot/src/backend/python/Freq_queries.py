@@ -1,5 +1,3 @@
-
-
 import re
 from rapidfuzz import fuzz
 from collections import defaultdict, Counter
@@ -66,6 +64,11 @@ def format_query(text: str) -> str:
 
 
 def get_suggestions(query: str = "") -> List[str]:
+    """
+    Returns a list of the most frequent, semantically distinct user queries.
+    Groups similar queries (e.g., 'pantry rules?' vs 'what are the pantry rules?') together
+    and returns the most representative (longest) canonical form for each group.
+    """
     all_results = retrieve_user_messages_and_scores()
 
     # Filter based on your criteria
@@ -74,32 +77,39 @@ def get_suggestions(query: str = "") -> List[str]:
         if result['user_message'] and result['query_score'] > 0.79 and result['relevance_score'] < 1.01
     ]
 
-    # Fuzzy group similar queries
-    grouped_queries = []
-    query_map = defaultdict(list)  # {canonical_query: [variants]}
-
+    # Group by normalized form to avoid semantic overlaps
+    query_map = defaultdict(list)  # {normalized: [originals]}
     for result in filtered_results:
         message = result['user_message']
+        norm = normalize_text(message)
         matched = False
-
-        # Try to match against existing groups
-        for canon in query_map:
-            if fuzz.ratio(message.lower(), canon.lower()) > 85:  # similarity threshold
-                query_map[canon].append(message)
+        for canon_norm in query_map:
+            # Use fuzzy match to group semantically similar queries
+            if fuzz.ratio(norm, canon_norm) > 85:
+                query_map[canon_norm].append(message)
                 matched = True
                 break
-
-        # If no match, start new group
         if not matched:
-            query_map[message] = [message]
+            query_map[norm].append(message)
+
+    # For each group, pick the most representative (longest) query
+    canonical_queries = []
+    for variants in query_map.values():
+        # Pick the variant with the most words, or the longest
+        best = max(variants, key=lambda x: (len(x.split()), len(x)))
+        canonical_queries.append(best)
 
     # Count occurrences by group
-    grouped_counts = [(canon, len(variants)) for canon, variants in query_map.items()]
-    top_3_groups = sorted(grouped_counts, key=lambda x: x[1], reverse=True)[:4]
+    grouped_counts = [(q, sum(q in v for v in query_map.values())) for q in canonical_queries]
+    top_groups = sorted(grouped_counts, key=lambda x: x[1], reverse=True)[:4]
 
-    # Return the canonical representative from each top group
-    top_3_queries = [item[0] for item in top_3_groups]
-    for i in range(len(top_3_queries)):
-        top_3_queries[i] = format_query(normalize_text(top_3_queries[i]))
+    # Format and deduplicate
+    top_queries = []
+    seen = set()
+    for item in top_groups:
+        formatted = format_query(item[0])
+        if formatted not in seen:
+            seen.add(formatted)
+            top_queries.append(formatted)
 
-    return top_3_queries
+    return top_queries

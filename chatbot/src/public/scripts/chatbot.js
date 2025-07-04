@@ -240,12 +240,7 @@ async function clearChatHistory() {
             I'm here to help you with any questions or tasks you might have.
             Feel free to ask me anything!
           </p>
-          <div class="suggestions">
-            <div class="suggestion" onclick="sendSuggestion('How can I reset my password?')">How can I reset my password?</div>
-            <div class="suggestion" onclick="sendSuggestion('What are the office hours?')">What are the office hours?</div>
-            <div class="suggestion" onclick="sendSuggestion('How do I submit a support ticket?')">How do I submit a support ticket?</div>
-            <div class="suggestion" onclick="sendSuggestion('Where can I find company policies?')">Where can I find company policies?</div>
-          </div>
+          <div id="suggestionsContainer" class="suggestions"></div>
         </div>
       `;
     } else {
@@ -888,14 +883,10 @@ async function startNewChat() {
             I'm here to help you with any questions or tasks you might have.
             Feel free to ask me anything!
           </p>
-          <div class="suggestions">
-            <div class="suggestion" onclick="sendSuggestion('How can I reset my password?')">How can I reset my password?</div>
-            <div class="suggestion" onclick="sendSuggestion('What are the office hours?')">What are the office hours?</div>
-            <div class="suggestion" onclick="sendSuggestion('How do I submit a support ticket?')">How do I submit a support ticket?</div>
-            <div class="suggestion" onclick="sendSuggestion('Where can I find company policies?')">Where can I find company policies?</div>
-          </div>
+          <div id="suggestionsContainer" class="suggestions"></div>
         </div>
       `;
+      get_frequentmsg();
     } else {
       // Log error details for debugging
       console.error("Failed to start new chat. Response:", data, "Status:", response.status);
