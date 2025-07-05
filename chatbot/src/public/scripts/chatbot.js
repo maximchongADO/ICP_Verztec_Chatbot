@@ -24,8 +24,8 @@ function stopAvatarAnimation() {
         currentMouthInterval = null;
     }
     
-    avatar.classList.remove('speaking');
-    avatarOpen.classList.add('avatar-hidden');
+    if (avatar) avatar.classList.remove('speaking');
+    if (avatarOpen) avatarOpen.classList.add('avatar-hidden');
 }
 
 
@@ -578,11 +578,11 @@ window.addEventListener("resize", function () {
   if (window.innerWidth > 768) {
     // Desktop: show sidebar, hide overlay
     sidebar.classList.remove("collapsed");
-    overlay.classList.remove("active");
+    if (overlay) overlay.classList.remove("active");
   } else {
     // Mobile: hide sidebar by default
     if (!sidebar.classList.contains("collapsed")) {
-      overlay.classList.add("active");
+      if (overlay) overlay.classList.add("active");
     }
   }
 });
@@ -597,14 +597,18 @@ function toggleMute() {
     
     if (isMuted) {
         responsiveVoice.pause();  // Pause instead of cancel
-        avatar.classList.add('muted');
-        toggleButton.classList.add('muted');
-        toggleButton.innerHTML = '<i class="fas fa-volume-mute"></i> Muted';
+        if (avatar) avatar.classList.add('muted');
+        if (toggleButton) {
+            toggleButton.classList.add('muted');
+            toggleButton.innerHTML = '<i class="fas fa-volume-mute"></i> Muted';
+        }
     } else {
         responsiveVoice.resume();  // Resume if paused
-        avatar.classList.remove('muted');
-        toggleButton.classList.remove('muted');
-        toggleButton.innerHTML = '<i class="fas fa-volume-up"></i> Unmuted';
+        if (avatar) avatar.classList.remove('muted');
+        if (toggleButton) {
+            toggleButton.classList.remove('muted');
+            toggleButton.innerHTML = '<i class="fas fa-volume-up"></i> Unmuted';
+        }
     }
 }
 
@@ -620,21 +624,9 @@ async function speakMessage(text) {
     currentSpeechText = text;
     
     try {
-        avatar.classList.add('speaking');
+        if (avatar) avatar.classList.add('speaking');
         isCurrentlySpeaking = true;
-        
-        // Clear any existing animation
-        if (currentMouthInterval) {
-            clearInterval(currentMouthInterval);
-        }
-        
-        // Start new animation
-        currentMouthInterval = setInterval(() => {
-            if (isCurrentlySpeaking) {
-                avatarOpen.classList.toggle('avatar-hidden');
-            }
-        }, 200);
-        
+      
         responsiveVoice.speak(text, "UK English Female", {
             onend: () => {
                 currentSpeechText = null;
@@ -643,7 +635,7 @@ async function speakMessage(text) {
             },
             onstart: () => {
                 isCurrentlySpeaking = true;
-                avatar.classList.add('speaking');
+                if (avatar) avatar.classList.add('speaking');
             },
             volume: isMuted ? 0 : 1  // Set volume based on mute state
         });
