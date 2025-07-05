@@ -30,7 +30,7 @@ logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(
 logger = logging.getLogger(__name__)
 
 # Initialize models and clients (same as chatbot.py)
-api_key = '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'
+api_key = ''
 model = "deepseek-r1-distill-llama-70b"
 model="meta-llama/llama-4-scout-17b-16e-instruct"
 deepseek = ChatGroq(api_key=api_key, model=model) # type: ignore

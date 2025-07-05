@@ -114,7 +114,7 @@ Performance Characteristics:
 - Context window: 8K tokens (sufficient for ReAct)
 - Concurrent requests: Limited by API tier
 """
-api_key = "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"
+api_key = "NOT AN API KET BRUH"
 llm = ChatGroq(api_key=api_key, model="meta-llama/llama-4-scout-17b-16e-instruct")
 
 # Memory setup (currently unused but available for multi-turn conversations)
