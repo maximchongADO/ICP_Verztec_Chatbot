@@ -1,9 +1,20 @@
-import { useRef } from "react";
+import { useRef, useEffect } from "react";
 import { useChat } from "../hooks/useChat";
 
 export const UI = ({ hidden, ...props }) => {
   const input = useRef();
   const { chat, loading, cameraZoomed, setCameraZoomed, message } = useChat();
+
+  // Add TTS effect for new bot message
+  useEffect(() => {
+    if (message && window.responsiveVoice) {
+      // The message object structure from your backend is { type: "bot", text: data.message }
+      const textToSpeak = message.text || message.message;
+      if (textToSpeak) {
+        window.responsiveVoice.speak(textToSpeak, "UK English Female");
+      }
+    }
+  }, [message]);
 
   const sendMessage = () => {
     const text = input.current.value;
