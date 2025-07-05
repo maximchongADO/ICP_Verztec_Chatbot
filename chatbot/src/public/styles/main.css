@@ -1,3 +1,64 @@
+/* Chat History Sidebar Styles */
+.chat-history-sidebar {
+  position: fixed;
+  top: 0;
+  left: -340px;
+  width: 320px;
+  height: 100vh;
+  background: #232323;
+  color: #fff;
+  box-shadow: 2px 0 12px rgba(0,0,0,0.18);
+  z-index: 1002;
+  transition: left 0.35s cubic-bezier(0.4,0,0.2,1);
+  display: flex;
+  flex-direction: column;
+  pointer-events: auto;
+}
+.chat-history-sidebar.open {
+  left: 0;
+}
+.chat-history-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 18px 20px 10px 20px;
+  font-size: 1.2em;
+  border-bottom: 1px solid #444;
+  background: #232323;
+}
+#closeChatHistoryBtn {
+  background: none;
+  border: none;
+  color: #fff;
+  font-size: 1.5em;
+  cursor: pointer;
+  transition: color 0.2s;
+}
+#closeChatHistoryBtn:hover {
+  color: #FFD700;
+}
+.chat-history-list {
+  flex: 1;
+  overflow-y: auto;
+  padding: 12px 20px;
+}
+.chat-history-item {
+  padding: 12px 0;
+  border-bottom: 1px solid #333;
+  cursor: pointer;
+  transition: background 0.18s;
+}
+.chat-history-item:last-child {
+  border-bottom: none;
+}
+.chat-history-item:hover {
+  background: #292929;
+}
+.chat-history-empty {
+  color: #aaa;
+  text-align: center;
+  margin-top: 40px;
+}
 /* Modern Professional UI Design */
 :root {
   --primary-color: #232323;
