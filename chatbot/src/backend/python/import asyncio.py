@@ -1,41 +1,32 @@
-import asyncio
-from crawl4ai import *
+# Import relevant functionality
+from langchain.chat_models import init_chat_model
+from langchain_tavily import TavilySearch
+from langgraph.checkpoint.memory import MemorySaver
+from langgraph.prebuilt import create_react_agent
 
-async def main():
-    async with AsyncWebCrawler() as crawler:
-        result = await crawler.arun(
-            url="https://www.giving.sg/organisation/profile/ee0cacf2-668c-4344-b995-e767fa3ff779",
-        )
-        print(result.markdown)
-       
+# Create the agent
+tavily_api_key="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"
+memory = MemorySaver()
+model = init_chat_model("anthropic:claude-3-5-sonnet-latest")
+search = TavilySearch(max_results=2,tavily_api_key=tavily_api_key)
+tools = [search]
+agent_executor = create_react_agent(model, tools, checkpointer=memory)# Use the agent
+config = {"configurable": {"thread_id": "abc123"}}
 
-async def main():
-    async with AsyncWebCrawler() as crawler:
-        result = await crawler.arun(
-            url="https://www.verztec.com/"
-        )
+input_message = {
+    "role": "user",
+    "content": "Hi, I'm Bob and I life in SF.",
+}
+for step in agent_executor.stream(
+    {"messages": [input_message]}, config, stream_mode="values"
+):
+    step["messages"][-1].pretty_print()
+    input_message = {
+    "role": "user",
+    "content": "What's the weather where I live?",
+}
 
-        if not result.success:
-            print("❌ Crawl failed:", result.error_message)
-            return
-
-        print("🌐 URL:", result.url)
-        print("🔧 Cleaned HTML (first 500 chars):")
-        print((result.cleaned_html or "")[:500] + "...\n")
-
-        # Handle markdown output
-        if isinstance(result.markdown, str):
-            md_text = result.markdown
-        else:
-            md_text = result.markdown.raw_markdown
-
-        print("📘 Markdown (first 500 chars):")
-        print(md_text[:500] + "...\n")
-
-        print("🧠 Structured Content (if any):")
-        print(result.extracted_content or "None")
-
-        print("🧾 Metadata keys:", list(result.metadata.keys()) if result.metadata else "None")
-
-if __name__ == "__main__":
-    asyncio.run(main())
+for step in agent_executor.stream(
+    {"messages": [input_message]}, config, stream_mode="values"
+):
+    step["messages"][-1].pretty_print()
