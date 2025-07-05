@@ -95,32 +95,85 @@ function sendMessage() {
     });
 }
 
-//getting all messages from the given chat and user
-async function getChatHistory(userId, chatId) {
+// Chat History Sidebar logic
+async function getChatHistorySidebar() {
+  const userId = localStorage.getItem("userId") || "defaultUser";
   try {
-    const response = await fetch("/history", {
-      method: "POST",
+    const response = await fetch(`/api/chatbot/history?user_id=${encodeURIComponent(userId)}`, {
+      method: "GET",
       headers: {
-        "Content-Type": "application/json"
-      },
-      body: JSON.stringify({
-        user_id: userId,
-        chat_id: chatId
-      })
+        Authorization: `Bearer ${localStorage.getItem("token")}`
+      }
     });
-
     if (!response.ok) {
       throw new Error(`HTTP error! status: ${response.status}`);
     }
-
     const chatLogs = await response.json();
-    console.log("Chat History:", chatLogs);
-
-    // then here u do whatever u want with the chatlogs json file
-
+    renderChatHistorySidebar(chatLogs);
   } catch (error) {
     console.error("Error fetching chat history:", error);
+    renderChatHistorySidebar([]);
   }
+}
+
+function renderChatHistorySidebar(chatLogs) {
+  const sidebar = document.getElementById("chatHistorySidebar");
+  const list = document.getElementById("chatHistoryList");
+  if (!sidebar || !list) return;
+  list.innerHTML = "";
+  if (!Array.isArray(chatLogs) || chatLogs.length === 0) {
+    list.innerHTML = '<div class="chat-history-empty">No chat history found.</div>';
+    return;
+  }
+  chatLogs.forEach(log => {
+    const item = document.createElement("div");
+    item.className = "chat-history-item";
+    item.textContent = log.title || `Chat on ${log.date || log.created_at || "Unknown"}`;
+    item.onclick = () => loadChatHistory(log.chat_id);
+    list.appendChild(item);
+  });
+}
+
+function openChatHistorySidebar() {
+  const sidebar = document.getElementById("chatHistorySidebar");
+  if (!sidebar) return;
+  sidebar.classList.add("open");
+  getChatHistorySidebar();
+}
+
+function closeChatHistorySidebar() {
+  const sidebar = document.getElementById("chatHistorySidebar");
+  if (!sidebar) return;
+  sidebar.classList.remove("open");
+}
+
+function loadChatHistory(chatId) {
+  // Load the selected chat's messages and display in main chat area
+  const userId = localStorage.getItem("userId") || "defaultUser";
+  fetch(`/api/chatbot/history/${encodeURIComponent(chatId)}?user_id=${encodeURIComponent(userId)}`, {
+    method: "GET",
+    headers: {
+      Authorization: `Bearer ${localStorage.getItem("token")}`
+    }
+  })
+    .then(res => res.ok ? res.json() : Promise.reject(res))
+    .then(chatLogs => {
+      // Replace chat UI with selected chat's messages
+      const chatMessages = document.getElementById("chatMessages");
+      chatMessages.innerHTML = "";
+      if (Array.isArray(chatLogs) && chatLogs.length > 0) {
+        chatLogs.forEach(msg => {
+          addMessage(msg.message, msg.sender === "user" ? "user" : "bot");
+        });
+      } else {
+        chatMessages.innerHTML = `<div class='welcome-message'><h2>No messages in this chat.</h2></div>`;
+      }
+      closeChatHistorySidebar();
+    })
+    .catch(() => {
+      alert("Failed to load chat history.");
+      closeChatHistorySidebar();
+    });
 }
 
 
@@ -801,6 +854,16 @@ function closeProfileDropdownOnClick(e) {
 // Wait for user info to be loaded and then populate profile
 document.addEventListener("DOMContentLoaded", function () {
   // ...existing code...
+
+// Chat History button logic
+window.addEventListener("DOMContentLoaded", function () {
+  setTimeout(() => {
+    const chatHistoryBtn = document.getElementById("chatHistoryNavBtn");
+    const closeBtn = document.getElementById("closeChatHistoryBtn");
+    if (chatHistoryBtn) chatHistoryBtn.onclick = openChatHistorySidebar;
+    if (closeBtn) closeBtn.onclick = closeChatHistorySidebar;
+  }, 200);
+});
   // Wait for window.currentUser to be set (from HTML inline script)
   let tries = 0;
   function tryPopulateProfile() {
