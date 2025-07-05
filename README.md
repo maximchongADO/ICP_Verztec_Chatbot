@@ -104,7 +104,7 @@ open a new terminal, then
 4. python -m venv .venv -> only to create virtual environment first time
 5. .venv\Scripts\activate.bat
 6. pip install -r requirements.txt - > only need for first time OR when u add new requirements
-7.  python main.py
+7. python main.py
 
 if u want to change the python chatbot logic make sure to include:
 app = FastAPI()

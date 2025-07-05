@@ -95,13 +95,77 @@ const processMessage = async (req, res) => {
     }
 };
 
-// Get chat history for a user
-const getChatHistory = (req, res) => {
-    const userChatHistory = req.session.chatHistory || [];
-    res.json({
-        success: true,
-        chatHistory: userChatHistory
-    });
+// Get chat history for a user (grouped by chat_id)
+const getChatHistory = async (req, res) => {
+    try {
+        const userId = req.user?.userId || req.user?.id || req.user?.sub || req.query.user_id || req.body.user_id || "defaultUser";
+        let chatId;
+        if (req && req.params && typeof req.params === 'object' && Object.prototype.hasOwnProperty.call(req.params, 'chat_id')) {
+            chatId = req.params.chat_id;
+        } else if (req && req.query && typeof req.query === 'object' && Object.prototype.hasOwnProperty.call(req.query, 'chat_id')) {
+            chatId = req.query.chat_id;
+        } else if (req && req.body && typeof req.body === 'object' && Object.prototype.hasOwnProperty.call(req.body, 'chat_id')) {
+            chatId = req.body.chat_id;
+        } else {
+            chatId = undefined;
+        }
+        if (!userId) {
+            return res.status(400).json({ success: false, message: 'userId is required' });
+        }
+        const connection = await mysql.createConnection(dbConfig);
+        if (chatId) {
+            // Return all messages for this chat_id
+            const [rows] = await connection.execute(
+                'SELECT chat_id, user_id, user_message, bot_response, timestamp FROM chat_logs WHERE user_id = ? AND chat_id = ? ORDER BY timestamp ASC',
+                [userId, chatId]
+            );
+            await connection.end();
+            // Return messages in the format expected by frontend
+            const messages = rows.map(row => ({
+                chat_id: row.chat_id,
+                user_id: row.user_id,
+                message: row.user_message,
+                sender: row.user_id === userId ? "user" : "bot", // for user messages
+                bot_response: row.bot_response,
+                timestamp: row.timestamp
+            }));
+            // Interleave user and bot messages for chat display
+            let chatMessages = [];
+            rows.forEach(row => {
+                chatMessages.push({
+                    message: row.user_message,
+                    sender: "user",
+                    timestamp: row.timestamp
+                });
+                if (row.bot_response) {
+                    chatMessages.push({
+                        message: row.bot_response,
+                        sender: "bot",
+                        timestamp: row.timestamp
+                    });
+                }
+            });
+            return res.json(chatMessages);
+        } else {
+            // Return all chat sessions for this user
+            const [rows] = await connection.execute(
+                'SELECT chat_id, MIN(timestamp) as created_at, MAX(timestamp) as last_message, COUNT(*) as message_count FROM chat_logs WHERE user_id = ? GROUP BY chat_id ORDER BY last_message DESC',
+                [userId]
+            );
+            await connection.end();
+            const chats = rows.map(row => ({
+                chat_id: row.chat_id,
+                date: row.created_at,
+                last_message: row.last_message,
+                message_count: row.message_count,
+                title: `Chat (${row.created_at ? new Date(row.created_at).toLocaleString() : row.chat_id})`
+            }));
+            return res.json(chats);
+        }
+    } catch (error) {
+        console.error('Error fetching chat history:', error);
+        res.status(500).json({ success: false, message: 'Error fetching chat history', error: error.message });
+    }
 };
 
 // Clear chat history
