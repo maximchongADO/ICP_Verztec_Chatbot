@@ -1,1 +1,4 @@
 .env
+# Google Cloud credentials
+credentials/
+*.json
