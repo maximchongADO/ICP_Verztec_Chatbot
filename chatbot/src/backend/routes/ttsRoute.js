@@ -1,4 +1,6 @@
 const ttsController = require("../controllers/ttsController.js");
+const ttsEnhanced = require("../controllers/ttsControllerEnhanced.js");
+const { processAudioWithLipSync, getLipSyncData } = require("../controllers/rhubarbController.js");
 const authenticateToken = require("../middleware/authenticateToken.js");
 
 const ttsRoute = (app) => {
@@ -31,6 +33,28 @@ const ttsRoute = (app) => {
   // Temporary TTS synthesis endpoint WITHOUT authentication for testing
   app.post("/api/tts/synthesize-test", ttsController.synthesizeSpeech);
 
+  // **Enhanced TTS Endpoints (following reference implementation pattern)**
+  
+  // Enhanced TTS synthesis with comprehensive lip sync support
+  app.post(
+    "/api/tts/chat",
+    authenticateToken,
+    ttsEnhanced.chatWithLipSync
+  );
+
+  // Enhanced single message TTS with lip sync (replaces standard synthesize)
+  app.post(
+    "/api/tts/synthesize-enhanced",
+    authenticateToken,
+    ttsEnhanced.synthesizeSpeechWithLipSync
+  );
+
+  // Test enhanced endpoints without authentication
+  app.post("/api/tts/chat-test", ttsEnhanced.chatWithLipSync);
+  app.post("/api/tts/synthesize-enhanced-test", ttsEnhanced.synthesizeSpeechWithLipSync);
+
+  // **Original TTS Endpoints (backward compatibility)**
+  
   // TTS synthesis endpoint - requires authentication
   app.post(
     "/api/tts/synthesize",
@@ -44,6 +68,25 @@ const ttsRoute = (app) => {
     authenticateToken,
     ttsController.getVoices
   );
+
+  // **Rhubarb Lip Sync Routes**
+  
+  // Process audio file with lip sync generation
+  app.post(
+    "/api/tts/lipsync/generate",
+    authenticateToken,
+    processAudioWithLipSync
+  );
+
+  // Get existing lip sync data by filename
+  app.get(
+    "/api/tts/lipsync/:filename",
+    authenticateToken,
+    getLipSyncData
+  );
+
+  // Test lip sync endpoint without authentication for debugging
+  app.post("/api/tts/lipsync/generate-test", processAudioWithLipSync);
 };
 
 module.exports = ttsRoute;

@@ -675,12 +675,10 @@ async function speakMessage(text) {
     
     try {
         if (avatar) avatar.classList.add('speaking');
-        isCurrentlySpeaking = true;
-      
-        // Use Google Cloud TTS instead of ResponsiveVoice
+        isCurrentlySpeaking = true;        // Use Google Cloud TTS instead of ResponsiveVoice
         if (window.googleTTS) {
           await window.googleTTS.speak(text, {
-            voice: 'en-GB-Standard-A',
+            voice: 'en-GB-Standard-A',      // British English female voice
             languageCode: 'en-GB',
             volume: isMuted ? 0 : 1,
             onend: () => {

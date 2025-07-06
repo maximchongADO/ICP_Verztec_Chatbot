@@ -10,11 +10,9 @@ class GoogleTTS {
     if (!text || !text.trim()) return;
 
     // Stop any currently playing audio
-    this.cancel();
-
-    const {
-      voice = 'en-GB-Standard-A',
-      languageCode = 'en-GB',
+    this.cancel();    const {
+      voice = 'en-GB-Standard-A',  // British English female voice
+      languageCode = 'en-GB',      // British English
       volume = 1,
       onend = null,
       onstart = null
@@ -128,15 +126,27 @@ window.responsiveVoice = {
     const voiceMap = {
       "UK English Female": "en-GB-Standard-A",
       "US English Female": "en-US-Standard-C",
-      "US English Male": "en-US-Standard-B"
+      "US English Male": "en-US-Standard-B",
+      "Asian English Female": "en-US-Standard-A",    // Google's Asian-accented female voice
+      "Indian English Female": "en-IN-Standard-A",   // Indian female voice
+      "Japanese Female": "ja-JP-Standard-A",         // Japanese female voice
+      "Korean Female": "ko-KR-Standard-A",           // Korean female voice
+      "Chinese Female": "cmn-CN-Standard-A"          // Chinese Mandarin female voice
     };
     
-    const googleVoice = voiceMap[voice] || "en-GB-Standard-A";
-    const languageCode = googleVoice.includes('GB') ? 'en-GB' : 'en-US';
+    const googleVoice = voiceMap[voice] || "en-GB-Standard-A";  // Default to British female
+    
+    // Determine language code based on voice
+    let detectedLanguageCode = 'en-US';
+    if (googleVoice.includes('en-GB')) detectedLanguageCode = 'en-GB';
+    else if (googleVoice.includes('en-IN')) detectedLanguageCode = 'en-IN';
+    else if (googleVoice.includes('ja-JP')) detectedLanguageCode = 'ja-JP';
+    else if (googleVoice.includes('ko-KR')) detectedLanguageCode = 'ko-KR';
+    else if (googleVoice.includes('cmn-CN')) detectedLanguageCode = 'cmn-CN';
     
     window.googleTTS.speak(text, {
       voice: googleVoice,
-      languageCode: languageCode,
+      languageCode: detectedLanguageCode,
       volume: options.volume || 1,
       onend: options.onend,
       onstart: options.onstart

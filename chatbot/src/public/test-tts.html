@@ -29,11 +29,10 @@
                     method: "POST",
                     headers: {
                         "Content-Type": "application/json",
-                    },
-                    body: JSON.stringify({
-                        text: "Hello, this is a test without authentication",
-                        voice: "en-GB-Standard-A",
-                        languageCode: "en-GB",
+                    },                    body: JSON.stringify({
+                        text: "Hello, this is a test without authentication using an Asian female voice",
+                        voice: "en-US-Standard-A",
+                        languageCode: "en-US",
                     }),
                 });
 
@@ -88,9 +87,10 @@
                         "Authorization": `Bearer ${token}`,
                     },
                     body: JSON.stringify({
-                        text: "Hello, this is a test with authentication",
+                        text: "Hello, this is a test with authentication and lip sync generation",
                         voice: "en-GB-Standard-A",
                         languageCode: "en-GB",
+                        generateLipSyncData: true
                     }),
                 });
 
@@ -105,6 +105,8 @@
 
                 const data = await response.json();
                 console.log('TTS Auth Test Success:', data.success);
+                console.log('Lip sync data:', data.lipSyncData);
+                console.log('Audio filename:', data.filename);
                 
                 if (data.success) {
                     // Create audio from base64
@@ -122,7 +124,14 @@
                     const audio = new Audio(audioUrl);
                     audio.play();
                     
-                    document.getElementById('results').innerHTML = '✅ TTS Auth Test successful! Audio is playing.';
+                    let resultHtml = '✅ TTS Auth Test successful! Audio is playing.';
+                    if (data.lipSyncData) {
+                        resultHtml += `<br/>🎭 Lip sync data generated with ${data.lipSyncData.mouthCues.length} mouth cues`;
+                        resultHtml += `<br/>📄 Lip sync file: ${data.lipSyncPath}`;
+                    }
+                    document.getElementById('results').innerHTML = resultHtml;
+                } else {
+                    document.getElementById('results').innerHTML = '❌ TTS Auth Test failed: ' + data.error;
                 }
                 
             } catch (error) {

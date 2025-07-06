@@ -9,9 +9,10 @@ async function testTTSWithoutAuth() {
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        text: "Hello, this is a test without authentication",
+        text: "Hello, this is a test without authentication with lip sync generation",
         voice: "en-GB-Standard-A",
         languageCode: "en-GB",
+        generateLipSyncData: true
       }),
     });
 
@@ -25,6 +26,8 @@ async function testTTSWithoutAuth() {
 
     const data = await response.json();
     console.log('TTS Test Success:', data.success);
+    console.log('Has lip sync data:', !!data.lipSyncData);
+    console.log('Audio filename:', data.filename);
     
     if (data.success) {
       // Create audio from base64
@@ -43,6 +46,13 @@ async function testTTSWithoutAuth() {
       audio.play();
       
       console.log('✅ TTS Test successful! Audio is playing.');
+      
+      if (data.lipSyncData) {
+        console.log('🎭 Lip sync data generated:');
+        console.log('- Mouth cues:', data.lipSyncData.mouthCues.length);
+        console.log('- Duration:', data.lipSyncData.metadata?.duration || 'unknown');
+        console.log('- Lip sync path:', data.lipSyncPath);
+      }
     }
     
   } catch (error) {
