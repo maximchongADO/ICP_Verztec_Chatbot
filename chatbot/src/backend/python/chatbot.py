@@ -684,21 +684,26 @@ def generate_answer_histoy_retrieval(user_query: str, user_id:str, chat_id:str):
        
         clean_query = clean_with_grammar_model(user_query)
        
-        # Step 3: Search FAISS for context 
+        # Step 3: Search BOTH FAISS indices for context 
         # for images, as well as for context relevance checks 
         results = index.similarity_search_with_score(clean_query, k=5)
+        results2 = index2.similarity_search_with_score(clean_query, k=5)  # Search second index too
+        
+        # Combine results from both indices
+        all_results = results + results2
+        
         scores = [score for _, score in results]
         avg_score = float(np.mean(scores)) if scores else 1.0
         seen = set()
         unique_docs = []
 
-        for doc, _ in results:
+        for doc, _ in all_results:  # Process combined results
             content = doc.page_content
             if content not in seen:
                 seen.add(content)
                 unique_docs.append(doc)
 
-        logger.info(f"Retrieved {len(unique_docs)} documents with average score: {avg_score:.4f}")
+        logger.info(f"Retrieved {len(unique_docs)} documents from both indices with average score: {avg_score:.4f}")
     
         
         ## retrieving images from top 3 chunks (if any)
@@ -711,7 +716,7 @@ def generate_answer_histoy_retrieval(user_query: str, user_id:str, chat_id:str):
         top_docs       = []            # docs we actually keep
         top_3_img      = []            # up to 3 image paths / URLs
 
-        for doc, score in results:
+        for doc, score in all_results:  # Process combined results for sources
             if score >= THRESHOLD:      # skip weak matches
                 continue
 
