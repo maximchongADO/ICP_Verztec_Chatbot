@@ -497,7 +497,9 @@ function addMessage(textOrResponse, sender) {
     const messageContent = isHtml ? text : escapeHtml(text);
 
     messageDiv.innerHTML = `
-      <div class="ai-message-avatar"></div>
+      <div class="ai-message-avatar">
+        <div class="avatar-mouth" data-mouth-shape="A"></div>
+      </div>
       <div class="message-content ai-message">
         ${messageContent}${imagesHtml}
         <button class="copy-btn" title="Copy response" onclick="copyMessage(this)">📋</button>
@@ -697,8 +699,9 @@ let currentMouthInterval = null; // Add this at the top level of your file
 async function speakMessage(text) {
     if (!text || !text.trim()) return;
     
-    const avatar = document.getElementById('chatbotAvatar');
-    const avatarOpen = document.getElementById('avatarOpen');
+    // Get the latest AI message avatar (the most recent one)
+    const allAvatars = document.querySelectorAll('.ai-message-avatar');
+    const avatar = allAvatars[allAvatars.length - 1]; // Get the last (most recent) avatar
     
     // Store the current text being spoken
     currentSpeechText = text;
@@ -714,23 +717,113 @@ async function speakMessage(text) {
             onend: () => {
               currentSpeechText = null;
               isCurrentlySpeaking = false;
-              stopAvatarAnimation();
+              stopAvatarAnimation(avatar);
             },
             onstart: () => {
               isCurrentlySpeaking = true;
               if (avatar) avatar.classList.add('speaking');
+              
+              // Get lip sync data after audio starts
+              const lipSyncData = window.googleTTS.getLastLipSyncData();
+              if (lipSyncData && lipSyncData.mouthCues) {
+                console.log('Starting lip sync animation with', lipSyncData.mouthCues.length, 'cues');
+                animateAvatarMouth(avatar, lipSyncData.mouthCues);
+              }
             }
           });
         } else {
           console.warn('Google TTS not loaded');
-          stopAvatarAnimation();
+          stopAvatarAnimation(avatar);
         }
         
     } catch (error) {
         console.error('Speech Error:', error);
-        stopAvatarAnimation();
+        stopAvatarAnimation(avatar);
     }
 }
+
+/**
+ * Animate avatar mouth based on Rhubarb lip sync data
+ * @param {HTMLElement} avatar - The avatar element
+ * @param {Array} mouthCues - Array of mouth cue objects from Rhubarb
+ */
+function animateAvatarMouth(avatar, mouthCues) {
+  if (!avatar || !mouthCues || !Array.isArray(mouthCues)) {
+    console.warn('Invalid avatar or mouth cues for animation');
+    return;
+  }
+
+  const mouth = avatar.querySelector('.avatar-mouth');
+  if (!mouth) {
+    console.warn('No mouth element found in avatar');
+    return;
+  }
+
+  console.log('Starting mouth animation with', mouthCues.length, 'cues');
+  
+  // Clear any existing animation
+  clearAvatarAnimation(avatar);
+  
+  let animationTimeouts = [];
+  
+  mouthCues.forEach((cue, index) => {
+    const delay = cue.start * 1000; // Convert to milliseconds
+    const duration = (cue.end - cue.start) * 1000;
+    
+    // Set mouth shape at start time
+    const startTimeout = setTimeout(() => {
+      mouth.setAttribute('data-mouth-shape', cue.value);
+      mouth.className = `avatar-mouth mouth-${cue.value.toLowerCase()}`;
+      console.log(`Mouth shape: ${cue.value} at ${cue.start}s`);
+    }, delay);
+    
+    animationTimeouts.push(startTimeout);
+    
+    // Reset to neutral if this is the last cue or there's a gap
+    const nextCue = mouthCues[index + 1];
+    if (!nextCue || nextCue.start > cue.end) {
+      const resetTimeout = setTimeout(() => {
+        mouth.setAttribute('data-mouth-shape', 'A');
+        mouth.className = 'avatar-mouth mouth-a';
+      }, delay + duration);
+      
+      animationTimeouts.push(resetTimeout);
+    }
+  });
+  
+  // Store timeouts on avatar for cleanup
+  avatar._lipSyncTimeouts = animationTimeouts;
+}
+
+/**
+ * Stop avatar animation and reset mouth to neutral
+ * @param {HTMLElement} avatar - The avatar element
+ */
+function stopAvatarAnimation(avatar) {
+  if (avatar) {
+    avatar.classList.remove('speaking');
+    clearAvatarAnimation(avatar);
+    
+    const mouth = avatar.querySelector('.avatar-mouth');
+    if (mouth) {
+      mouth.setAttribute('data-mouth-shape', 'A');
+      mouth.className = 'avatar-mouth mouth-a';
+    }
+  }
+}
+
+/**
+ * Clear all animation timeouts
+ * @param {HTMLElement} avatar - The avatar element
+ */
+function clearAvatarAnimation(avatar) {
+  if (avatar && avatar._lipSyncTimeouts) {
+    avatar._lipSyncTimeouts.forEach(timeout => clearTimeout(timeout));
+    avatar._lipSyncTimeouts = [];
+  }
+}
+
+// ...existing code...
 
 // Add function to cancel current speech
 function cancelSpeech() {

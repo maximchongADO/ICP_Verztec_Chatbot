@@ -4,6 +4,8 @@ class GoogleTTS {
     this.currentAudio = null;
     this.onEndCallback = null;
     this.onStartCallback = null;
+    this.lastLipSyncData = null;
+    this.lastLipSyncPath = null;
   }
 
   async speak(text, options = {}) {
@@ -34,6 +36,7 @@ class GoogleTTS {
           text: text,
           voice: voice,
           languageCode: languageCode,
+          generateLipSyncData: true, // Enable lip sync generation
         }),
       });
 
@@ -50,6 +53,13 @@ class GoogleTTS {
 
       if (!data.success) {
         throw new Error(data.error || "TTS synthesis failed");
+      }
+
+      // Store lip sync data for avatar animation
+      if (data.lipSyncData) {
+        console.log('Lip sync data received:', data.lipSyncData);
+        this.lastLipSyncData = data.lipSyncData;
+        this.lastLipSyncPath = data.lipSyncPath;
       }
 
       // Create audio from base64
@@ -114,6 +124,22 @@ class GoogleTTS {
     if (this.currentAudio && this.currentAudio.paused) {
       this.currentAudio.play();
     }
+  }
+
+  // Get the last generated lip sync data
+  getLastLipSyncData() {
+    return this.lastLipSyncData;
+  }
+
+  // Get the last generated lip sync path
+  getLastLipSyncPath() {
+    return this.lastLipSyncPath;
+  }
+
+  // Clear stored lip sync data
+  clearLipSyncData() {
+    this.lastLipSyncData = null;
+    this.lastLipSyncPath = null;
   }
 }
 

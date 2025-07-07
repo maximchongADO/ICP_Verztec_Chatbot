@@ -118,7 +118,7 @@ export function Avatar(props) {
   // const [animation, setAnimation] = useState(
   //   animations.find((a) => a.name === "Idle") ? "Idle" : animations[0]?.name
   // );
-
+l
   // useEffect(() => {
   //   if (actions && animation && actions[animation]) {
   //     actions[animation]
