@@ -1,0 +1,174 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TTS Test</title>
+</head>
+<body>    <h1>TTS Test</h1>
+    <button onclick="clearTokenAndLogin()">Clear Token & Go to Login</button>
+    <button onclick="testTTSWithoutAuth()">Test TTS Without Auth</button>
+    <button onclick="testTTSWithAuth()">Test TTS With Auth</button>
+    <button onclick="testAuthDebug()">Test Auth Debug</button>
+    
+    <div id="results"></div>
+
+    <script>
+        // Clear token and redirect to login
+        function clearTokenAndLogin() {
+            localStorage.clear();
+            window.location.href = '/login.html';
+        }
+
+        // Test TTS without authentication
+        async function testTTSWithoutAuth() {
+            try {
+                console.log('Testing TTS without authentication...');
+                
+                const response = await fetch("http://localhost:8000/api/tts/synthesize-test", {
+                    method: "POST",
+                    headers: {
+                        "Content-Type": "application/json",
+                    },                    body: JSON.stringify({
+                        text: "Hello, this is a test without authentication using an Asian female voice",
+                        voice: "en-US-Standard-A",
+                        languageCode: "en-US",
+                    }),
+                });
+
+                console.log('TTS Test Response status:', response.status);
+                
+                if (!response.ok) {
+                    const errorText = await response.text();
+                    console.log('TTS Test Error response:', errorText);
+                    document.getElementById('results').innerHTML = `❌ TTS Test failed: ${response.status} - ${errorText}`;
+                    return;
+                }
+
+                const data = await response.json();
+                console.log('TTS Test Success:', data.success);
+                
+                if (data.success) {
+                    // Create audio from base64
+                    const byteCharacters = atob(data.audio);
+                    const byteNumbers = new Array(byteCharacters.length);
+
+                    for (let i = 0; i < byteCharacters.length; i++) {
+                        byteNumbers[i] = byteCharacters.charCodeAt(i);
+                    }
+
+                    const byteArray = new Uint8Array(byteNumbers);
+                    const audioBlob = new Blob([byteArray], { type: "audio/mpeg" });
+                    const audioUrl = URL.createObjectURL(audioBlob);
+
+                    const audio = new Audio(audioUrl);
+                    audio.play();
+                    
+                    document.getElementById('results').innerHTML = '✅ TTS Test successful! Audio is playing.';
+                }
+                
+            } catch (error) {
+                console.error('❌ TTS Test failed:', error);
+                document.getElementById('results').innerHTML = `❌ TTS Test failed: ${error.message}`;
+            }
+        }
+
+        // Test TTS with authentication
+        async function testTTSWithAuth() {
+            try {
+                const token = localStorage.getItem("token");
+                console.log('Testing TTS with authentication...');
+                console.log('Token exists:', !!token);
+                
+                const response = await fetch("http://localhost:8000/api/tts/synthesize", {
+                    method: "POST",
+                    headers: {
+                        "Content-Type": "application/json",
+                        "Authorization": `Bearer ${token}`,
+                    },
+                    body: JSON.stringify({
+                        text: "Hello, this is a test with authentication and lip sync generation",
+                        voice: "en-GB-Standard-A",
+                        languageCode: "en-GB",
+                        generateLipSyncData: true
+                    }),
+                });
+
+                console.log('TTS Auth Test Response status:', response.status);
+                
+                if (!response.ok) {
+                    const errorText = await response.text();
+                    console.log('TTS Auth Test Error response:', errorText);
+                    document.getElementById('results').innerHTML = `❌ TTS Auth Test failed: ${response.status} - ${errorText}`;
+                    return;
+                }
+
+                const data = await response.json();
+                console.log('TTS Auth Test Success:', data.success);
+                console.log('Lip sync data:', data.lipSyncData);
+                console.log('Audio filename:', data.filename);
+                
+                if (data.success) {
+                    // Create audio from base64
+                    const byteCharacters = atob(data.audio);
+                    const byteNumbers = new Array(byteCharacters.length);
+
+                    for (let i = 0; i < byteCharacters.length; i++) {
+                        byteNumbers[i] = byteCharacters.charCodeAt(i);
+                    }
+
+                    const byteArray = new Uint8Array(byteNumbers);
+                    const audioBlob = new Blob([byteArray], { type: "audio/mpeg" });
+                    const audioUrl = URL.createObjectURL(audioBlob);
+
+                    const audio = new Audio(audioUrl);
+                    audio.play();
+                    
+                    let resultHtml = '✅ TTS Auth Test successful! Audio is playing.';
+                    if (data.lipSyncData) {
+                        resultHtml += `<br/>🎭 Lip sync data generated with ${data.lipSyncData.mouthCues.length} mouth cues`;
+                        resultHtml += `<br/>📄 Lip sync file: ${data.lipSyncPath}`;
+                    }
+                    document.getElementById('results').innerHTML = resultHtml;
+                } else {
+                    document.getElementById('results').innerHTML = '❌ TTS Auth Test failed: ' + data.error;
+                }
+                
+            } catch (error) {
+                console.error('❌ TTS Auth Test failed:', error);
+                document.getElementById('results').innerHTML = `❌ TTS Auth Test failed: ${error.message}`;
+            }
+        }
+
+        // Test auth debug endpoint
+        async function testAuthDebug() {
+            try {
+                const token = localStorage.getItem("token");
+                console.log('Testing auth debug endpoint...');
+                
+                const response = await fetch("http://localhost:8000/api/tts/debug-auth", {
+                    method: "POST",
+                    headers: {
+                        "Content-Type": "application/json",
+                        "Authorization": `Bearer ${token}`,
+                    },
+                    body: JSON.stringify({
+                        test: "debug"
+                    }),
+                });
+
+                console.log('Auth Debug Response status:', response.status);
+                
+                const data = await response.json();
+                console.log('Auth Debug Response:', data);
+                
+                document.getElementById('results').innerHTML = `Auth Debug: ${JSON.stringify(data, null, 2)}`;
+                
+            } catch (error) {
+                console.error('❌ Auth Debug Test failed:', error);
+                document.getElementById('results').innerHTML = `❌ Auth Debug Test failed: ${error.message}`;
+            }
+        }
+    </script>
+</body>
+</html>

@@ -28,10 +28,6 @@ function stopAvatarAnimation() {
     if (avatarOpen) avatarOpen.classList.add('avatar-hidden');
 }
 
-
-
-
-
 function sendMessage() {
   const input = document.getElementById("messageInput");
   const message = input.value.trim();
@@ -71,9 +67,12 @@ function sendMessage() {
       // Add bot response
       if (response) {
         addMessage(response.message, "bot");
+        
         if (Array.isArray(response.images) && response.images.length > 0) {
           sendImages(response.images);
         }
+        // Refresh chat history sidebar after sending a message (in case a new chat was just created)
+        if (typeof getChatHistorySidebar === 'function') getChatHistorySidebar();
       } else {
         addMessage("Sorry, I received an invalid response. Please try again.", "bot");
       }
@@ -150,6 +149,9 @@ function closeChatHistorySidebar() {
 function loadChatHistory(chatId) {
   // Load the selected chat's messages and display in main chat area
   const userId = localStorage.getItem("userId") || "defaultUser";
+  // Set the selected chatId as the current chat_id for new messages
+  localStorage.setItem("chat_id", chatId);
+  sessionStorage.setItem("chat_id", chatId);
   fetch(`/api/chatbot/history/${encodeURIComponent(chatId)}?user_id=${encodeURIComponent(userId)}`, {
     method: "GET",
     headers: {
@@ -649,14 +651,14 @@ function toggleMute() {
     const avatar = document.getElementById('chatbotAvatar');
     
     if (isMuted) {
-        responsiveVoice.pause();  // Pause instead of cancel
+        window.googleTTS?.pause();
         if (avatar) avatar.classList.add('muted');
         if (toggleButton) {
             toggleButton.classList.add('muted');
             toggleButton.innerHTML = '<i class="fas fa-volume-mute"></i> Muted';
         }
     } else {
-        responsiveVoice.resume();  // Resume if paused
+        window.googleTTS?.resume();
         if (avatar) avatar.classList.remove('muted');
         if (toggleButton) {
             toggleButton.classList.remove('muted');
@@ -678,20 +680,26 @@ async function speakMessage(text) {
     
     try {
         if (avatar) avatar.classList.add('speaking');
-        isCurrentlySpeaking = true;
-      
-        responsiveVoice.speak(text, "UK English Female", {
+        isCurrentlySpeaking = true;        // Use Google Cloud TTS instead of ResponsiveVoice
+        if (window.googleTTS) {
+          await window.googleTTS.speak(text, {
+            voice: 'en-GB-Standard-A',      // British English female voice
+            languageCode: 'en-GB',
+            volume: isMuted ? 0 : 1,
             onend: () => {
-                currentSpeechText = null;
-                isCurrentlySpeaking = false;
-                stopAvatarAnimation();
+              currentSpeechText = null;
+              isCurrentlySpeaking = false;
+              stopAvatarAnimation();
             },
             onstart: () => {
-                isCurrentlySpeaking = true;
-                if (avatar) avatar.classList.add('speaking');
-            },
-            volume: isMuted ? 0 : 1  // Set volume based on mute state
-        });
+              isCurrentlySpeaking = true;
+              if (avatar) avatar.classList.add('speaking');
+            }
+          });
+        } else {
+          console.warn('Google TTS not loaded');
+          stopAvatarAnimation();
+        }
         
     } catch (error) {
         console.error('Speech Error:', error);
@@ -701,7 +709,9 @@ async function speakMessage(text) {
 
 // Add function to cancel current speech
 function cancelSpeech() {
-    responsiveVoice.cancel();
+    if (window.googleTTS) {
+        window.googleTTS.cancel();
+    }
     currentSpeechText = null;
     isCurrentlySpeaking = false;
     stopAvatarAnimation();
@@ -942,6 +952,8 @@ async function startNewChat() {
         </div>
       `;
       get_frequentmsg();
+      // Refresh chat history sidebar after new chat is created
+      if (typeof getChatHistorySidebar === 'function') getChatHistorySidebar();
     } else {
       // Log error details for debugging
       console.error("Failed to start new chat. Response:", data, "Status:", response.status);

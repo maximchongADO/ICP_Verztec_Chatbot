@@ -1,9 +1,22 @@
-import { useRef } from "react";
+import { useRef, useEffect } from "react";
 import { useChat } from "../hooks/useChat";
 
 export const UI = ({ hidden, ...props }) => {
   const input = useRef();
   const { chat, loading, cameraZoomed, setCameraZoomed, message } = useChat();
+
+  // Add TTS effect for new bot message using Google Cloud TTS
+  useEffect(() => {
+    if (message && window.googleTTS) {
+      const textToSpeak = message.text || message.message;
+      if (textToSpeak) {
+        window.googleTTS.speak(textToSpeak, {
+          voice: "en-GB-Standard-A",
+          languageCode: "en-GB",
+        });
+      }
+    }
+  }, [message]);
 
   const sendMessage = () => {
     const text = input.current.value;
