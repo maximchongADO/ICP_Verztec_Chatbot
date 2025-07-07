@@ -7,9 +7,9 @@ const fs = require('fs');
 // Test 1: Check if required files exist
 console.log('=== Testing File Paths ===');
 
-const rhubarbPath = path.resolve(__dirname, '../public/avatar-scene/Rhubarb-Lip-Sync-1.14.0-Windows/rhubarb.exe');
-const audioDir = path.resolve(__dirname, '../public/audio');
-const lipSyncDir = path.resolve(__dirname, '../public/lipsync');
+const rhubarbPath = path.resolve(__dirname, '../../public/avatar-scene/Rhubarb-Lip-Sync-1.14.0-Windows/rhubarb.exe');
+const audioDir = path.resolve(__dirname, '../../public/audio');
+const lipSyncDir = path.resolve(__dirname, '../../public/lipsync');
 
 console.log('Rhubarb executable:', rhubarbPath);
 console.log('Rhubarb exists:', fs.existsSync(rhubarbPath));

@@ -15,7 +15,12 @@ class GoogleTTS {
 
       const token = localStorage.getItem("token");
       
-      const response = await fetch('/api/tts/synthesize', {
+      // Use enhanced TTS endpoint if lip sync is requested
+      const endpoint = options.generateLipSync ? 
+        '/api/tts/synthesize-enhanced' : 
+        '/api/tts/synthesize';
+      
+      const response = await fetch(endpoint, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -25,7 +30,9 @@ class GoogleTTS {
           text: text,
           voice: options.voice || 'en-GB-Standard-A',
           languageCode: options.languageCode || 'en-GB',
-          generateLipSyncData: options.generateLipSync || false
+          generateLipSyncData: options.generateLipSync || false,
+          facialExpression: options.facialExpression || 'default',
+          animation: options.animation || 'Talking_1'
         })
       });
 

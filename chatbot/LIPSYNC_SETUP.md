@@ -1,5 +1,24 @@
 # Lip Sync Setup Guide
 
+## ✅ Setup Status Verification
+
+**Your setup is working correctly!** 🎉
+
+Based on your test results:
+- ✅ **Rhubarb**: Version 1.14.0 - Working perfectly
+- ✅ **FFmpeg**: Available and working
+- ✅ **Audio Directory**: Exists at `src/public/audio`
+- ✅ **LipSync Directory**: Exists at `src/public/lipsync`
+- ✅ **API Endpoints**: All enhanced endpoints are available
+
+**Quick Test Command:**
+```bash
+cd chatbot/src/backend/controllers
+node testLipSync.js
+```
+
+---
+
 ## Prerequisites
 
 ### 1. Install FFmpeg
@@ -69,9 +88,71 @@ cd chatbot/src/public/avatar-scene/Rhubarb-Lip-Sync-1.14.0-Windows
 ./rhubarb.exe --version
 ```
 
+### 3. Quick Test Setup
+Run the test script to verify everything is working:
+```bash
+cd chatbot/src/backend/controllers
+node testLipSync.js
+```
+
+This will verify:
+- ✅ Rhubarb executable (version 1.14.0)
+- ✅ FFmpeg installation
+- ✅ Required directories exist
+- ✅ API endpoints are available
+
 ## API Endpoints
 
-### 1. TTS with Lip Sync
+### Enhanced TTS with Lip Sync (New!)
+
+#### 1. Enhanced TTS Synthesis
+```http
+POST /api/tts/synthesize-enhanced
+Content-Type: application/json
+Authorization: Bearer <token>
+
+{
+  "text": "Hello, how are you today?",
+  "voice": "en-GB-Standard-A",
+  "languageCode": "en-GB",
+  "generateLipSyncData": true,
+  "facialExpression": "smile",
+  "animation": "Talking_1"
+}
+```
+
+#### 2. Enhanced Chat TTS
+```http
+POST /api/tts/chat
+Content-Type: application/json
+Authorization: Bearer <token>
+
+{
+  "messages": [
+    {
+      "text": "Hello there! How can I help you today?",
+      "facialExpression": "smile",
+      "animation": "Talking_1"
+    },
+    {
+      "text": "I'm here to assist you with any questions.",
+      "facialExpression": "default",
+      "animation": "Talking_2"
+    }
+  ]
+}
+```
+
+#### 3. Test Endpoints (No Authentication Required)
+```http
+POST /api/tts/synthesize-enhanced-test
+POST /api/tts/chat-test
+POST /api/tts/lipsync/generate-test
+```
+
+### Original TTS (Backward Compatibility)
+
+#### 1. TTS with Lip Sync
 ```http
 POST /api/tts/synthesize
 Content-Type: application/json
@@ -107,7 +188,7 @@ Authorization: Bearer <token>
 }
 ```
 
-### 2. Generate Lip Sync for Existing Audio
+#### 2. Generate Lip Sync for Existing Audio
 ```http
 POST /api/tts/lipsync/generate
 Content-Type: application/json
@@ -119,7 +200,7 @@ Authorization: Bearer <token>
 }
 ```
 
-### 3. Get Existing Lip Sync Data
+#### 3. Get Existing Lip Sync Data
 ```http
 GET /api/tts/lipsync/tts_abc123_1234567890.json
 Authorization: Bearer <token>

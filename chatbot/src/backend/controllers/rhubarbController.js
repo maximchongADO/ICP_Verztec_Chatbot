@@ -10,10 +10,53 @@ const rhubarbPath = path.resolve(__dirname, '../../public/avatar-scene/Rhubarb-L
 const audioDir = path.resolve(__dirname, '../../public/audio');
 const lipSyncDir = path.resolve(__dirname, '../../public/lipsync');
 
-// Create lip sync directory if it doesn't exist
+// Create directories if they don't exist
+if (!fs.existsSync(audioDir)) {
+  fs.mkdirSync(audioDir, { recursive: true });
+}
 if (!fs.existsSync(lipSyncDir)) {
   fs.mkdirSync(lipSyncDir, { recursive: true });
 }
+
+/**
+ * Execute command with promise wrapper (like in reference code)
+ * @param {string} command - Command to execute
+ * @returns {Promise<string>} Command output
+ */
+const execCommand = (command) => {
+  return new Promise((resolve, reject) => {
+    exec(command, (error, stdout, stderr) => {
+      if (error) reject(error);
+      resolve(stdout);
+    });
+  });
+};
+
+/**
+ * Generate lip sync for a message (like in reference code)
+ * @param {string} message - Message identifier or filename
+ * @param {boolean} keepInAudioFolder - Whether to keep files in audio folder
+ * @returns {Promise<void>}
+ */
+const lipSyncMessage = async (message, keepInAudioFolder = true) => {
+  const time = new Date().getTime();
+  console.log(`Starting conversion for message ${message}`);
+  
+  const audioPath = keepInAudioFolder ? audioDir : audioDir;
+  const lipSyncPath = keepInAudioFolder ? audioDir : lipSyncDir;
+  
+  // Convert MP3 to WAV
+  await execCommand(
+    `ffmpeg -y -i "${audioPath}/message_${message}.mp3" "${audioPath}/message_${message}.wav"`
+  );
+  console.log(`Conversion done in ${new Date().getTime() - time}ms`);
+  
+  // Generate lip sync data
+  await execCommand(
+    `"${rhubarbPath}" -f json -o "${lipSyncPath}/message_${message}.json" "${audioPath}/message_${message}.wav" -r phonetic`
+  );
+  console.log(`Lip sync done in ${new Date().getTime() - time}ms`);
+};
 
 /**
  * Convert audio file from MP3 to WAV using FFmpeg
@@ -37,21 +80,28 @@ const convertMp3ToWav = async (inputPath, outputPath) => {
 };
 
 /**
- * Generate lip sync data using Rhubarb
+ * Generate lip sync data using Rhubarb (updated to match reference pattern)
  * @param {string} audioFilename - Name of the audio file (MP3)
  * @param {string} text - The spoken text (optional, improves accuracy)
+ * @param {boolean} keepInAudioFolder - Whether to keep WAV and JSON in audio folder
  * @returns {Promise<Object>} Lip sync data
  */
-const generateLipSync = async (audioFilename, text = '') => {
+const generateLipSync = async (audioFilename, text = '', keepInAudioFolder = true) => {
   const time = new Date().getTime();
   console.log(`Starting lip sync generation for: ${audioFilename}`);
   
   try {
     const audioFilePath = path.join(audioDir, audioFilename);
     const wavFilename = audioFilename.replace('.mp3', '.wav');
-    const wavFilePath = path.join(audioDir, wavFilename);
-    const outputFilename = audioFilename.replace('.mp3', '.json');
-    const outputFilePath = path.join(lipSyncDir, outputFilename);
+    const jsonFilename = audioFilename.replace('.mp3', '.json');
+    
+    // Determine output paths based on keepInAudioFolder flag
+    const wavFilePath = keepInAudioFolder 
+      ? path.join(audioDir, wavFilename)
+      : path.join(audioDir, wavFilename);
+    const outputFilePath = keepInAudioFolder 
+      ? path.join(audioDir, jsonFilename)
+      : path.join(lipSyncDir, jsonFilename);
 
     // Check if audio file exists
     if (!fs.existsSync(audioFilePath)) {
@@ -69,7 +119,7 @@ const generateLipSync = async (audioFilename, text = '') => {
 
     // Step 1: Convert MP3 to WAV (Rhubarb works better with WAV)
     console.log(`Converting audio started at ${new Date().getTime() - time}ms`);
-    await convertMp3ToWav(audioFilePath, wavFilePath);
+    await execCommand(`ffmpeg -y -i "${audioFilePath}" "${wavFilePath}"`);
     console.log(`Conversion completed at ${new Date().getTime() - time}ms`);
 
     // Verify WAV file was created
@@ -83,7 +133,8 @@ const generateLipSync = async (audioFilename, text = '') => {
     // Add dialog text if provided (improves accuracy)
     let tempTextFile = null;
     if (text && text.trim()) {
-      tempTextFile = path.join(lipSyncDir, `temp_${Date.now()}.txt`);
+      const tempDir = keepInAudioFolder ? audioDir : lipSyncDir;
+      tempTextFile = path.join(tempDir, `temp_${Date.now()}.txt`);
       fs.writeFileSync(tempTextFile, text.trim());
       command += ` --dialogFile "${tempTextFile}"`;
       console.log(`Created dialog file: ${tempTextFile}`);
@@ -93,15 +144,8 @@ const generateLipSync = async (audioFilename, text = '') => {
     console.log('Running Rhubarb command:', command);
 
     // Step 3: Execute Rhubarb
-    const { stdout, stderr } = await execAsync(command, {
-      cwd: path.dirname(rhubarbPath),
-      timeout: 60000 // Increased timeout to 60 seconds
-    });
-
-    console.log('Rhubarb stdout:', stdout);
-    if (stderr) {
-      console.log('Rhubarb stderr:', stderr);
-    }
+    await execCommand(command);
+    console.log(`Rhubarb execution completed at ${new Date().getTime() - time}ms`);
 
     // Step 4: Check if output file was created
     if (!fs.existsSync(outputFilePath)) {
@@ -113,15 +157,9 @@ const generateLipSync = async (audioFilename, text = '') => {
     console.log(`Lip sync generation completed in ${new Date().getTime() - time}ms`);
     console.log(`Generated ${lipSyncData.mouthCues ? lipSyncData.mouthCues.length : 0} mouth cues`);
     
-    // Step 6: Cleanup temporary files
+    // Step 6: Cleanup temporary files (but keep WAV and JSON as requested)
     try {
-      // Remove temporary WAV file
-      if (fs.existsSync(wavFilePath)) {
-        fs.unlinkSync(wavFilePath);
-        console.log('Cleaned up WAV file');
-      }
-      
-      // Remove temporary text file
+      // Remove temporary text file only
       if (tempTextFile && fs.existsSync(tempTextFile)) {
         fs.unlinkSync(tempTextFile);
         console.log('Cleaned up temp text file');
@@ -133,8 +171,10 @@ const generateLipSync = async (audioFilename, text = '') => {
     return {
       success: true,
       lipSyncData: lipSyncData,
-      outputFile: outputFilename,
-      lipSyncPath: `/lipsync/${outputFilename}`,
+      outputFile: jsonFilename,
+      wavFile: wavFilename,
+      audioPath: keepInAudioFolder ? `/audio/${wavFilename}` : `/audio/${wavFilename}`,
+      lipSyncPath: keepInAudioFolder ? `/audio/${jsonFilename}` : `/lipsync/${jsonFilename}`,
       processingTime: new Date().getTime() - time
     };
 
@@ -200,17 +240,22 @@ const processAudioWithLipSync = async (req, res) => {
 };
 
 /**
- * Get existing lip sync data
+ * Get existing lip sync data (updated to check both audio and lipsync folders)
  */
 const getLipSyncData = async (req, res) => {
   try {
     const { filename } = req.params;
-    const lipSyncFilePath = path.join(lipSyncDir, filename);
+    
+    // First try audio folder, then lipsync folder
+    let lipSyncFilePath = path.join(audioDir, filename);
+    if (!fs.existsSync(lipSyncFilePath)) {
+      lipSyncFilePath = path.join(lipSyncDir, filename);
+    }
 
     if (!fs.existsSync(lipSyncFilePath)) {
       return res.status(404).json({
         success: false,
-        error: 'Lip sync file not found'
+        error: 'Lip sync file not found in audio or lipsync directories'
       });
     }
 
@@ -218,7 +263,8 @@ const getLipSyncData = async (req, res) => {
     
     res.json({
       success: true,
-      lipSyncData: lipSyncData
+      lipSyncData: lipSyncData,
+      location: lipSyncFilePath.includes(audioDir) ? 'audio' : 'lipsync'
     });
 
   } catch (error) {
@@ -236,5 +282,7 @@ module.exports = {
   getLipSyncData,
   readJsonTranscript,
   audioFileToBase64,
-  convertMp3ToWav
+  convertMp3ToWav,
+  execCommand,
+  lipSyncMessage
 };
