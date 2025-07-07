@@ -63,13 +63,17 @@
             </svg>
             New Chat
           </div>
-          <div class="nav-item" id="chatHistoryNavBtn">
-            <svg viewBox="0 0 24 24">
-              <path d="M3 3v18h18V3H3zm16 16H5V5h14v14zm-7-1c-3.31 0-6-2.69-6-6s2.69-6 6-6 6 2.69 6 6-2.69 6-6 6zm0-10c-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4-1.79-4-4-4z"/>
-            </svg>
-            Chat History
-          </div>
         </nav>
+        
+        <!-- Chat History Section -->
+        <div class="sidebar-chat-history">
+          <div class="chat-history-header">
+            <h3>Recent Chats</h3>
+          </div>
+          <div id="chatHistoryList" class="chat-history-list">
+            <!-- Chat history items will be populated here by JavaScript -->
+          </div>
+        </div>
         <!-- Bottom section: admin, logout, user profile (moved here) -->
         <div class="sidebar-bottom">
           <div class="nav-item" id="adminAddUserBtn" style="display:none;" onclick="window.location.href='/admin.html'">
@@ -95,14 +99,6 @@
         </div>
       </div>
       <!-- Main Chat Area -->
-      <!-- Chat History Sidebar -->
-      <div id="chatHistorySidebar" class="chat-history-sidebar">
-        <div class="chat-history-header">
-          <span>Chat History</span>
-          <button id="closeChatHistoryBtn" title="Close">&times;</button>
-        </div>
-        <div id="chatHistoryList" class="chat-history-list"></div>
-      </div>
       <div class="chat-container">
         <div class="chat-header">
           <div class="chat-title">Chat Session</div>
