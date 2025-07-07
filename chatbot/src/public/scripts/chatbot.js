@@ -66,32 +66,11 @@ function sendMessage() {
 
       // Add bot response
       if (response) {
-        let finalMessage = response.message;
-        
-        // Display source document filepath if available
-        if (response.filepath) {
-          console.log(`📁 Source document: ${response.filepath}`);
-
-          // Extract just the filename from the full path
-          const filename = response.filepath.split(/[/\\]/).pop(); // Handle both forward and back slashes
-          
-          // Append the source document link to the response message
-          const sourceLink = `<br><br>📁 <strong>Source:</strong> <a href="/documents/${filename}" target="_blank" style="color: #4CAF50; text-decoration: underline; cursor: pointer;">${filename}</a>`;
-          finalMessage += sourceLink;
-        }
-        
-        // Add the complete message (with source link if available)
-        addMessage({
-          message: finalMessage,
-          isHtml: response.filepath ? true : false  // Enable HTML rendering when we have a source link
-        }, "bot");
+        addMessage(response.message, "bot");
         
         if (Array.isArray(response.images) && response.images.length > 0) {
           sendImages(response.images);
         }
-        
-        // Refresh chat history sidebar after sending a message (in case a new chat was just created)
-        if (typeof getChatHistorySidebar === 'function') getChatHistorySidebar();
       } else {
         addMessage("Sorry, I received an invalid response. Please try again.", "bot");
       }
@@ -135,9 +114,8 @@ async function getChatHistorySidebar() {
 }
 
 function renderChatHistorySidebar(chatLogs) {
-  const sidebar = document.getElementById("chatHistorySidebar");
   const list = document.getElementById("chatHistoryList");
-  if (!sidebar || !list) return;
+  if (!list) return;
   list.innerHTML = "";
   if (!Array.isArray(chatLogs) || chatLogs.length === 0) {
     list.innerHTML = '<div class="chat-history-empty">No chat history found.</div>';
@@ -146,31 +124,53 @@ function renderChatHistorySidebar(chatLogs) {
   chatLogs.forEach(log => {
     const item = document.createElement("div");
     item.className = "chat-history-item";
-    item.textContent = log.title || `Chat on ${log.date || log.created_at || "Unknown"}`;
+    item.setAttribute('data-chat-id', log.chat_id);
+    
+    // Create chat history item structure
+    const icon = document.createElement("div");
+    icon.className = "chat-history-item-icon";
+    icon.innerHTML = `<svg viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/></svg>`;
+    
+    const textDiv = document.createElement("div");
+    textDiv.className = "chat-history-item-text";
+    textDiv.textContent = log.title || `Chat on ${log.date || log.created_at || "Unknown"}`;
+    
+    const timeDiv = document.createElement("div");
+    timeDiv.className = "chat-history-item-time";
+    if (log.date || log.created_at) {
+      const date = new Date(log.date || log.created_at);
+      timeDiv.textContent = date.toLocaleDateString();
+    }
+    
+    const actionsDiv = document.createElement("div");
+    actionsDiv.className = "chat-history-item-actions";
+    actionsDiv.innerHTML = `
+      <button onclick="event.stopPropagation(); deleteChatHistory('${log.chat_id}')" title="Delete">×</button>
+    `;
+    
+    item.appendChild(icon);
+    item.appendChild(textDiv);
+    item.appendChild(timeDiv);
+    item.appendChild(actionsDiv);
+    
     item.onclick = () => loadChatHistory(log.chat_id);
     list.appendChild(item);
   });
 }
 
+// Remove separate sidebar functions since we're integrating into main sidebar
 function openChatHistorySidebar() {
-  const sidebar = document.getElementById("chatHistorySidebar");
-  if (!sidebar) return;
-  sidebar.classList.add("open");
+  // Chat history is now always visible in the main sidebar
   getChatHistorySidebar();
 }
 
 function closeChatHistorySidebar() {
-  const sidebar = document.getElementById("chatHistorySidebar");
-  if (!sidebar) return;
-  sidebar.classList.remove("open");
+  // No longer needed since chat history is integrated
 }
 
 function loadChatHistory(chatId) {
   // Load the selected chat's messages and display in main chat area
   const userId = localStorage.getItem("userId") || "defaultUser";
-  // Set the selected chatId as the current chat_id for new messages
-  localStorage.setItem("chat_id", chatId);
-  sessionStorage.setItem("chat_id", chatId);
   fetch(`/api/chatbot/history/${encodeURIComponent(chatId)}?user_id=${encodeURIComponent(userId)}`, {
     method: "GET",
     headers: {
@@ -189,11 +189,42 @@ function loadChatHistory(chatId) {
       } else {
         chatMessages.innerHTML = `<div class='welcome-message'><h2>No messages in this chat.</h2></div>`;
       }
-      closeChatHistorySidebar();
+      
+      // Mark the selected chat as active
+      const chatItems = document.querySelectorAll('.chat-history-item');
+      chatItems.forEach(item => {
+        item.classList.remove('active');
+        // Check if this item corresponds to the loaded chat
+        if (item.getAttribute('data-chat-id') === chatId) {
+          item.classList.add('active');
+        }
+      });
     })
     .catch(() => {
       alert("Failed to load chat history.");
-      closeChatHistorySidebar();
+    });
+}
+
+function deleteChatHistory(chatId) {
+  if (!confirm("Are you sure you want to delete this chat?")) return;
+  
+  const userId = localStorage.getItem("userId") || "defaultUser";
+  fetch(`/api/chatbot/history/${encodeURIComponent(chatId)}?user_id=${encodeURIComponent(userId)}`, {
+    method: "DELETE",
+    headers: {
+      Authorization: `Bearer ${localStorage.getItem("token")}`
+    }
+  })
+    .then(res => {
+      if (res.ok) {
+        // Refresh the chat history list
+        getChatHistorySidebar();
+      } else {
+        throw new Error('Failed to delete chat');
+      }
+    })
+    .catch(() => {
+      alert("Failed to delete chat history.");
     });
 }
 
@@ -270,7 +301,6 @@ async function callChatbotAPI(message,
         success: true,
         message: data.message,
         images: data.images || [], // Ensure images is an array
-        filepath: data.filepath || null, // Include source file path
       };
     } else {
       throw new Error("Invalid response format from chatbot");
@@ -450,13 +480,11 @@ function sendImages(images) {
 function addMessage(textOrResponse, sender) {
   let text = textOrResponse;
   let images = [];
-  let isHtml = false;
 
   // Check if it's an object with message and images
   if (typeof textOrResponse === "object" && textOrResponse !== null && "message" in textOrResponse) {
     text = textOrResponse.message?.trim() || "";
     images = textOrResponse.images || [];
-    isHtml = textOrResponse.isHtml || false;
   } 
   
   // NEW: If it's a plain image filename string like "example.png"
@@ -493,15 +521,10 @@ function addMessage(textOrResponse, sender) {
         `</div>`;
     }
 
-    // Use innerHTML for HTML content or escaped text for plain text
-    const messageContent = isHtml ? text : escapeHtml(text);
-
     messageDiv.innerHTML = `
-      <div class="ai-message-avatar">
-        <div class="avatar-mouth" data-mouth-shape="A"></div>
-      </div>
+      <div class="ai-message-avatar"></div>
       <div class="message-content ai-message">
-        ${messageContent}${imagesHtml}
+        ${escapeHtml(text)}${imagesHtml}
         <button class="copy-btn" title="Copy response" onclick="copyMessage(this)">📋</button>
       </div>
       <div class="feedback-buttons">
@@ -699,9 +722,8 @@ let currentMouthInterval = null; // Add this at the top level of your file
 async function speakMessage(text) {
     if (!text || !text.trim()) return;
     
-    // Get the latest AI message avatar (the most recent one)
-    const allAvatars = document.querySelectorAll('.ai-message-avatar');
-    const avatar = allAvatars[allAvatars.length - 1]; // Get the last (most recent) avatar
+    const avatar = document.getElementById('chatbotAvatar');
+    const avatarOpen = document.getElementById('avatarOpen');
     
     // Store the current text being spoken
     currentSpeechText = text;
@@ -717,113 +739,23 @@ async function speakMessage(text) {
             onend: () => {
               currentSpeechText = null;
               isCurrentlySpeaking = false;
-              stopAvatarAnimation(avatar);
+              stopAvatarAnimation();
             },
             onstart: () => {
               isCurrentlySpeaking = true;
               if (avatar) avatar.classList.add('speaking');
-              
-              // Get lip sync data after audio starts
-              const lipSyncData = window.googleTTS.getLastLipSyncData();
-              if (lipSyncData && lipSyncData.mouthCues) {
-                console.log('Starting lip sync animation with', lipSyncData.mouthCues.length, 'cues');
-                animateAvatarMouth(avatar, lipSyncData.mouthCues);
-              }
             }
           });
         } else {
           console.warn('Google TTS not loaded');
-          stopAvatarAnimation(avatar);
+          stopAvatarAnimation();
         }
         
     } catch (error) {
         console.error('Speech Error:', error);
-        stopAvatarAnimation(avatar);
+        stopAvatarAnimation();
     }
 }
-
-/**
- * Animate avatar mouth based on Rhubarb lip sync data
- * @param {HTMLElement} avatar - The avatar element
- * @param {Array} mouthCues - Array of mouth cue objects from Rhubarb
- */
-function animateAvatarMouth(avatar, mouthCues) {
-  if (!avatar || !mouthCues || !Array.isArray(mouthCues)) {
-    console.warn('Invalid avatar or mouth cues for animation');
-    return;
-  }
-
-  const mouth = avatar.querySelector('.avatar-mouth');
-  if (!mouth) {
-    console.warn('No mouth element found in avatar');
-    return;
-  }
-
-  console.log('Starting mouth animation with', mouthCues.length, 'cues');
-  
-  // Clear any existing animation
-  clearAvatarAnimation(avatar);
-  
-  let animationTimeouts = [];
-  
-  mouthCues.forEach((cue, index) => {
-    const delay = cue.start * 1000; // Convert to milliseconds
-    const duration = (cue.end - cue.start) * 1000;
-    
-    // Set mouth shape at start time
-    const startTimeout = setTimeout(() => {
-      mouth.setAttribute('data-mouth-shape', cue.value);
-      mouth.className = `avatar-mouth mouth-${cue.value.toLowerCase()}`;
-      console.log(`Mouth shape: ${cue.value} at ${cue.start}s`);
-    }, delay);
-    
-    animationTimeouts.push(startTimeout);
-    
-    // Reset to neutral if this is the last cue or there's a gap
-    const nextCue = mouthCues[index + 1];
-    if (!nextCue || nextCue.start > cue.end) {
-      const resetTimeout = setTimeout(() => {
-        mouth.setAttribute('data-mouth-shape', 'A');
-        mouth.className = 'avatar-mouth mouth-a';
-      }, delay + duration);
-      
-      animationTimeouts.push(resetTimeout);
-    }
-  });
-  
-  // Store timeouts on avatar for cleanup
-  avatar._lipSyncTimeouts = animationTimeouts;
-}
-
-/**
- * Stop avatar animation and reset mouth to neutral
- * @param {HTMLElement} avatar - The avatar element
- */
-function stopAvatarAnimation(avatar) {
-  if (avatar) {
-    avatar.classList.remove('speaking');
-    clearAvatarAnimation(avatar);
-    
-    const mouth = avatar.querySelector('.avatar-mouth');
-    if (mouth) {
-      mouth.setAttribute('data-mouth-shape', 'A');
-      mouth.className = 'avatar-mouth mouth-a';
-    }
-  }
-}
-
-/**
- * Clear all animation timeouts
- * @param {HTMLElement} avatar - The avatar element
- */
-function clearAvatarAnimation(avatar) {
-  if (avatar && avatar._lipSyncTimeouts) {
-    avatar._lipSyncTimeouts.forEach(timeout => clearTimeout(timeout));
-    avatar._lipSyncTimeouts = [];
-  }
-}
-
-// ...existing code...
 
 // Add function to cancel current speech
 function cancelSpeech() {
@@ -975,13 +907,11 @@ function closeProfileDropdownOnClick(e) {
 document.addEventListener("DOMContentLoaded", function () {
   // ...existing code...
 
-// Chat History button logic
+// Initialize chat history on page load
 window.addEventListener("DOMContentLoaded", function () {
   setTimeout(() => {
-    const chatHistoryBtn = document.getElementById("chatHistoryNavBtn");
-    const closeBtn = document.getElementById("closeChatHistoryBtn");
-    if (chatHistoryBtn) chatHistoryBtn.onclick = openChatHistorySidebar;
-    if (closeBtn) closeBtn.onclick = closeChatHistorySidebar;
+    // Load chat history automatically since it's now integrated into the main sidebar
+    getChatHistorySidebar();
   }, 200);
 });
   // Wait for window.currentUser to be set (from HTML inline script)
@@ -1070,8 +1000,13 @@ async function startNewChat() {
         </div>
       `;
       get_frequentmsg();
-      // Refresh chat history sidebar after new chat is created
-      if (typeof getChatHistorySidebar === 'function') getChatHistorySidebar();
+      
+      // Refresh chat history to show the new chat
+      getChatHistorySidebar();
+      
+      // Remove active state from all chat history items
+      const chatItems = document.querySelectorAll('.chat-history-item');
+      chatItems.forEach(item => item.classList.remove('active'));
     } else {
       // Log error details for debugging
       console.error("Failed to start new chat. Response:", data, "Status:", response.status);

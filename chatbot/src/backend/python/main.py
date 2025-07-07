@@ -47,7 +47,6 @@ class ChatResponse(BaseModel):
     success: bool
     error: Optional[str] = None
     images: Optional[List[str]] = None  # Add images field
-    filepath: Optional[str] = None  # Add filepath field for source document location
 
 @app.exception_handler(Exception)
 async def global_exception_handler(request: Request, exc: Exception):
@@ -116,10 +115,9 @@ async def avatar_endpoint(request:ChatRequest):
             raise HTTPException(status_code=503, detail="Search index is not available")
         
         #response_message, image_list = generate_answer(request.message, memory)
-        response_message, image_list, source_filepaths = generate_answer_histoy_retrieval(request.message , request.user_id, request.chat_id)
+        response_message, image_list= generate_answer_histoy_retrieval(request.message , request.user_id, request.chat_id)
         logger.info(f"Generated response:S {response_message}")
         logger.info(f"Image list: {image_list}")
-        logger.info(f"Source filepaths: {source_filepaths}")
         
         
         
@@ -128,8 +126,7 @@ async def avatar_endpoint(request:ChatRequest):
             user_id=request.user_id,
             timestamp=datetime.utcnow().isoformat(),
             success=True,
-            images=None,
-            filepath=os.path.basename(source_filepaths[0]) if source_filepaths else None  # Extract just filename from path
+            images=None
         )
         
 
@@ -141,8 +138,7 @@ async def avatar_endpoint(request:ChatRequest):
             timestamp=datetime.utcnow().isoformat(),
             success=False,
             error=str(e),
-            images=None,
-            filepath=None
+            images=None
         )
 
 @app.post("/chatbot")
@@ -155,11 +151,10 @@ async def chat_endpoint(request: ChatRequest):
         if index is None:
             raise HTTPException(status_code=503, detail="Search index is not available")
         
-        response_message, image_list, source_filepaths = generate_answer_histoy_retrieval(request.message, request.user_id, request.chat_id)
+        response_message, image_list = generate_answer_histoy_retrieval(request.message, request.user_id, request.chat_id)
         #response_message, image_list= generate_answer_histoy_retrieval(request.message , request.user_id, request.chat_id)
         logger.info(f"Generated response: {response_message}")
         logger.info(f"Image list: {image_list}")
-        logger.info(f"Source filepaths: {source_filepaths}")
         
         
         
@@ -168,8 +163,7 @@ async def chat_endpoint(request: ChatRequest):
             user_id=request.user_id,
             timestamp=datetime.utcnow().isoformat(),
             success=True,
-            images=image_list,
-            filepath=os.path.basename(source_filepaths[0]) if source_filepaths else None  # Extract just filename from path
+            images=image_list
         )
         
 
@@ -181,8 +175,7 @@ async def chat_endpoint(request: ChatRequest):
             timestamp=datetime.utcnow().isoformat(),
             success=False,
             error=str(e),
-            images=None,
-            filepath=None
+            images=None
         )
         
     from fastapi import APIRouter, HTTPException
