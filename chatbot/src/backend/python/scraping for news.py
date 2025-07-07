@@ -7,7 +7,7 @@ from typing import List, Union
 import faiss
 from pathlib import Path
 import asyncio
-from langchain.embeddings import HuggingFaceEmbeddings
+from langchain_huggingface import HuggingFaceEmbeddings
 from langchain.schema import Document
 from crawl4ai import AsyncWebCrawler, BrowserConfig, CrawlerRunConfig, CacheMode
 from crawl4ai import LLMConfig
@@ -39,22 +39,11 @@ browser_cfg = BrowserConfig(
 deepseek_strategy = LLMExtractionStrategy(
     input_format="fit_markdown",            # better than raw HTML
     instruction = (
-    "You are given well-formed Markdown taken from a web page. "
-    "Read the entire content carefully, then extract **detailed, retrieval-ready facts** "
-    "about the company, organised by category. "
-
-    "• Produce **one JSON object only**.  \n"
-    "• Each **top-level key** must be a clear category name—e.g. "
-    "\"Vision\", \"Brand Promise\", \"Corporate Values\", \"Services Offered\", "
-    "\"Notable Projects\", \"Industry Focus\", \"Testimonials\", etc.  \n"
-    "• Under every key, return a **list of richly written text items**. Each item should be "
-    "two-to-four full sentences that:  \n"
-    "  – give precise facts and context (dates, metrics, client names, outcomes, locations)  \n"
-    "  – are self-contained so they can be fed directly into a retrieval-augmented generation (RAG) system.  \n"
-    "• Aim for **comprehensive coverage**: capture all distinct services, values, case studies, awards, and any other salient information. "
-    "It is better to be verbose and exhaustive than brief.  \n"
-    "• Do **not** invent information. Paraphrase faithfully.  \n"
-    "• Output must be valid JSON—no comments, no trailing commas, no markdown."
+    "Extract key information from this webpage about the company. "
+    "Return a JSON object with these categories as keys, each containing a list of relevant text snippets: "
+    "\"Company_Info\", \"Services\", \"Projects\", \"News\", \"Testimonials\", \"Contact\". "
+    "Keep each text snippet clear and informative. "
+    "Example: {\"Company_Info\": [\"Founded in 2000\", \"Global leader in translation\"], \"Services\": [\"Translation services\", \"eLearning solutions\"]}"
 ),
     llm_config=LLMConfig(
         provider="ollama/llama3",        # ← model name inside provider
@@ -63,7 +52,7 @@ deepseek_strategy = LLMExtractionStrategy(
         # api_token is NOT needed for local Ollama
     ),
     extra_args={
-        "temperature": 0.7
+        "temperature": 0.3  # Lower temperature for more consistent results
     },
     apply_chunking=False
 
@@ -73,14 +62,10 @@ filter_chain = FilterChain([
     #DomainFilter(blocked_domains=["linkedin.com"]),
     URLPatternFilter(patterns=["*linkedin*"])
 ])
-from crawl4ai.deep_crawling import BFSDeepCrawlStrategy   # breadth-first search
-deep_crawl = BFSDeepCrawlStrategy(
-    max_depth=1,   # 0 = only start URL, 1 = +direct links, 2 = +links-of-links
-    include_external=False, # stay on the same domain      # optional overall cap
-    filter_chain=filter_chain
 
-    
-) 
+# Note: Deep crawl strategies are now created dynamically per URL
+# - Verztec sites: depth=1 (crawl main page + direct links)  
+# - Other sites: depth=0 (main page only) 
 
 
 async def crawl_with_strategy(
@@ -90,6 +75,7 @@ async def crawl_with_strategy(
 ) -> List[dict]:
     """
     Crawl many URLs concurrently with *any* extraction strategy.
+    Uses depth=1 for Verztec website, depth=0 for all other sites.
 
     Returns one dict per URL:
         { "url": <url>, "success": bool, "markdown": str, "extracted": Any }
@@ -103,16 +89,40 @@ async def crawl_with_strategy(
     results_out: list[dict] = []
 
     async with AsyncWebCrawler(config=browser_config or BrowserConfig(headless=True)) as crawler:
-        cfg = CrawlerRunConfig(
-            cache_mode=CacheMode.BYPASS,
-            deep_crawl_strategy = deep_crawl,  
-            extraction_strategy=strategy,
-            markdown_generator=DefaultMarkdownGenerator(
-                content_filter=PruningContentFilter()
-            ),
-        )
+        # Create tasks with different crawl strategies based on URL
+        tasks = []
+        for url in url_strings:
+            # Check if it's a Verztec website
+            is_verztec = "verztec.com" in url.lower()
+            
+            # Create appropriate deep crawl strategy
+            if is_verztec:
+                # Deep crawl for Verztec sites (depth=1)
+                url_deep_crawl = BFSDeepCrawlStrategy(
+                    max_depth=1,
+                    include_external=False,
+                    filter_chain=filter_chain
+                )
+            else:
+                # Shallow crawl for other sites (depth=0)
+                url_deep_crawl = BFSDeepCrawlStrategy(
+                    max_depth=0,
+                    include_external=False,
+                    filter_chain=filter_chain
+                )
+            
+            cfg = CrawlerRunConfig(
+                cache_mode=CacheMode.BYPASS,
+                deep_crawl_strategy=url_deep_crawl,
+                extraction_strategy=strategy,
+                markdown_generator=DefaultMarkdownGenerator(
+                    content_filter=PruningContentFilter()
+                ),
+            )
+            
+            tasks.append(crawler.arun(url=url, config=cfg))
+            print(f"🔗 Crawling {url} with depth={'1 (Verztec)' if is_verztec else '0 (External)'}")
 
-        tasks = [crawler.arun(url=u, config=cfg) for u in url_strings]
         results = await asyncio.gather(*tasks, return_exceptions=True)
 
         for url, res in zip(url_strings, results):
@@ -146,16 +156,28 @@ async def crawl_with_strategy(
 doc_metadata = []
 async def main():
     # 1️⃣ Seed URLs
-    seeds = get_search_results("What does verztec do", num_results=5)
+    seeds = get_search_results("What does verztec do", num_results=10)
     urls  = [s["url"] for s in seeds]
     urls.append("https://www.verztec.com")  # add a known page
     print("🔗 Seeds:", urls)
 
     # 2️⃣ Crawl & extract
     crawl_results = await crawl_with_strategy(urls, deepseek_strategy, browser_cfg)
+    
+    # Debug: Count results by success/failure
+    total_results = len(crawl_results)
+    successful_results = len([r for r in crawl_results if r["success"]])
+    empty_results = len([r for r in crawl_results if not r["extracted"] or r["extracted"] == []])
+    
+    print(f"📊 Crawl Summary:")
+    print(f"   Total pages crawled: {total_results}")
+    print(f"   Successful extractions: {successful_results}")
+    print(f"   Empty extractions: {empty_results}")
+    print(f"   Failed extractions: {total_results - successful_results}")
 
     # 3️⃣ Build LangChain docs
     seen_texts: set[str] = set()
+    duplicate_count = 0
 
     # 3️⃣ Build LangChain docs
     docs: list[Document] = []
@@ -164,6 +186,12 @@ async def main():
             continue
 
         extracted = r["extracted"]
+        
+        # Skip completely empty extractions early
+        if not extracted or extracted == []:
+            print(f"⚠️ Skipping URL with empty extraction: {r['url']}")
+            continue
+            
         if r["success"]:
             print("✅ Extracted:\n", r["extracted"])
 
@@ -195,15 +223,58 @@ async def main():
                 # anything else we can’t handle → skip
                 continue
 
-            if block.get("error"):
+            # Enhanced error filtering - check multiple error indicators
+            if (block.get("error") or 
+                block.get("error") is True or
+                "error" in block.get("tags", []) or
+                (isinstance(block.get("tag"), str) and block.get("tag", "").lower() in ["error", "errors"])):
+                print(f"⚠️ Skipping error block: {block}")
                 continue
 
-            tag = str(block.get("tag", "Unknown")).strip()
+            # Get tag from either 'tag' field or first item in 'tags' array
+            tag = block.get("tag", "")
+            if isinstance(tag, list):
+                tag = tag[0] if tag else ""
+            tag = str(tag).strip()
+            
+            if not tag and block.get("tags"):
+                tags_list = block.get("tags", [])
+                tag = str(tags_list[0] if tags_list else "").strip()
+            if not tag:
+                tag = "General"  # Default fallback tag
+            
+            # Additional check for error-related tags
+            if tag.lower() in ["error", "errors"]:
+                print(f"⚠️ Skipping error tag block: {tag}")
+                continue
 
-            for txt in block.get("content", []):
-                tagged_txt = f"[{tag}] {txt}"
+            content_list = block.get("content", [])
+            
+            # Skip blocks with empty content
+            if not content_list:
+                print(f"⚠️ Skipping empty content block for tag: {tag}")
+                continue
+
+            for txt in content_list:
+                # Skip empty or error-related content
+                if not txt or (isinstance(txt, dict) and txt.get("error")):
+                    continue
+                
+                # Skip low-quality content (cookies, spam, etc.)
+                txt_lower = str(txt).lower()
+                if any(skip_phrase in txt_lower for skip_phrase in [
+                    "cookie preferences", "we use cookies", "manage consent",
+                    "government officials will never ask", "scamshield helpline",
+                    "your browser does not support", "loading content",
+                    "sorry, we're having trouble"
+                ]):
+                    continue
+                    
+                # Include URL in the content for better context
+                tagged_txt = f"[{tag}] {txt}\n\nSource: {r['url']}"
 
                 if tagged_txt in seen_texts:
+                    duplicate_count += 1
                     continue
                 seen_texts.add(tagged_txt)
 
@@ -218,7 +289,10 @@ async def main():
         print("⚠️  No valid passages found; nothing to embed.")
         return
 
-    print(f"✅ Loaded {len(docs)} passages for embedding")
+    print(f"✅ Final Statistics:")
+    print(f"   Total passages created: {len(docs)}")
+    print(f"   Duplicates filtered out: {duplicate_count}")
+    print(f"   Unique passages for embedding: {len(docs)}")
 
     # 4️⃣ Embed & create FAISS store
     hf_embed = HuggingFaceEmbeddings(

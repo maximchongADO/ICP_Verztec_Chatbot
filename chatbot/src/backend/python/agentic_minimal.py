@@ -114,15 +114,7 @@ Performance Characteristics:
 - Context window: 8K tokens (sufficient for ReAct)
 - Concurrent requests: Limited by API tier
 """
-# Get API key from environment variable for security
-api_key = os.getenv("GROQ_API_KEY")
-if not api_key:
-    print("❌ Error: GROQ_API_KEY environment variable not set!")
-    print("Please set your GROQ API key as an environment variable:")
-    print("   Windows: set GROQ_API_KEY=your_api_key_here")
-    print("   Linux/Mac: export GROQ_API_KEY=your_api_key_here")
-    exit(1)
-
+api_key = "NOT AN API KET BRUH"
 llm = ChatGroq(api_key=api_key, model="meta-llama/llama-4-scout-17b-16e-instruct")
 
 # Memory setup (currently unused but available for multi-turn conversations)
