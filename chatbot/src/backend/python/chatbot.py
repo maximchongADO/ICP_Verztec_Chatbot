@@ -11,6 +11,7 @@ import pymysql
 import spacy
 from spacy.matcher import PhraseMatcher
 from typing import List
+import difflib
 from dotenv import load_dotenv
 from sentence_transformers import SentenceTransformer
 from transformers import AutoModelForSeq2SeqLM, AutoTokenizer
@@ -40,7 +41,7 @@ logger = logging.getLogger(__name__)
 # Initialize models and clients
 embedding_model = SentenceTransformer('BAAI/bge-large-en-v1.5')
 load_dotenv()
-api_key='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'
+api_key='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'
 model = "deepseek-r1-distill-llama-70b" 
 deepseek = ChatGroq(api_key=api_key, model=model) # type: ignore
 
@@ -630,12 +631,15 @@ memory_store = {}
 
 def generate_answer_histoy_retrieval(user_query: str, user_id:str, chat_id:str):
     """
-    Returns a tuple: (answer_text, image_list)
+    Returns a tuple: (answer_text, image_list, source_filepath)
     """
     
     key = f"{user_id}_{chat_id}"  # Use a separator to avoid accidental key collisions
     logger.info(f"Retrieving memory for key: {key}")
     logger.info(f"User ID: {user_id}, Chat ID: {chat_id}")
+
+    # Initialize source file paths list at function level
+    found_file_paths = []
 
     if key in memory_store:
         chat_history = memory_store[key]
@@ -716,6 +720,79 @@ def generate_answer_histoy_retrieval(user_query: str, user_id:str, chat_id:str):
             if src and src not in sources_set:
                 sources_set.add(src)
                 sources_list.append(src)
+                
+                # Only find source document if we haven't found one yet (limit to 1)
+                if not found_file_paths:  # Only if no file found yet
+                    # Check if source document exists in data directories
+                    script_dir = os.path.dirname(os.path.abspath(__file__))
+                    data_dirs = [
+                        os.path.join(script_dir, "data", "pdf"),
+                        os.path.join(script_dir, "data", "word"), 
+                        os.path.join(script_dir, "data", "pptx")
+                    ]
+                    
+                    source_found = False
+                    found_file_path = None
+                    
+                    # Get all files from all data directories for fuzzy matching
+                    all_files = []
+                    for data_dir in data_dirs:
+                        if os.path.exists(data_dir):
+                            for file in os.listdir(data_dir):
+                                all_files.append((file, data_dir))
+                    
+                    if all_files:
+                        # Extract just the filenames for fuzzy matching
+                        file_names = [file[0] for file in all_files]
+                        
+                        # Try fuzzy matching with different similarity thresholds
+                        src_clean = os.path.splitext(src)[0]  # Remove extension from source name
+                        
+                        # First try: exact substring/prefix matching (existing logic)
+                        for file_name, data_dir in all_files:
+                            file_clean = os.path.splitext(file_name)[0]  # Remove extension
+                            if (src.lower() in file_name.lower() or 
+                                file_name.lower().startswith(src.lower()) or
+                                src_clean.lower() in file_clean.lower() or
+                                file_clean.lower().startswith(src_clean.lower())):
+                                source_found = True
+                                found_file_path = os.path.join(data_dir, file_name)
+                                found_file_paths.append(found_file_path)  # Add to list
+                                logger.info(f"Source document found (exact/substring match): {found_file_path}")
+                                print(f"📁 SOURCE DOCUMENT LOCATION: {found_file_path}")
+                                break
+                        
+                        # Second try: fuzzy matching if exact matching failed
+                        if not source_found:
+                            # Use difflib for fuzzy matching with cleaned names (no extensions)
+                            file_names_clean = [os.path.splitext(f)[0] for f in file_names]
+                            close_matches = difflib.get_close_matches(
+                                src_clean.lower(), 
+                                [f.lower() for f in file_names_clean], 
+                                n=1, 
+                                cutoff=0.6  # 60% similarity threshold
+                            )
+                            
+                            if close_matches:
+                                # Find the original file corresponding to the close match
+                                matched_clean = close_matches[0]
+                                for i, file_clean in enumerate(file_names_clean):
+                                    if file_clean.lower() == matched_clean:
+                                        matched_file, data_dir = all_files[i]
+                                        source_found = True
+                                        found_file_path = os.path.join(data_dir, matched_file)
+                                        found_file_paths.append(found_file_path)  # Add to list
+                                        logger.info(f"Source document found (fuzzy match): {found_file_path} (similarity with '{src}')")
+                                        print(f"📁 SOURCE DOCUMENT LOCATION: {found_file_path}")
+                                        break
+                    
+                    if not source_found:
+                        logger.warning(f"Source document not found in data directories: {src}")
+                        print(f"❌ SOURCE DOCUMENT NOT FOUND: {src}")
+                    else:
+                        print(f"✅ SOURCE DOCUMENT VERIFIED: {found_file_path}")
+                
+                logger.info(f"Source added: {src}")
 
             # ---- unique doc content ---------------------------------
             if doc.page_content not in seen_contents:
@@ -792,7 +869,7 @@ def generate_answer_histoy_retrieval(user_query: str, user_id:str, chat_id:str):
             #store_chat_log(user_message=user_query, bot_response=cleaned_fallback, session_id=session_id, query_score=is_task_query, relevance_score=avg_score)
             store_chat_log_updated(user_message=user_query, bot_response=cleaned_fallback, query_score=is_task_query, relevance_score=avg_score, user_id=user_id, chat_id=chat_id)
     
-            return cleaned_fallback, top_3_img
+            return cleaned_fallback, top_3_img, []  # No source files for fallback responses
         
         
         
@@ -888,13 +965,12 @@ def generate_answer_histoy_retrieval(user_query: str, user_id:str, chat_id:str):
         store_chat_log_updated(user_message=user_query, bot_response=cleaned_answer, query_score=is_task_query, relevance_score=avg_score, user_id=user_id, chat_id=chat_id)##brian u need to update sql for this to work
         # also need to update the store_chat_bot method, to incoude user id and chat id
         # After generating the bot's response
-        final_response = append_sources(cleaned_answer, top_docs)
-        print(final_response)
+        
 
         total_elapsed_time = time.time() - total_start_time
         logger.info(f"Total time taken for query processing: {total_elapsed_time:.2f}s")
 
-        return final_response, top_3_img
+        return cleaned_answer, top_3_img, found_file_paths
     except Exception as e:
-        return f"I encountered an error while processing your request: {str(e)}", []
+        return f"I encountered an error while processing your request: {str(e)}", [], []
 

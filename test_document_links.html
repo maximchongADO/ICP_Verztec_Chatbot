@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Document Viewer Test</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        .doc-section { margin: 20px 0; padding: 15px; border: 1px solid #ddd; border-radius: 5px; }
+        .viewer-links { margin-top: 10px; }
+        .viewer-links a { margin-right: 10px; padding: 5px 10px; text-decoration: none; border-radius: 3px; }
+        .download { background-color: #4CAF50; color: white; }
+        .google { background-color: #2196F3; color: white; }
+        .office { background-color: #FF9800; color: white; }
+    </style>
+</head>
+<body>
+    <h1>Document Viewer Test</h1>
+    <p>Testing different document viewers for inline viewing:</p>
+    
+    <div class="doc-section">
+        <h2>📄 PDF Documents (Native Browser Support)</h2>
+        <ul>
+            <li><a href="/documents/11A_Basic Meeting Etiquette for Professionals.pdf" target="_blank">11A_Basic Meeting Etiquette for Professionals.pdf</a></li>
+            <li><a href="/documents/18_Verztec_Pantry Rules_060715.pdf" target="_blank">18_Verztec_Pantry Rules_060715.pdf</a></li>
+        </ul>
+    </div>
+    
+    <div class="doc-section">
+        <h2>📝 Word Documents (with Viewers)</h2>
+        
+        <h3>2_Verztec Webmail and Autoresponder.doc</h3>
+        <div class="viewer-links">
+            <a href="/documents/2_Verztec Webmail and Autoresponder.doc" class="download" target="_blank">📥 Download</a>
+            <a href="https://docs.google.com/gview?url=http://localhost:8000/documents/2_Verztec%20Webmail%20and%20Autoresponder.doc&embedded=true" class="google" target="_blank">📖 Google Viewer</a>
+            <a href="https://view.officeapps.live.com/op/embed.aspx?src=http://localhost:8000/documents/2_Verztec%20Webmail%20and%20Autoresponder.doc" class="office" target="_blank">🌐 Office Viewer</a>
+        </div>
+        
+        <h3>Project Sign off and Change Acknowledgement Form_250227 .docx</h3>
+        <div class="viewer-links">
+            <a href="/documents/Project Sign off and Change Acknowledgement Form_250227 .docx" class="download" target="_blank">📥 Download</a>
+            <a href="https://docs.google.com/gview?url=http://localhost:8000/documents/Project%20Sign%20off%20and%20Change%20Acknowledgement%20Form_250227%20.docx&embedded=true" class="google" target="_blank">📖 Google Viewer</a>
+            <a href="https://view.officeapps.live.com/op/embed.aspx?src=http://localhost:8000/documents/Project%20Sign%20off%20and%20Change%20Acknowledgement%20Form_250227%20.docx" class="office" target="_blank">🌐 Office Viewer</a>
+        </div>
+    </div>
+    
+    <div class="doc-section">
+        <h2>ℹ️ How It Works</h2>
+        <ul>
+            <li><strong>📥 Download:</strong> Downloads the file to your computer</li>
+            <li><strong>📖 Google Viewer:</strong> Uses Google Docs viewer to display the document inline</li>
+            <li><strong>🌐 Office Viewer:</strong> Uses Microsoft Office Online to display the document inline</li>
+        </ul>
+        <p><strong>Note:</strong> External viewers require your local server to be accessible from the internet or you can test with publicly accessible URLs.</p>
+    </div>
+    
+    <div class="doc-section">
+        <h2>🧪 Chatbot Integration</h2>
+        <p>When you ask the chatbot a question and it finds a relevant document, you'll now see:</p>
+        <div style="background-color: #f5f5f5; padding: 10px; border-radius: 5px; margin-top: 10px;">
+            📁 Source document: <strong>filename.docx</strong><br>
+            &nbsp;&nbsp;📥 <a href="#" style="color: #4CAF50;">Download</a> | 
+            📖 <a href="#" style="color: #2196F3;">View (Google)</a> | 
+            🌐 <a href="#" style="color: #FF9800;">View (Office)</a>
+        </div>
+    </div>
+</body>
+</html>

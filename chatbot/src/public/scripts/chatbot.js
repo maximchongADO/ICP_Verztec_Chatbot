@@ -66,11 +66,30 @@ function sendMessage() {
 
       // Add bot response
       if (response) {
-        addMessage(response.message, "bot");
+        let finalMessage = response.message;
+        
+        // Display source document filepath if available
+        if (response.filepath) {
+          console.log(`📁 Source document: ${response.filepath}`);
+
+          // Extract just the filename from the full path
+          const filename = response.filepath.split(/[/\\]/).pop(); // Handle both forward and back slashes
+          
+          // Append the source document link to the response message
+          const sourceLink = `<br><br>📁 <strong>Source:</strong> <a href="/documents/${filename}" target="_blank" style="color: #4CAF50; text-decoration: underline; cursor: pointer;">${filename}</a>`;
+          finalMessage += sourceLink;
+        }
+        
+        // Add the complete message (with source link if available)
+        addMessage({
+          message: finalMessage,
+          isHtml: response.filepath ? true : false  // Enable HTML rendering when we have a source link
+        }, "bot");
         
         if (Array.isArray(response.images) && response.images.length > 0) {
           sendImages(response.images);
         }
+        
         // Refresh chat history sidebar after sending a message (in case a new chat was just created)
         if (typeof getChatHistorySidebar === 'function') getChatHistorySidebar();
       } else {
@@ -251,6 +270,7 @@ async function callChatbotAPI(message,
         success: true,
         message: data.message,
         images: data.images || [], // Ensure images is an array
+        filepath: data.filepath || null, // Include source file path
       };
     } else {
       throw new Error("Invalid response format from chatbot");
@@ -430,11 +450,13 @@ function sendImages(images) {
 function addMessage(textOrResponse, sender) {
   let text = textOrResponse;
   let images = [];
+  let isHtml = false;
 
   // Check if it's an object with message and images
   if (typeof textOrResponse === "object" && textOrResponse !== null && "message" in textOrResponse) {
     text = textOrResponse.message?.trim() || "";
     images = textOrResponse.images || [];
+    isHtml = textOrResponse.isHtml || false;
   } 
   
   // NEW: If it's a plain image filename string like "example.png"
@@ -471,10 +493,13 @@ function addMessage(textOrResponse, sender) {
         `</div>`;
     }
 
+    // Use innerHTML for HTML content or escaped text for plain text
+    const messageContent = isHtml ? text : escapeHtml(text);
+
     messageDiv.innerHTML = `
       <div class="ai-message-avatar"></div>
       <div class="message-content ai-message">
-        ${escapeHtml(text)}${imagesHtml}
+        ${messageContent}${imagesHtml}
         <button class="copy-btn" title="Copy response" onclick="copyMessage(this)">📋</button>
       </div>
       <div class="feedback-buttons">
