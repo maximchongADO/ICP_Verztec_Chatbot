@@ -71,6 +71,8 @@ function sendMessage() {
         if (Array.isArray(response.images) && response.images.length > 0) {
           sendImages(response.images);
         }
+        // Refresh chat history sidebar after sending a message (in case a new chat was just created)
+        if (typeof getChatHistorySidebar === 'function') getChatHistorySidebar();
       } else {
         addMessage("Sorry, I received an invalid response. Please try again.", "bot");
       }
@@ -147,6 +149,9 @@ function closeChatHistorySidebar() {
 function loadChatHistory(chatId) {
   // Load the selected chat's messages and display in main chat area
   const userId = localStorage.getItem("userId") || "defaultUser";
+  // Set the selected chatId as the current chat_id for new messages
+  localStorage.setItem("chat_id", chatId);
+  sessionStorage.setItem("chat_id", chatId);
   fetch(`/api/chatbot/history/${encodeURIComponent(chatId)}?user_id=${encodeURIComponent(userId)}`, {
     method: "GET",
     headers: {
@@ -1040,6 +1045,8 @@ async function startNewChat() {
         </div>
       `;
       get_frequentmsg();
+      // Refresh chat history sidebar after new chat is created
+      if (typeof getChatHistorySidebar === 'function') getChatHistorySidebar();
     } else {
       // Log error details for debugging
       console.error("Failed to start new chat. Response:", data, "Status:", response.status);

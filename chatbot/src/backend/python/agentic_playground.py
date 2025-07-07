@@ -30,8 +30,9 @@ logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(
 logger = logging.getLogger(__name__)
 
 # Initialize models and clients (same as chatbot.py)
-api_key = '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'
+api_key = ''
 model = "deepseek-r1-distill-llama-70b"
+model="meta-llama/llama-4-scout-17b-16e-instruct"
 deepseek = ChatGroq(api_key=api_key, model=model) # type: ignore
 
 # Initialize memory (migrated to langchain_core)
@@ -122,11 +123,7 @@ def create_meeting_request_tool(details: str) -> str:
     return f"A meeting request has been created with the following details: '{details}'. (Simulated)"
 
 # Register as LangChain Tools
-search_tool = Tool(
-    name="search_docs",
-    func=search_docs_tool,
-    description="Searches the document index for relevant information."
-)
+
 escalate_hr_tool = Tool(
     name="escalate_to_hr",
     func=escalate_to_hr_tool,
@@ -138,7 +135,7 @@ create_meeting_tool = Tool(
     description="Creates a meeting request with provided details. Use when the user wants to schedule a meeting. (Simulated)"
 )
 
-tools = [search_tool, escalate_hr_tool, create_meeting_tool]
+tools = [ escalate_hr_tool, create_meeting_tool]
 
 def strip_think_tags(text: str) -> str:
     """Remove <think>...</think> tags from LLM output."""
@@ -148,20 +145,39 @@ def strip_think_tags(text: str) -> str:
 # Custom system prompt for ReAct format
 def get_react_prompt():
     return ChatPromptTemplate.from_messages([
+        (
+            "system",
+            "You are an AI assistant that must follow the ReAct format **verbatim**.\n"
+            "Allowed formats:\n"
+            "1. For tool use:\n"
+            "Thought: <reason>\nAction: <tool-name>\nAction Input: <input>\n"
+            "2. For direct reply:\n"
+            "Thought: <reason>\nAction: Final Answer\nAction Input: <answer>\n"
+            "DO NOT output <think> tags, observations, or any extra text."
+        ),
+        ("human", "{input}")
+    ])
+    
+def get_react_prompt():
+    return ChatPromptTemplate.from_messages([
         ("system", (
-            "You are an AI assistant following the ReAct format.\n"
-            "Always think step-by-step. Your output must follow this exact structure:\n\n"
-            "Thought: your reasoning here\n"
-            "Action: the tool you want to use (e.g. 'search_docs' or 'Final Answer')\n"
-            "Action Input: the input for that action\n\n"
-            "Do not use <think> or other tags. Only use the exact format shown above.\n"
-            "If you're ready to answer directly, use:\n"
-            "Thought: [your reasoning]\n"
+            "You are an AI assistant that uses the ReAct format.\n"
+            "In every response, ONLY output ONE of the following:\n"
+            "1. A tool call:\n"
+            "Thought: <reasoning>\n"
+            "Action: <tool name>\n"
+            "Action Input: <input string>\n"
+            "2. A final answer:\n"
+            "Thought: <reasoning>\n"
             "Action: Final Answer\n"
-            "Action Input: [your final response]"
+            "Action Input: <your answer to the user>\n"
+            "NEVER output both a tool action AND a final answer in the same step.\n"
+            "NEVER output an extra 'Observation:' line.\n"
+            "Strictly follow the format with no additional text or tags."
         )),
         ("human", "{input}")
     ])
+
 
 # Main chat loop
 if __name__ == "__main__":
