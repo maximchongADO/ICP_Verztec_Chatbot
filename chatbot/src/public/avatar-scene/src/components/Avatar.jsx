@@ -112,39 +112,38 @@ export function Avatar(props) {
   const [lipsync, setLipsync] = useState();
   const group = useRef();
 
-  // Load animations
-  const { animations } = useGLTF("/avatar/models/animations.glb");
-  const { actions, mixer } = useAnimations(animations, group);
-  const [animation, setAnimation] = useState(
-    animations.find((a) => a.name === "Idle") ? "Idle" : animations[0]?.name
-  );
+  // Load animations (commented out for now)
+  // const { animations } = useGLTF("/avatar/models/animations.glb");
+  // const { actions, mixer } = useAnimations(animations, group);
+  // const [animation, setAnimation] = useState(
+  //   animations.find((a) => a.name === "Idle") ? "Idle" : animations[0]?.name
+  // );
 
-  useEffect(() => {
-    if (actions && animation && actions[animation]) {
-      actions[animation]
-        .reset()
-        .fadeIn(mixer?.stats?.actions?.inUse === 0 ? 0 : 0.5)
-        .play();
-      return () => {
-        if (actions[animation]) actions[animation].fadeOut(0.5);
-      };
-    }
-  }, [actions, animation, mixer]);
+  // useEffect(() => {
+  //   if (actions && animation && actions[animation]) {
+  //     actions[animation]
+  //       .reset()
+  //       .fadeIn(mixer?.stats?.actions?.inUse === 0 ? 0 : 0.5)
+  //       .play();
+  //     return () => {
+  //       if (actions[animation]) actions[animation].fadeOut(0.5);
+  //     };
+  //   }
+  // }, [actions, animation, mixer]);
 
-  useEffect(() => {
-    console.log(message);
-    if (!message) {
-      setAnimation("Idle");
-      return;
-    }
-    setAnimation(message.animation);
-    setFacialExpression(message.facialExpression);
-    setLipsync(message.lipsync);
-    const audio = new Audio("data:audio/mp3;base64," + message.audio);
-    audio.play();
-    setAudio(audio);
-    audio.onended = onMessagePlayed;
-  }, [message]);
+  // useEffect(() => {
+  //   if (!message) {
+  //     setAnimation("Idle");
+  //     return;
+  //   }
+  //   setAnimation(message.animation);
+  //   setFacialExpression(message.facialExpression);
+  //   setLipsync(message.lipsync);
+  //   const audio = new Audio("data:audio/mp3;base64," + message.audio);
+  //   audio.play();
+  //   setAudio(audio);
+  //   audio.onended = onMessagePlayed;
+  // }, [message]);
 
   // Ignore animation loading and useAnimations
   // const { animations } = useGLTF("/avatar/models/animations.glb");

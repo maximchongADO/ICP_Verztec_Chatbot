@@ -7,7 +7,6 @@ from typing import List, Optional
 from datetime import datetime
 import os
 import uvicorn
-
 from chatbot import (
     generate_answer,
     generate_answer_histoy_retrieval,
@@ -234,7 +233,6 @@ async def upload_file(
     if not authorization or not authorization.startswith('Bearer '):
         raise HTTPException(status_code=403, detail="Invalid authorization")
     return await process_upload(file)
-
 
 if __name__ == "__main__":
     try:

@@ -24,13 +24,9 @@ function stopAvatarAnimation() {
         currentMouthInterval = null;
     }
     
-    avatar.classList.remove('speaking');
-    avatarOpen.classList.add('avatar-hidden');
+    if (avatar) avatar.classList.remove('speaking');
+    if (avatarOpen) avatarOpen.classList.add('avatar-hidden');
 }
-
-
-
-
 
 function sendMessage() {
   const input = document.getElementById("messageInput");
@@ -71,6 +67,7 @@ function sendMessage() {
       // Add bot response
       if (response) {
         addMessage(response.message, "bot");
+        
         if (Array.isArray(response.images) && response.images.length > 0) {
           sendImages(response.images);
         }
@@ -636,11 +633,11 @@ window.addEventListener("resize", function () {
   if (window.innerWidth > 768) {
     // Desktop: show sidebar, hide overlay
     sidebar.classList.remove("collapsed");
-    overlay.classList.remove("active");
+    if (overlay) overlay.classList.remove("active");
   } else {
     // Mobile: hide sidebar by default
     if (!sidebar.classList.contains("collapsed")) {
-      overlay.classList.add("active");
+      if (overlay) overlay.classList.add("active");
     }
   }
 });
@@ -654,15 +651,19 @@ function toggleMute() {
     const avatar = document.getElementById('chatbotAvatar');
     
     if (isMuted) {
-        responsiveVoice.pause();  // Pause instead of cancel
-        avatar.classList.add('muted');
-        toggleButton.classList.add('muted');
-        toggleButton.innerHTML = '<i class="fas fa-volume-mute"></i> Muted';
+        window.googleTTS?.pause();
+        if (avatar) avatar.classList.add('muted');
+        if (toggleButton) {
+            toggleButton.classList.add('muted');
+            toggleButton.innerHTML = '<i class="fas fa-volume-mute"></i> Muted';
+        }
     } else {
-        responsiveVoice.resume();  // Resume if paused
-        avatar.classList.remove('muted');
-        toggleButton.classList.remove('muted');
-        toggleButton.innerHTML = '<i class="fas fa-volume-up"></i> Unmuted';
+        window.googleTTS?.resume();
+        if (avatar) avatar.classList.remove('muted');
+        if (toggleButton) {
+            toggleButton.classList.remove('muted');
+            toggleButton.innerHTML = '<i class="fas fa-volume-up"></i> Unmuted';
+        }
     }
 }
 
@@ -678,33 +679,27 @@ async function speakMessage(text) {
     currentSpeechText = text;
     
     try {
-        avatar.classList.add('speaking');
-        isCurrentlySpeaking = true;
-        
-        // Clear any existing animation
-        if (currentMouthInterval) {
-            clearInterval(currentMouthInterval);
-        }
-        
-        // Start new animation
-        currentMouthInterval = setInterval(() => {
-            if (isCurrentlySpeaking) {
-                avatarOpen.classList.toggle('avatar-hidden');
-            }
-        }, 200);
-        
-        responsiveVoice.speak(text, "UK English Female", {
+        if (avatar) avatar.classList.add('speaking');
+        isCurrentlySpeaking = true;        // Use Google Cloud TTS instead of ResponsiveVoice
+        if (window.googleTTS) {
+          await window.googleTTS.speak(text, {
+            voice: 'en-GB-Standard-A',      // British English female voice
+            languageCode: 'en-GB',
+            volume: isMuted ? 0 : 1,
             onend: () => {
-                currentSpeechText = null;
-                isCurrentlySpeaking = false;
-                stopAvatarAnimation();
+              currentSpeechText = null;
+              isCurrentlySpeaking = false;
+              stopAvatarAnimation();
             },
             onstart: () => {
-                isCurrentlySpeaking = true;
-                avatar.classList.add('speaking');
-            },
-            volume: isMuted ? 0 : 1  // Set volume based on mute state
-        });
+              isCurrentlySpeaking = true;
+              if (avatar) avatar.classList.add('speaking');
+            }
+          });
+        } else {
+          console.warn('Google TTS not loaded');
+          stopAvatarAnimation();
+        }
         
     } catch (error) {
         console.error('Speech Error:', error);
@@ -714,7 +709,9 @@ async function speakMessage(text) {
 
 // Add function to cancel current speech
 function cancelSpeech() {
-    responsiveVoice.cancel();
+    if (window.googleTTS) {
+        window.googleTTS.cancel();
+    }
     currentSpeechText = null;
     isCurrentlySpeaking = false;
     stopAvatarAnimation();
