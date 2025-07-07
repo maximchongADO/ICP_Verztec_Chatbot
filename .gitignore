@@ -1,4 +1,7 @@
 .env
-# Google Cloud credentials
-credentials/
-*.json
+/backend/python/.venv
+/backend/python/venv
+.venv/
+venv/
+**/.venv/
+**/venv/
