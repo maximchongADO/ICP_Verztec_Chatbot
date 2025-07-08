@@ -2,37 +2,47 @@ import { createContext, useContext, useEffect, useState } from "react";
 
 const ChatContext = createContext(); // <-- Add this line
 
-const backendUrl = "http://localhost:3000";
+const backendUrl = "http://localhost:8000";
 export const ChatProvider = ({ children }) => {
   const [messages, setMessages] = useState([]);
   const [message, setMessage] = useState();
   const [loading, setLoading] = useState(false);
   const [cameraZoomed, setCameraZoomed] = useState(true);
 
-  // Get token from localStorage (or however you store it)
-  const token = localStorage.getItem("token"); // <-- Add this line
+  const token = localStorage.getItem("token");
 
   const chat = async (message) => {
     setLoading(true);
     try {
-      const response = await fetch(`${backendUrl}/chatbot_avatar`, {
+      const response = await fetch(`${backendUrl}/chatbot_avatar_test`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
           "Accept": "application/json",
-          "Authorization": `Bearer ${token}`,
         },
         body: JSON.stringify({
           message: message,
         }),
       });
 
-      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
 
-      const resp = [{ type: "bot", text: data.message }];
-      setMessages((messages) => [...messages, ...resp]);
+      const data = await response.json();
+      console.log('Received data:', data);
+
+      if (data.messages && data.messages.length > 0) {
+        setMessages((messages) => [...messages, ...data.messages]);
+      }
     } catch (error) {
       console.error("Chat error:", error);
+      // Add error message
+      const errorMessage = {
+        type: "bot",
+        text: "Sorry, I encountered an error. Please try again."
+      };
+      setMessages((messages) => [...messages, errorMessage]);
     } finally {
       setLoading(false);
     }

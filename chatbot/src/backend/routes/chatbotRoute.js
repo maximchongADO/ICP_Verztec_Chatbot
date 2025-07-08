@@ -42,6 +42,14 @@ const chatbotRoute = (app) => {
     authenticateToken,
     chatbotController.newChat
   );
+  // Avatar chatbot endpoint
+  app.post("/chatbot_avatar", chatbotController.processAvatarMessage);
+
+  // Test avatar endpoint without authentication
+  app.post(
+    "/chatbot_avatar_test",
+    chatbotController.processAvatarMessage
+  );
 };
 
 module.exports = chatbotRoute;

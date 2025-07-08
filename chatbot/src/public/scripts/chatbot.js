@@ -43,7 +43,7 @@ function sendMessage() {
   // Disable send button
   const sendButton = document.getElementById("sendButton");
   sendButton.disabled = true;
-  const fullMessage = `${message} YABABDODD`;
+  // const fullMessage = `${message} YABABDODD`;
 
   // Add user message to chat
   addMessage(message, "user");
@@ -58,8 +58,8 @@ function sendMessage() {
   setTimeout(() => updateTypingIndicatorStatus("Generating response..."), 2200);
   setTimeout(() => updateTypingIndicatorStatus("Finalizing..."), 3200);
 
-  // Call chatbot API with correct chat_id
-  callChatbotAPI(message, user_id, chat_id)
+  // Call chatbot API with correct chat_id - send original message
+  callChatbotAPI(message, user_id, chat_id) // Don't send fullMessage
     .then((response) => {
       // Remove typing indicator
       hideTypingIndicator();
