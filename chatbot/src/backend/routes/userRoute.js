@@ -1,4 +1,5 @@
 const userController = require("../controllers/userController.js");
+const batchUploadController = require("../controllers/batchUploadController.js");
 const authenticateToken = require("../middleware/authenticateToken.js");
 require("dotenv").config();
 
@@ -24,6 +25,21 @@ const userRoute = (app) => {
     authenticateToken,
     authenticateToken.requireAdmin,
     userController.adminUpdateUser
+  );
+  // Admin-only: batch upload users via Excel/CSV
+  app.post(
+    "/api/users/batch-upload",
+    authenticateToken,
+    authenticateToken.requireAdmin,
+    batchUploadController.upload.single("file"),
+    batchUploadController.batchUploadUsers
+  );
+  // Admin-only: generate sample Excel file
+  app.get(
+    "/api/users/sample-file",
+    authenticateToken,
+    authenticateToken.requireAdmin,
+    batchUploadController.generateSampleFile
   );
   // User analytics dashboard (authenticated)
   app.get(
