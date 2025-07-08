@@ -12,7 +12,7 @@ from chatbot import (
     generate_answer_histoy_retrieval,
     memory, 
     logger, 
-    index
+    index,agentic_bot_v1
 )
 from memory_retrieval import (retrieve_user_messages_and_scores,get_all_chats_with_messages_for_user)
 from Freq_queries import (get_suggestions)
@@ -151,8 +151,12 @@ async def chat_endpoint(request: ChatRequest):
         if index is None:
             raise HTTPException(status_code=503, detail="Search index is not available")
         
-        response_message, image_list = generate_answer_histoy_retrieval(request.message, request.user_id, request.chat_id)
+       
+        response_message, image_list = agentic_bot_v1(request.message, request.user_id, request.chat_id)
         #response_message, image_list= generate_answer_histoy_retrieval(request.message , request.user_id, request.chat_id)
+        
+        
+        
         logger.info(f"Generated response: {response_message}")
         logger.info(f"Image list: {image_list}")
         
