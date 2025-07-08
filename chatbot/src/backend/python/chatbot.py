@@ -1,6 +1,6 @@
 import os
 import re
-
+import difflib
 import time
 import logging
 from datetime import datetime
@@ -293,6 +293,167 @@ def append_sources(cleaned_response: str, docs: list) -> str:
     source_block = "\n\n📂 Source Document Used:\n" + "\n".join(f"• {src}" for src in sources)
     return cleaned_response.strip() + source_block
 
+def append_sources_with_links(cleaned_response: str, docs: list):
+    def format_source_name(source_path: str) -> str:
+        filename = os.path.basename(source_path)
+        name, _ = os.path.splitext(filename)
+        name = re.sub(r'^\d+\s*', '', name)  # Remove leading numbers
+        return name
+
+    def find_file_in_subdirs(file_name: str) -> str:
+        """
+        Searches for a file in the 'data' subdirectories (pdf, word, pptx).
+        Uses comprehensive fuzzy matching to locate files.
+        """
+        logger.info(f"Searching for file: {file_name}")
+        
+        script_dir = os.path.dirname(os.path.abspath(__file__))
+        data_dirs = [
+            os.path.join(script_dir, "data", "pdf"),
+            os.path.join(script_dir, "data", "word"), 
+            os.path.join(script_dir, "data", "pptx")
+        ]
+        
+        logger.info(f"Searching in directories: {data_dirs}")
+        
+        # Get all files from all data directories for fuzzy matching
+        all_files = []
+        for data_dir in data_dirs:
+            if os.path.exists(data_dir):
+                try:
+                    files_in_dir = os.listdir(data_dir)
+                    logger.info(f"Found {len(files_in_dir)} files in {data_dir}: {files_in_dir}")
+                    for file in files_in_dir:
+                        full_file_path = os.path.join(data_dir, file)
+                        if os.path.isfile(full_file_path):
+                            all_files.append((file, data_dir))
+                except OSError as e:
+                    logger.warning(f"Error reading directory {data_dir}: {e}")
+                    continue
+            else:
+                logger.warning(f"Directory does not exist: {data_dir}")
+        
+        if not all_files:
+            logger.warning("No files found in any data directory")
+            return None
+            
+        logger.info(f"Total files found: {len(all_files)}")
+        logger.info(f"All files: {[f[0] for f in all_files]}")
+        
+        # Extract just the filenames for fuzzy matching
+        file_names = [file[0] for file in all_files]
+        
+        # Clean the source filename for better matching
+        src_clean = os.path.splitext(os.path.basename(file_name))[0]
+        logger.info(f"Cleaned source name: '{src_clean}' from original: '{file_name}'")
+        
+        # First try: exact filename match
+        for file_name_item, data_dir in all_files:
+            if file_name_item.lower() == os.path.basename(file_name).lower():
+                found_file_path = os.path.join(data_dir, file_name_item)
+                logger.info(f"Source document found (exact filename match): {found_file_path}")
+                return found_file_path
+        
+        # Second try: exact substring/prefix matching
+        for file_name_item, data_dir in all_files:
+            file_clean = os.path.splitext(file_name_item)[0]
+            logger.debug(f"Comparing '{src_clean.lower()}' with '{file_clean.lower()}'")
+            if (file_name.lower() in file_name_item.lower() or 
+                file_name_item.lower().startswith(file_name.lower()) or
+                src_clean.lower() in file_clean.lower() or
+                file_clean.lower().startswith(src_clean.lower())):
+                found_file_path = os.path.join(data_dir, file_name_item)
+                logger.info(f"Source document found (substring match): {found_file_path}")
+                return found_file_path
+        
+        # Third try: fuzzy matching if exact matching failed
+        try:
+            file_names_clean = [os.path.splitext(f)[0] for f in file_names]
+            
+            # Try with different cutoff values for better matches
+            for cutoff in [0.8, 0.6, 0.4]:
+                close_matches = difflib.get_close_matches(
+                    src_clean.lower(), 
+                    [f.lower() for f in file_names_clean], 
+                    n=1, 
+                    cutoff=cutoff
+                )
+                
+                if close_matches:
+                    # Find the original file corresponding to the close match
+                    matched_clean = close_matches[0]
+                    for i, file_clean in enumerate(file_names_clean):
+                        if file_clean.lower() == matched_clean:
+                            matched_file, data_dir = all_files[i]
+                            found_file_path = os.path.join(data_dir, matched_file)
+                            logger.info(f"Source document found (fuzzy match, cutoff={cutoff}): {found_file_path}")
+                            return found_file_path
+                    break
+        except Exception as e:
+            logger.warning(f"Error in fuzzy matching: {e}")
+        
+        # Fourth try: partial name matching (for cases where source has different format)
+        for file_name_item, data_dir in all_files:
+            file_clean = os.path.splitext(file_name_item)[0].lower()
+            src_words = set(src_clean.lower().split())
+            file_words = set(file_clean.split())
+            
+            # Check if there's significant word overlap
+            if src_words and file_words:
+                overlap = len(src_words.intersection(file_words))
+                if overlap >= min(2, len(src_words) // 2):  # At least 2 words or half of source words
+                    found_file_path = os.path.join(data_dir, file_name_item)
+                    logger.info(f"Source document found (word overlap match): {found_file_path}")
+                    return found_file_path
+        
+        logger.warning(f"Source document not found in data directories: {file_name}")
+        logger.info(f"Available files: {[f[0] for f in all_files]}")
+        return None
+
+    sources = []
+    seen_sources = set()
+    source_files_data = []  # For storing source file information
+
+    for doc in docs:
+        source = doc.metadata.get("source", None)
+        file_path = doc.metadata.get("file_path", None)  # Get the file path if available
+
+        # Ensure source is a string before processing
+        if isinstance(source, str):
+            logger.info(f"Processing source: {source}")
+            
+            if not file_path:
+                # Try to find the file using the source name
+                source_basename = os.path.basename(source)
+                logger.info(f"Looking for file with basename: {source_basename}")
+                file_path = find_file_in_subdirs(source_basename)
+                if file_path:
+                    logger.info(f"Found file at: {file_path}")
+                else:
+                    logger.warning(f"Could not find file for source: {source}")
+
+            is_clickable = bool(file_path and os.path.exists(file_path) if file_path else False)
+            logger.info(f"Source {source} - clickable: {is_clickable}, file_path: {file_path}")
+
+            if source not in seen_sources:
+                seen_sources.add(source)
+                sources.append(format_source_name(source))
+
+                # Add source file information
+                source_files_data.append({
+                    "name": format_source_name(source),
+                    "file_path": file_path if isinstance(file_path, str) else None,
+                    "is_clickable": is_clickable
+                })
+
+    if not sources:
+        return cleaned_response, source_files_data
+
+    # Clean final formatting
+    source_block = "\n\n📂 Source Document Used:\n" + "\n".join(f"• {src}" for src in sources)
+    #cleaned_response = cleaned_response.strip() + source_block
+
+    return cleaned_response, source_files_data
 
 retr_direct  = index.as_retriever(search_kwargs={"k": 8})
 retr_bg      = index2.as_retriever(   search_kwargs={"k": 20})
@@ -539,7 +700,11 @@ def generate_answer(user_query: str, chat_history: ConversationBufferMemory ):
             store_chat_log_updated(user_message=user_query, bot_response=cleaned_fallback, query_score=is_task_query, relevance_score=avg_score, user_id=dummy_user_id, chat_id=dummy_chat_id)
             #store_chat_log_updated(user_message=user_query, bot_response=cleaned_fallback, query_score=is_task_query, relevance_score=avg_score, user_id=user_id, chat_id=chat_id)
     
-            return cleaned_fallback, top_3_img
+            return {
+                'text': cleaned_fallback,
+                'images': top_3_img,
+                'sources': []
+            }
         
         
         
@@ -637,15 +802,37 @@ def generate_answer(user_query: str, chat_history: ConversationBufferMemory ):
         dummy_chat_id = session_id
         store_chat_log_updated(user_message=user_query, bot_response=cleaned_answer, query_score=is_task_query, relevance_score=avg_score, user_id=dummy_user_id, chat_id=dummy_chat_id)
         # After generating the bot's response
-        final_response = append_sources(cleaned_answer, top_docs)
+        final_response, source_docs = append_sources_with_links(cleaned_answer, top_docs)
         print(final_response)
+        
+        # Log source documents for debugging
+        logger.info(f"Source documents data: {source_docs}")
+        
+        # Also append clickable links to text for backwards compatibility
+        for doc in source_docs:
+            if doc['is_clickable'] and doc['file_path']:
+                final_response += f"\n\n[Source: {doc['name']}]({doc['file_path']})"
+                logger.info(f"Added clickable source: {doc['name']} -> {doc['file_path']}")
+            else:
+                final_response += f"\n\n[Source: {doc['name']}]"
+                logger.info(f"Added non-clickable source: {doc['name']}")
 
         total_elapsed_time = time.time() - total_start_time
         logger.info(f"Total time taken for query processing: {total_elapsed_time:.2f}s")
 
-        return final_response, top_3_img
+        # Return structured data for frontend
+        return {
+            'text': final_response,
+            'images': top_3_img,
+            'sources': source_docs  # Include source file data for frontend
+        }
     except Exception as e:
-        return f"I encountered an error while processing your request: {str(e)}", []
+        return {
+            'error': f"I encountered an error while processing your request: {str(e)}", 
+            'text': f"I encountered an error while processing your request: {str(e)}", 
+            'images': [], 
+            'sources': []
+        }
 
 memory_store = {}
 
@@ -818,7 +1005,11 @@ def generate_answer_histoy_retrieval(user_query: str, user_id:str, chat_id:str):
             #store_chat_log(user_message=user_query, bot_response=cleaned_fallback, session_id=session_id, query_score=is_task_query, relevance_score=avg_score)
             store_chat_log_updated(user_message=user_query, bot_response=cleaned_fallback, query_score=is_task_query, relevance_score=avg_score, user_id=user_id, chat_id=chat_id)
     
-            return cleaned_fallback, top_3_img
+            return {
+                'text': cleaned_fallback,
+                'images': top_3_img,
+                'sources': []
+            }
         
         
         
@@ -913,15 +1104,37 @@ def generate_answer_histoy_retrieval(user_query: str, user_id:str, chat_id:str):
         store_chat_log_updated(user_message=user_query, bot_response=cleaned_answer, query_score=is_task_query, relevance_score=avg_score, user_id=user_id, chat_id=chat_id)##brian u need to update sql for this to work
         # also need to update the store_chat_bot method, to incoude user id and chat id
         # After generating the bot's response
-        final_response = append_sources(cleaned_answer, top_docs)
+        final_response, source_docs = append_sources_with_links(cleaned_answer, top_docs)
         print(final_response)
+        
+        # Log source documents for debugging
+        logger.info(f"Source documents data: {source_docs}")
+        
+        # Also append clickable links to text for backwards compatibility
+        for doc in source_docs:
+            if doc['is_clickable'] and doc['file_path']:
+                #final_response += f"\n\n[Source: {doc['name']}]({doc['file_path']})"
+                logger.info(f"Added clickable source: {doc['name']} -> {doc['file_path']}")
+            else:
+                #final_response += f"\n\n[Source: {doc['name']}]"
+                logger.info(f"Added non-clickable source: {doc['name']}")
 
         total_elapsed_time = time.time() - total_start_time
         logger.info(f"Total time taken for query processing: {total_elapsed_time:.2f}s")
 
-        return final_response, top_3_img
+        # Return structured data for frontend
+        return {
+            'text': final_response,
+            'images': top_3_img,
+            'sources': source_docs  # Include source file data for frontend
+        }
     except Exception as e:
-        return f"I encountered an error while processing your request: {str(e)}", []
+        return {
+            'error': f"I encountered an error while processing your request: {str(e)}", 
+            'text': f"I encountered an error while processing your request: {str(e)}", 
+            'images': [], 
+            'sources': []
+        }
 
 try:
     ## tools for agentic bot

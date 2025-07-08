@@ -179,9 +179,14 @@ const processMessage = async (req, res) => {
             success: true,
             message: response.message,
             images: response.images,
+            sources: response.sources || [],  // Pass through sources data
             timestamp: new Date().toISOString()
         });
-        console.log('Response sent to client:', response.images);
+        console.log('Response sent to client:', {
+            message: response.message ? response.message.substring(0, 100) + '...' : 'No message',
+            images: response.images,
+            sources: response.sources || []
+        });
 
     } catch (error) {
         console.error('Error processing message:', error);
