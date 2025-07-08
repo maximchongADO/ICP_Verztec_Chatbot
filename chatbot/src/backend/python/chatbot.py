@@ -839,6 +839,8 @@ def generate_answer_histoy_retrieval(user_query: str, user_id:str, chat_id:str):
         response = qa_chain.invoke({"question": modified_query})
         qa_elapsed_time = time.time() - qa_start_time
         raw_answer = response['answer']
+        source_docs = response['source_documents']
+        logger.info(f"Source docs from QA chain: {source_docs}")
         logger.info(f"Full response before cleanup: {raw_answer} (QA chain time taken: {qa_elapsed_time:.2f}s)")
         
         # Clean the chat memory to keep it manageable
@@ -854,11 +856,9 @@ def generate_answer_histoy_retrieval(user_query: str, user_id:str, chat_id:str):
 
         # Check if full <think> block exists
         has_think_block = bool(think_block_pattern.search(raw_answer))
-        logger.info(f"Has full <think> block: {has_think_block}")
 
         # Clean the <think> block regardless
         cleaned_answer = think_block_pattern.sub("", raw_answer).strip()
-        logger.info(f"Cleaned answer after removing <think> block: {cleaned_answer}")
         has_tag = False
         import concurrent.futures
 
@@ -905,7 +905,6 @@ def generate_answer_histoy_retrieval(user_query: str, user_id:str, chat_id:str):
             i += 1
         ## one last cleanup to ensure no <think> tags remain
         # Remove any remaining <think> tagsbetter have NO MOR NO MORE NO MO NO MOMRE 
-    
         cleaned_answer = re.sub(r"</?think>", "", cleaned_answer).strip()
         cleaned_answer = re.sub(r"</?think>", "", cleaned_answer).strip()
         cleaned_answer = re.sub(r'[\*#]+', '', cleaned_answer).strip()
@@ -928,80 +927,46 @@ try:
     ## tools for agentic bot
     def faiss_search_tool(query: str) -> str:
         """
-        Searches FAISS indices for relevant information and returns formatted results.
+        Searches FAISS indices for relevant information and returns the top 10 most relevant documents.
         """
         try:
             # Input validation
             if not query or not query.strip():
                 return "Error: Please provide a search query."
             
-            # Helper function to format source names
-            def format_source_name_local(source_path: str) -> str:
-                filename = os.path.basename(source_path)
-                name, _ = os.path.splitext(filename)
-                name = re.sub(r'^\d+\s*', '', name)  # Remove leading numbers
-                return name.replace("_", " ").title().strip()
-            
             # Clean the query
             clean_query = clean_with_grammar_model(query.strip())
             
-            # Search both FAISS indices (same parameters as other functions)
-            results = index.similarity_search_with_score(clean_query, k=5)
-            results2 = index2.similarity_search_with_score(clean_query, k=5)
+            # Search FAISS index for top 10 results
+            results = index.similarity_search_with_score(clean_query, k=10)
             
-            # Combine and process results (same logic as other functions)
-            all_results = results + results2
-            for i in range(len(all_results)):
-                doc, score = all_results[i]
-                print(f"Processing document {i}: {doc.metadata.get('source', 'Unknown')} with score {score}")
-    
-                print(f"Document content: {doc.page_content}\n\n")  # Print first 100 chars for brevity
-                if not isinstance(doc, Document):
-                    raise ValueError(f"Expected Document type, got {type(doc)} at index {i}")
-                all_results[i] = (doc, float(score))
-            scores = [score for _, score in results]  # Use main index scores for average
-            avg_score = float(np.mean(scores)) if scores else 1.0
+            if not results:
+                return "I couldn't find any relevant information in our knowledge base for your query."
             
-            # Filter and format relevant documents - NO THRESHOLD FILTERING
-            relevant_docs = []
-            sources_set = set()
-            seen_contents = set()  # Add deduplication logic
+            # Print results neatly for debugging
+            print(f"\n{'='*60}")
+            print(f"FAISS SEARCH RESULTS FOR: '{clean_query}'")
+            print(f"{'='*60}")
+            print(f"Found {len(results)} relevant documents:")
+            print("-" * 60)
             
-            # Sort all results by score for better quality
-            all_results_sorted = sorted(all_results, key=lambda x: x[1])
-            
-            for doc, score in all_results_sorted:
-                # Remove threshold check - accept all results
-                content = doc.page_content
+            for i, (doc, score) in enumerate(results, 1):
+                content = doc.page_content if len(doc.page_content) > 200 else doc.page_content
                 source = doc.metadata.get("source", "Unknown")
-                
-                # Skip duplicate content (same logic as above functions)
-                if content in seen_contents:
-                    continue
-                seen_contents.add(content)
-                
-                # Format source name and add to results
-                if source not in sources_set:
-                    sources_set.add(source)
-                    formatted_source = format_source_name_local(source)
-                    relevant_docs.append(f"From {formatted_source}:\n{content}...")  # Truncate like above functions
+                print(f"\n[{i}] Score: {score:.3f}")
+                print(f"Source: {source}")
+                print(f"Content: {content}")
+                print("-" * 40)
             
-            if not relevant_docs:
-                return "I apologize, but I couldn't find any specific information in our knowledge base that directly addresses your query. This might mean:\n\n1. The information you're looking for may not be in our current documentation\n2. Your question might need to be phrased differently\n3. This could be a topic that requires direct assistance from HR or your supervisor\n\nI'd be happy to help you rephrase your question or direct you to the appropriate contact for further assistance."
+            print(f"{'='*60}\n")
             
-            # Format the response with detailed structure
-            search_result = f"📋 **Knowledge Base Search Results**\n"
-            search_result += f"Found {len(relevant_docs)} relevant document(s) from our policy database:\n\n"
+            # Format the results simply
+            search_result = f"Found {len(results)} relevant documents:\n\n"
             
-            for i, doc in enumerate(relevant_docs[:5], 1):  # Limit to top 5 results
-                search_result += f"**{i}. {doc.split(':')[0]}**\n"
-                search_result += f"{doc.split(':', 1)[1] if ':' in doc else doc}\n\n"
-            
-            if len(relevant_docs) > 5:
-                search_result += f"*Note: {len(relevant_docs) - 5} additional relevant documents were found but not displayed for brevity.*\n\n"
-            
-            search_result += f"**Search Quality Score:** {avg_score:.3f} (Lower scores indicate better matches)\n\n"
-            search_result += "💡 **Next Steps:** Based on this information, I can provide you with detailed step-by-step instructions for any procedures you're interested in."
+            for i, (doc, score) in enumerate(results, 1):
+                content = doc.page_content[:200] + "..." if len(doc.page_content) > 200 else doc.page_content
+                source = doc.metadata.get("source", "Unknown")
+                search_result += f"{i}. {content}\n   Source: {source}\n   Score: {score:.3f}\n\n"
             
             # Log the search
             try:
@@ -1036,23 +1001,23 @@ try:
         
         return f"""✅ **HR Escalation Initiated**
 
-Your concern has been successfully escalated to our Human Resources department:
+            Your concern has been successfully escalated to our Human Resources department:
 
-**Issue Summary:** {sanitized_issue}
+            **Issue Summary:** {sanitized_issue}
 
-**What happens next:**
-1. **Within 24 hours:** HR will acknowledge receipt of your escalation
-2. **Within 2-3 business days:** An HR representative will contact you to discuss the matter
-3. **Ongoing:** You'll receive regular updates on the status of your case
+            **What happens next:**
+            1. **Within 24 hours:** HR will acknowledge receipt of your escalation
+            2. **Within 2-3 business days:** An HR representative will contact you to discuss the matter
+            3. **Ongoing:** You'll receive regular updates on the status of your case
 
-**Important Notes:**
-- All escalations are handled with strict confidentiality
-- You may be contacted for additional information if needed
-- If this is an urgent safety matter, please also contact your immediate supervisor
+            **Important Notes:**
+            - All escalations are handled with strict confidentiality
+            - You may be contacted for additional information if needed
+            - If this is an urgent safety matter, please also contact your immediate supervisor
 
-**Reference ID:** ESC-{datetime.now().strftime('%Y%m%d-%H%M%S')}
+            **Reference ID:** ESC-{datetime.now().strftime('%Y%m%d-%H%M%S')}
 
-Is there anything else I can help you with regarding company policies or procedures?"""
+            Is there anything else I can help you with regarding company policies or procedures?"""
 
     def create_meeting_request_tool(details: str) -> str:
     
@@ -1192,7 +1157,7 @@ def get_react_prompt() -> PromptTemplate:
         {tools}
 
         CRITICAL RULES:
-        1. Use the format: Thought: → Action: → Action Input: → wait for Observation
+        1. Use the format: → Action: → Action Input: → wait for Observation
         2. When you use "Final Answer", you are DONE. Do not continue thinking or taking actions.
         3. Do NOT repeat the same action multiple times.
         4. Do NOT continue after "Final Answer".
