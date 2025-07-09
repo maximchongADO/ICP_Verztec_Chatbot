@@ -89,6 +89,12 @@ class User {
         await this.query(sql, params);
         return this.getUserByIdFull(id);
     }
+
+    static async deleteUser(id) {
+        const sql = 'DELETE FROM Users WHERE id = ?';
+        const result = await this.query(sql, [id]);
+        return result.affectedRows > 0;
+    }
 }
 
 module.exports = User;

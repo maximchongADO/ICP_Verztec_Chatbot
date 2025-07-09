@@ -26,6 +26,13 @@ const userRoute = (app) => {
     authenticateToken.requireAdmin,
     userController.adminUpdateUser
   );
+  // Admin-only: delete user (DELETE /api/users/:id)
+  app.delete(
+    "/api/users/:id",
+    authenticateToken,
+    authenticateToken.requireAdmin,
+    userController.adminDeleteUser
+  );
   // Admin-only: batch upload users via Excel/CSV
   app.post(
     "/api/users/batch-upload",

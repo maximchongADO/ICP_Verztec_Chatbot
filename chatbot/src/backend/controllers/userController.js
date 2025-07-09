@@ -1,3 +1,4 @@
+
 const User = require('../models/user.js');
 const bcrypt = require('bcrypt');
 const fs = require('fs');
@@ -164,6 +165,48 @@ const adminUpdateUser = async (req, res) => {
         });
     } catch (error) {
         console.error('Error updating user (admin):', error);
+        res.status(500).json({ message: 'Internal server error' });
+    }
+};
+
+// Admin-only: delete user
+const adminDeleteUser = async (req, res) => {
+    try {
+        if (!req.user || req.user.role !== 'admin') {
+            return res.status(403).json({ message: "Admin access required" });
+        }
+
+        const userId = req.params.id;
+        
+        // Check if user exists
+        const user = await User.getUserById(userId);
+        if (!user) {
+            return res.status(404).json({ message: 'User not found' });
+        }
+
+        // Prevent deleting the last admin
+        if (user.role === 'admin') {
+            const connection = await mysql.createConnection(dbConfig);
+            const [adminUsers] = await connection.execute(
+                'SELECT COUNT(*) as count FROM users WHERE role = "admin"'
+            );
+            await connection.end();
+            
+            if (adminUsers[0].count <= 1) {
+                return res.status(400).json({ 
+                    message: 'Cannot delete the last admin user' 
+                });
+            }
+        }
+
+        const deleted = await User.deleteUser(userId);
+        if (deleted) {
+            res.status(200).json({ message: 'User deleted successfully' });
+        } else {
+            res.status(404).json({ message: 'User not found' });
+        }
+    } catch (error) {
+        console.error('Error deleting user:', error);
         res.status(500).json({ message: 'Internal server error' });
     }
 };
@@ -536,6 +579,7 @@ module.exports = {
     getCurrentUser,
     adminCreateUser,
     adminUpdateUser,
+    adminDeleteUser,
     getUserAnalytics,
     getUserChats,
     getUserFeedback,

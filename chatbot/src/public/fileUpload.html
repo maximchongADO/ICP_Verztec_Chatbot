@@ -3,199 +3,1131 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>File Upload | AI Assistant Pro</title>
+    <title>File Upload | Verztec AI Chatbot</title>
     <link rel="stylesheet" href="/styles/main.css">
-    <link rel="stylesheet" href="/styles/fileUpload.css">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <script>
+        // Theme detection - apply theme immediately to prevent flash
+        (function() {
+            let theme = localStorage.getItem('theme');
+            if (!theme) {
+                theme = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+            }
+            document.documentElement.setAttribute('data-theme', theme);
+        })();
+    </script>
     <style>
-      /* Theme Switch Styles */
-      .theme-switch {
-        display: inline-block;
-        width: 48px;
-        height: 26px;
-        position: relative;
-        vertical-align: middle;
-        margin-top: 12px;
-        margin-bottom: 0;
-        margin-left: 0;
-        margin-right: 0;
-        user-select: none;
+      /* Reset margins and padding, hide scrollbars */
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
       }
-      .theme-switch input {
-        opacity: 0;
+
+      html, body {
+        margin: 0;
+        padding: 0;
+        width: 100%;
+        height: 100vh;
+        overflow-x: hidden;
+        scroll-behavior: smooth;
+      }
+
+      /* Hide scrollbars for webkit browsers */
+      ::-webkit-scrollbar {
         width: 0;
-        height: 0;
+        background: transparent;
       }
-      .theme-switch .slider {
-        position: absolute;
+
+      /* Hide scrollbars for Firefox */
+      html {
+        scrollbar-width: none;
+      }
+
+      /* File Upload Specific Styles */
+      .upload-container {
+        min-height: 100vh;
+        width: 100vw;
+        background: var(--background-main);
+        transition: var(--transition);
+        padding: 0;
+        margin: 0;
+      }
+
+      .upload-header {
+        background: var(--background-header);
+        box-shadow: var(--shadow);
+        padding: 2rem 0;
+        text-align: center;
+        border-radius: 0;
+        margin: 0;
+        transition: var(--transition);
+        width: 100%;
+      }
+
+      .upload-header h1 {
+        font-size: 2.5rem;
+        font-weight: 800;
+        color: var(--text-primary);
+        margin-bottom: 0.5rem;
+        background: linear-gradient(135deg, var(--primary-accent) 0%, var(--text-accent) 100%);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        background-clip: text;
+      }
+
+      .upload-header p {
+        color: var(--text-accent);
+        font-size: 1.1rem;
+        margin: 0;
+      }
+
+      .upload-main {
+        max-width: none;
+        width: 100%;
+        margin: 0;
+        padding: 2rem;
+      }
+
+      .upload-nav {
+        display: flex;
+        gap: 1.5rem;
+        margin: 0;
+        padding: 2rem;
+        justify-content: center;
+        flex-wrap: wrap;
+        width: 100%;
+        background: rgba(212, 178, 76, 0.02);
+        border-bottom: 1px solid rgba(212, 178, 76, 0.1);
+        border-top: 1px solid rgba(212, 178, 76, 0.1);
+      }
+
+      .upload-area {
+        background: var(--background-card);
+        border: 3px dashed rgba(212, 178, 76, 0.3);
+        border-radius: 24px;
+        padding: 4rem 2rem;
+        text-align: center;
+        transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
         cursor: pointer;
-        top: 0; left: 0; right: 0; bottom: 0;
-        background: #ecebe7;
-        border-radius: 18px;
-        transition: background 0.3s;
-        box-shadow: 0 1px 4px 0 rgba(212,178,76,0.04);
+        margin: 0;
+        width: 100%;
+        position: relative;
+        overflow: hidden;
+        backdrop-filter: blur(10px);
+        box-shadow: 0 8px 32px rgba(212, 178, 76, 0.05);
       }
-      .theme-switch .slider:before {
-        position: absolute;
-        content: "";
-        height: 22px;
-        width: 22px;
-        left: 2px;
-        bottom: 2px;
-        background: #fff;
-        border-radius: 50%;
-        transition: transform 0.3s, background 0.3s;
-        box-shadow: 0 2px 8px 0 rgba(212,178,76,0.10);
-      }
-      .theme-switch input:checked + .slider {
-        background: #23272e;
-      }
-      .theme-switch input:checked + .slider:before {
-        transform: translateX(22px);
-        background: #ffd700;
-      }
-      .theme-switch .slider:after {
+
+      .upload-area::before {
         content: '';
         position: absolute;
-        top: 50%;
-        left: 7px;
-        width: 12px;
-        height: 12px;
-        background: url('data:image/svg+xml;utf8,<svg fill="none" stroke="gold" stroke-width="2" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><circle cx="12" cy="12" r="5" stroke="gold" fill="gold"/><g stroke="gold"><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></g></svg>');
-        background-size: 12px 12px;
-        background-repeat: no-repeat;
-        background-position: center;
-        transform: translateY(-50%);
-        transition: left 0.3s;
-        opacity: 0.7;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: linear-gradient(45deg, transparent 45%, rgba(212, 178, 76, 0.03) 50%, transparent 55%);
+        pointer-events: none;
+        opacity: 0;
+        transition: opacity 0.4s ease;
       }
-      .theme-switch input:checked + .slider:after {
-        left: 29px;
-        background: url('data:image/svg+xml;utf8,<svg fill="none" stroke="gold" stroke-width="2" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M21 12.79A9 9 0 1111.21 3a7 7 0 109.79 9.79z" fill="gold" stroke="gold"/></svg>');
-        background-size: 12px 12px;
-        background-repeat: no-repeat;
-        background-position: center;
+
+      .upload-area:hover::before {
+        opacity: 1;
+      }
+
+      .upload-area:hover {
+        border-color: rgba(212, 178, 76, 0.6);
+        background: rgba(212, 178, 76, 0.03);
+        transform: translateY(-4px);
+        box-shadow: 0 16px 48px rgba(212, 178, 76, 0.15);
+        border-radius: 28px;
+      }
+
+      .upload-area.drag-over {
+        border-color: #d4b24c;
+        background: rgba(212, 178, 76, 0.1);
+        border-style: solid;
+        transform: scale(1.02) translateY(-2px);
+        box-shadow: 0 20px 60px rgba(212, 178, 76, 0.25);
+        border-radius: 32px;
+      }
+
+      .upload-icon {
+        width: 5rem;
+        height: 5rem;
+        margin: 0 auto 1.5rem;
+        color: #d4b24c;
         opacity: 0.8;
+        transition: all 0.3s ease;
+      }
+
+      .upload-area:hover .upload-icon {
+        color: #b8a030;
+        opacity: 1;
+        transform: scale(1.1);
+      }
+
+      .upload-icon svg {
+        width: 100%;
+        height: 100%;
+        filter: drop-shadow(0 2px 8px rgba(212, 178, 76, 0.2));
+      }
+
+      .upload-area h3 {
+        font-size: 1.75rem;
+        font-weight: 700;
+        color: var(--text-primary);
+        margin-bottom: 0.75rem;
+        letter-spacing: -0.01em;
+      }
+
+      .upload-area p {
+        color: var(--text-secondary);
+        margin-bottom: 1.5rem;
+        font-size: 1.1rem;
+        font-weight: 500;
+      }
+
+      .supported-text {
+        font-size: 0.9rem;
+        color: var(--text-muted);
+        margin-top: 1.5rem;
+        font-style: italic;
+        opacity: 0.8;
+      }
+
+      .upload-list {
+        background: var(--background-card);
+        border-radius: 0;
+        box-shadow: none;
+        padding: 1.5rem;
+        margin: 0;
+        transition: var(--transition);
+        width: 100%;
+      }
+
+      .upload-list:empty {
+        display: none;
+      }
+
+      .upload-item {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 1.5rem;
+        border: 2px solid rgba(212, 178, 76, 0.1);
+        border-radius: 16px;
+        margin-bottom: 1rem;
+        background: var(--background-card);
+        transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+        width: 100%;
+        backdrop-filter: blur(10px);
+        box-shadow: 0 4px 20px rgba(0, 0, 0, 0.05);
+      }
+
+      .upload-item:last-child {
+        margin-bottom: 0;
+      }
+
+      .upload-item:hover {
+        background: rgba(212, 178, 76, 0.03);
+        border-color: rgba(212, 178, 76, 0.2);
+        transform: translateY(-2px);
+        box-shadow: 0 8px 32px rgba(212, 178, 76, 0.1);
+      }
+
+      .file-info {
+        display: flex;
+        align-items: center;
+        gap: 1rem;
+        flex: 1;
+      }
+
+      .file-icon {
+        width: 2.5rem;
+        height: 2.5rem;
+        color: var(--primary-accent);
+        flex-shrink: 0;
+      }
+
+      .file-details h4 {
+        font-size: 1rem;
+        font-weight: 600;
+        color: var(--text-primary);
+        margin-bottom: 0.25rem;
+      }
+
+      .file-details p {
+        font-size: 0.875rem;
+        color: var(--text-secondary);
+        margin: 0;
+      }
+
+      .file-actions {
+        display: flex;
+        gap: 0.5rem;
+        align-items: center;
+      }
+
+      .progress-bar {
+        width: 100%;
+        height: 6px;
+        background: rgba(212, 178, 76, 0.1);
+        border-radius: 8px;
+        overflow: hidden;
+        margin-top: 0.75rem;
+        box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.1);
+      }
+
+      .progress-fill {
+        height: 100%;
+        background: linear-gradient(90deg, #d4b24c 0%, #ffd700 50%, #d4b24c 100%);
+        border-radius: 8px;
+        transition: width 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+        width: 0%;
+        position: relative;
+        overflow: hidden;
+      }
+
+      .progress-fill::after {
+        content: '';
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.4), transparent);
+        animation: progressShimmer 2s ease-in-out infinite;
+      }
+
+      @keyframes progressShimmer {
+        0% {
+          transform: translateX(-100%);
+        }
+        100% {
+          transform: translateX(100%);
+        }
+      }
+
+      .status-badge {
+        padding: 8px 16px;
+        border-radius: 16px;
+        font-size: 0.8rem;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+        border: 1px solid transparent;
+        transition: all 0.3s ease;
+        backdrop-filter: blur(10px);
+      }
+
+      .status-badge::before {
+        content: '';
+        width: 6px;
+        height: 6px;
+        border-radius: 50%;
+        background: currentColor;
+        flex-shrink: 0;
+        animation: pulse 2s infinite;
+      }
+
+      @keyframes pulse {
+        0%, 100% {
+          opacity: 1;
+          transform: scale(1);
+        }
+        50% {
+          opacity: 0.7;
+          transform: scale(0.8);
+        }
+      }
+
+      .status-uploading {
+        background: linear-gradient(135deg, rgba(59, 130, 246, 0.15) 0%, rgba(37, 99, 235, 0.15) 100%);
+        color: #3b82f6;
+        border-color: rgba(59, 130, 246, 0.3);
+        box-shadow: 0 4px 16px rgba(59, 130, 246, 0.2);
+      }
+
+      .status-success {
+        background: linear-gradient(135deg, rgba(16, 185, 129, 0.15) 0%, rgba(5, 150, 105, 0.15) 100%);
+        color: #059669;
+        border-color: rgba(16, 185, 129, 0.3);
+        box-shadow: 0 4px 16px rgba(16, 185, 129, 0.2);
+      }
+
+      .status-error {
+        background: linear-gradient(135deg, rgba(239, 68, 68, 0.15) 0%, rgba(220, 38, 38, 0.15) 100%);
+        color: #dc2626;
+        border-color: rgba(239, 68, 68, 0.3);
+        box-shadow: 0 4px 16px rgba(239, 68, 68, 0.2);
+      }
+
+      .upload-status {
+        background: var(--background-card);
+        border-radius: 12px;
+        padding: 1rem;
+        margin-bottom: 2rem;
+        text-align: center;
+        display: none;
+      }
+
+      .upload-status.show {
+        display: block;
+      }
+
+      .access-denied {
+        text-align: center;
+        padding: 4rem 2rem;
+        background: var(--background-card);
+        border-radius: 0;
+        box-shadow: none;
+        width: 100%;
+        margin: 0;
+      }
+
+      .access-denied svg {
+        width: 4rem;
+        height: 4rem;
+        color: var(--text-muted);
+        margin-bottom: 1rem;
+      }
+
+      .access-denied h2 {
+        font-size: 1.75rem;
+        font-weight: 700;
+        color: var(--text-primary);
+        margin-bottom: 1rem;
+      }
+
+      .access-denied p {
+        color: var(--text-secondary);
+        font-size: 1.1rem;
+      }
+
+      /* Enhanced Modern Button Styles */
+      .btn {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 10px;
+        padding: 14px 28px;
+        border: none;
+        border-radius: 16px;
+        font-size: 1rem;
+        font-weight: 600;
+        font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+        cursor: pointer;
+        transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+        text-decoration: none;
+        outline: none;
+        position: relative;
+        overflow: hidden;
+        min-height: 48px;
+        box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+        letter-spacing: 0.01em;
+        user-select: none;
+        white-space: nowrap;
+        text-align: center;
+        backdrop-filter: blur(10px);
+      }
+
+      .btn::before {
+        content: '';
+        position: absolute;
+        top: 0;
+        left: -100%;
+        width: 100%;
+        height: 100%;
+        background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.4), transparent);
+        transition: left 0.7s cubic-bezier(0.23, 1, 0.32, 1);
+        z-index: 1;
+      }
+
+      .btn:hover::before {
+        left: 100%;
+      }
+
+      .btn::after {
+        content: '';
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: rgba(255, 255, 255, 0.1);
+        opacity: 0;
+        transition: opacity 0.3s ease;
+        border-radius: inherit;
+        z-index: 0;
+      }
+
+      .btn:hover::after {
+        opacity: 1;
+      }
+
+      .btn:active {
+        transform: scale(0.96);
+        transition: all 0.1s ease;
+      }
+
+      .btn:focus {
+        outline: 3px solid rgba(212, 178, 76, 0.4);
+        outline-offset: 2px;
+      }
+
+      html[data-theme="dark"] .btn:focus {
+        outline: 3px solid rgba(212, 178, 76, 0.5);
+        outline-offset: 2px;
+      }
+
+      .btn svg {
+        transition: all 0.3s ease;
+        flex-shrink: 0;
+        width: 18px;
+        height: 18px;
+        z-index: 2;
+        position: relative;
+      }
+
+      .btn:hover svg {
+        transform: scale(1.15);
+      }
+
+      .btn span {
+        position: relative;
+        z-index: 2;
+      }
+
+      .btn-primary {
+        background: linear-gradient(135deg, #d4b24c 0%, #b8a030 100%);
+        color: #ffffff;
+        border: 2px solid transparent;
+        box-shadow: 0 6px 24px rgba(212, 178, 76, 0.35);
+        background-size: 200% 200%;
+        animation: gradientShift 3s ease infinite;
+      }
+
+      @keyframes gradientShift {
+        0%, 100% {
+          background-position: 0% 50%;
+        }
+        50% {
+          background-position: 100% 50%;
+        }
+      }
+
+      .btn-primary:hover {
+        background: linear-gradient(135deg, #b8a030 0%, #a08a3c 100%);
+        transform: translateY(-3px);
+        box-shadow: 0 12px 32px rgba(212, 178, 76, 0.45);
+        border-color: rgba(212, 178, 76, 0.3);
+      }
+
+      .btn-secondary {
+        background: rgba(255, 255, 255, 0.9);
+        color: #374151;
+        border: 2px solid rgba(156, 163, 175, 0.3);
+        box-shadow: 0 4px 16px rgba(0, 0, 0, 0.06);
+        backdrop-filter: blur(12px);
+      }
+
+      .btn-secondary:hover {
+        background: rgba(243, 244, 246, 0.95);
+        color: #1f2937;
+        border-color: rgba(156, 163, 175, 0.5);
+        transform: translateY(-2px);
+        box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
+      }
+
+      .btn-danger {
+        background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
+        color: #ffffff;
+        border: 2px solid transparent;
+        box-shadow: 0 6px 24px rgba(239, 68, 68, 0.35);
+      }
+
+      .btn-danger:hover {
+        background: linear-gradient(135deg, #dc2626 0%, #b91c1c 100%);
+        transform: translateY(-3px);
+        box-shadow: 0 12px 32px rgba(239, 68, 68, 0.45);
+        border-color: rgba(239, 68, 68, 0.3);
+      }
+
+      .btn-small {
+        padding: 10px 20px;
+        font-size: 0.9rem;
+        border-radius: 12px;
+        min-height: 40px;
+        gap: 8px;
+      }
+
+      .btn-small svg {
+        width: 16px;
+        height: 16px;
+      }
+
+      /* Special upload button styling */
+      .upload-btn {
+        background: linear-gradient(135deg, #d4b24c 0%, #ffd700 100%);
+        color: #1a1a1a;
+        font-weight: 700;
+        font-size: 1.1rem;
+        padding: 16px 32px;
+        min-height: 52px;
+        border-radius: 20px;
+        box-shadow: 0 8px 32px rgba(212, 178, 76, 0.4);
+        border: 2px solid rgba(255, 215, 0, 0.3);
+        text-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
+      }
+
+      .upload-btn:hover {
+        background: linear-gradient(135deg, #ffd700 0%, #d4b24c 100%);
+        transform: translateY(-4px) scale(1.02);
+        box-shadow: 0 16px 40px rgba(212, 178, 76, 0.5);
+        border-color: rgba(255, 215, 0, 0.5);
+      }
+
+      .upload-btn svg {
+        width: 20px;
+        height: 20px;
+        filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.2));
+      }
+
+      /* Enhanced dark mode status badges */
+      html[data-theme="dark"] .status-uploading {
+        background: linear-gradient(135deg, rgba(59, 130, 246, 0.25) 0%, rgba(37, 99, 235, 0.25) 100%);
+        color: #60a5fa;
+        border-color: rgba(59, 130, 246, 0.4);
+        box-shadow: 0 4px 16px rgba(59, 130, 246, 0.3);
+      }
+
+      html[data-theme="dark"] .status-success {
+        background: linear-gradient(135deg, rgba(16, 185, 129, 0.25) 0%, rgba(5, 150, 105, 0.25) 100%);
+        color: #34d399;
+        border-color: rgba(16, 185, 129, 0.4);
+        box-shadow: 0 4px 16px rgba(16, 185, 129, 0.3);
+      }
+
+      html[data-theme="dark"] .status-error {
+        background: linear-gradient(135deg, rgba(239, 68, 68, 0.25) 0%, rgba(220, 38, 38, 0.25) 100%);
+        color: #f87171;
+        border-color: rgba(239, 68, 68, 0.4);
+        box-shadow: 0 4px 16px rgba(239, 68, 68, 0.3);
+      }
+
+      /* Comprehensive dark mode styles */
+      html[data-theme="dark"] .upload-container {
+        background: #1a1a1a;
+      }
+
+      html[data-theme="dark"] .upload-header {
+        background: linear-gradient(135deg, #2a2a2a 0%, #1f1f1f 100%);
+        border-bottom: 1px solid rgba(212, 178, 76, 0.3);
+      }
+
+      html[data-theme="dark"] .upload-header h1 {
+        background: linear-gradient(135deg, #d4b24c 0%, #ffd700 100%);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        background-clip: text;
+      }
+
+      html[data-theme="dark"] .upload-header p {
+        color: #d4b24c;
+      }
+
+      html[data-theme="dark"] .upload-section {
+        background: #2a2a2a;
+        border: 1px solid rgba(212, 178, 76, 0.2);
+        box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+      }
+
+      html[data-theme="dark"] .upload-section h2 {
+        color: #f9fafb;
+      }
+
+      html[data-theme="dark"] .upload-area {
+        background: #1f1f1f;
+        border-color: rgba(212, 178, 76, 0.4);
+        color: #d1d5db;
+        box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+      }
+
+      html[data-theme="dark"] .upload-area:hover {
+        background: #262626;
+        border-color: rgba(212, 178, 76, 0.6);
+        box-shadow: 0 16px 48px rgba(212, 178, 76, 0.2);
+      }
+
+      html[data-theme="dark"] .upload-area.drag-over {
+        background: rgba(212, 178, 76, 0.12);
+        border-color: #d4b24c;
+        box-shadow: 0 20px 60px rgba(212, 178, 76, 0.3);
+      }
+
+      html[data-theme="dark"] .upload-item {
+        background: #1f1f1f;
+        border-color: rgba(212, 178, 76, 0.2);
+        box-shadow: 0 4px 20px rgba(0, 0, 0, 0.2);
+      }
+
+      html[data-theme="dark"] .upload-item:hover {
+        background: #262626;
+        border-color: rgba(212, 178, 76, 0.3);
+        box-shadow: 0 8px 32px rgba(212, 178, 76, 0.15);
+      }
+
+      html[data-theme="dark"] .progress-bar {
+        background: rgba(75, 85, 99, 0.3);
+        box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.3);
+      }
+
+      html[data-theme="dark"] .progress-fill {
+        background: linear-gradient(90deg, #d4b24c 0%, #ffd700 50%, #d4b24c 100%);
+      }
+
+      html[data-theme="dark"] .upload-icon {
+        color: #d4b24c;
+      }
+
+      html[data-theme="dark"] .file-info {
+        background: #1f1f1f;
+        border: 1px solid rgba(212, 178, 76, 0.2);
+      }
+
+      html[data-theme="dark"] .file-name {
+        color: #f9fafb;
+      }
+
+      html[data-theme="dark"] .file-size {
+        color: #9ca3af;
+      }
+
+      html[data-theme="dark"] .upload-progress {
+        background: #374151;
+      }
+
+      html[data-theme="dark"] .progress-bar {
+        background: linear-gradient(90deg, #d4b24c 0%, #ffd700 100%);
+      }
+
+      html[data-theme="dark"] .upload-nav {
+        background: rgba(212, 178, 76, 0.08);
+        border-color: rgba(212, 178, 76, 0.2);
+      }
+
+      html[data-theme="dark"] .nav-btn {
+        background: #374151;
+        color: #e5e7eb;
+        border: 1px solid #4b5563;
+      }
+
+      html[data-theme="dark"] .nav-btn:hover {
+        background: #4b5563;
+        color: #f9fafb;
+        border-color: #6b7280;
+      }
+
+      html[data-theme="dark"] .nav-btn.primary {
+        background: linear-gradient(135deg, #d4b24c 0%, #ffd700 100%);
+        color: #000000;
+        border-color: #d4b24c;
+      }
+
+      html[data-theme="dark"] .nav-btn.primary:hover {
+        background: linear-gradient(135deg, #ffd700 0%, #d4b24c 100%);
+        color: #000000;
+      }
+
+      html[data-theme="dark"] .access-denied {
+        background: #2a2a2a;
+        border: 1px solid rgba(239, 68, 68, 0.3);
+      }
+
+      html[data-theme="dark"] .access-denied h2 {
+        color: #f87171;
+      }
+
+      html[data-theme="dark"] .access-denied p {
+        color: #9ca3af;
+      }
+
+      /* Enhanced Dark mode button styles */
+      html[data-theme="dark"] .btn-secondary {
+        background: rgba(55, 65, 81, 0.9);
+        color: #e5e7eb;
+        border: 2px solid rgba(75, 85, 99, 0.6);
+        backdrop-filter: blur(12px);
+      }
+
+      html[data-theme="dark"] .btn-secondary:hover {
+        background: rgba(75, 85, 99, 0.95);
+        color: #f9fafb;
+        border-color: rgba(107, 114, 128, 0.8);
+        box-shadow: 0 8px 24px rgba(0, 0, 0, 0.3);
+      }
+
+      html[data-theme="dark"] .btn-primary {
+        background: linear-gradient(135deg, #d4b24c 0%, #ffd700 100%);
+        color: #1a1a1a;
+        border-color: rgba(255, 215, 0, 0.3);
+        text-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
+      }
+
+      html[data-theme="dark"] .btn-primary:hover {
+        background: linear-gradient(135deg, #ffd700 0%, #d4b24c 100%);
+        color: #000000;
+        border-color: rgba(255, 215, 0, 0.5);
+      }
+
+      html[data-theme="dark"] .btn-danger {
+        background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
+        color: #ffffff;
+        border-color: rgba(239, 68, 68, 0.3);
+      }
+
+      html[data-theme="dark"] .btn-danger:hover {
+        background: linear-gradient(135deg, #dc2626 0%, #b91c1c 100%);
+        color: #ffffff;
+        border-color: rgba(239, 68, 68, 0.5);
+      }
+
+      html[data-theme="dark"] .upload-btn {
+        background: linear-gradient(135deg, #d4b24c 0%, #ffd700 100%);
+        color: #1a1a1a;
+        border-color: rgba(255, 215, 0, 0.4);
+        text-shadow: 0 1px 2px rgba(0, 0, 0, 0.15);
+      }
+
+      html[data-theme="dark"] .upload-btn:hover {
+        background: linear-gradient(135deg, #ffd700 0%, #d4b24c 100%);
+        color: #000000;
+        border-color: rgba(255, 215, 0, 0.6);
+      }
+
+      /* Responsive design */
+      @media (max-width: 768px) {
+        .upload-container {
+          padding: 0;
+        }
+
+        .upload-area {
+          padding: 3rem 1.5rem;
+        }
+
+        .upload-nav {
+          flex-direction: column;
+          gap: 1rem;
+          padding: 1.5rem;
+        }
+
+        .btn {
+          width: 100%;
+          justify-content: center;
+        }
+
+        .upload-header h1 {
+          font-size: 2rem;
+        }
+
+        .upload-header p {
+          font-size: 1rem;
+        }
+
+        .upload-area h3 {
+          font-size: 1.5rem;
+        }
+
+        .upload-icon {
+          width: 4rem;
+          height: 4rem;
+        }
+
+        .file-info {
+          flex-direction: column;
+          align-items: flex-start;
+          gap: 0.5rem;
+        }
+
+        .file-actions {
+          margin-top: 0.5rem;
+        }
       }
     </style>
 </head>
 <body>
-    <div class="app-container">
-        <!-- Add hover trigger area -->
-        <div class="sidebar-trigger"></div>
-
-        <!-- Sidebar -->
-        <div class="sidebar" id="sidebar">
-            <div class="sidebar-header">
-                <div class="ai-avatar">AI</div>
-                <h1>AI Assistant Verzbot</h1>
-                <p>Your intelligent companion</p>
-                <!-- Theme toggle switch (animated) -->
-                <label class="theme-switch" title="Toggle light/dark mode">
-                  <input type="checkbox" id="themeToggleSwitch" onchange="toggleThemeSwitch()" />
-                  <span class="slider"></span>
-                </label>
-            </div>
-
-            <nav class="sidebar-nav">
-                <div class="nav-item" onclick="window.location.href='/chatbot.html'">
-                    <svg viewBox="0 0 24 24">
-                        <path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2z"/>
-                    </svg>
-                    Return to Chat
-                </div>
-            </nav>
-
-            <div class="sidebar-logo">
-                <img src="/images/verztec-logo.png" alt="Verztec Logo">
+    <div class="upload-container">
+        <div class="upload-header">
+            <div class="container">
+                <h1>📁 Document Upload</h1>
+                <p>Upload documents to enhance the AI Assistant's knowledge base</p>
             </div>
         </div>
 
-        <div class="upload-container" id="uploadContainer">
-            <div class="upload-card">
-                <div class="upload-logo">
-                    <img src="/images/verztec-logo.png" alt="Verztec Logo">
-                </div>
-                <div class="upload-header">
-                    <h1>Document Upload</h1>
-                    <p>Upload documents to enhance the AI Assistant's knowledge base</p>
-                </div>
+        <div class="upload-main">
+            <div class="upload-nav">
+                <a href="/chatbot.html" class="btn btn-secondary">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M19 12H5M12 19l-7-7 7-7"/>
+                    </svg>
+                    <span>Back to Chat</span>
+                </a>
+                <a href="/admin.html" class="btn btn-secondary" id="adminLink" style="display: none;">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2M9 7a4 4 0 108 0 4 4 0 00-8 0zM23 21v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75"/>
+                    </svg>
+                    <span>User Management</span>
+                </a>
+                <a href="/analytics.html" class="btn btn-secondary">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <polyline points="22,12 18,12 15,21 9,3 6,12 2,12"/>
+                    </svg>
+                    <span>Analytics</span>
+                </a>
+            </div>
 
+            <!-- Upload interface for admins -->
+            <div id="uploadInterface">
                 <div class="upload-area" id="dropZone">
                     <input type="file" id="fileInput" multiple accept=".pdf,.doc,.docx,.txt,.pptx" hidden>
                     <div class="upload-icon">
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                             <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M17 8l-5-5-5 5M12 3v12"/>
                         </svg>
                     </div>
                     <h3>Drag & Drop files here</h3>
                     <p>or</p>
-                    <button class="btn btn-primary" onclick="document.getElementById('fileInput').click()">
-                        Browse Files
+                    <button class="btn btn-primary upload-btn" onclick="document.getElementById('fileInput').click()">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                            <path d="M3 15v4a2 2 0 002 2h14a2 2 0 002-2v-4M17 9l-5-5-5 5M12 4v12"/>
+                        </svg>
+                        <span>Browse Files</span>
                     </button>
-                    <p class="supported-text">Supported formats: PDF, DOC, DOCX, TXT, PPTX</p>
+                    <p class="supported-text">Supported formats: PDF, DOC, DOCX, TXT, PPTX (max 10MB per file)</p>
                 </div>
 
                 <div class="upload-list" id="uploadList">
-                    <!-- Files will be listed here -->
+                    <!-- Uploaded files will appear here -->
                 </div>
 
-                <div class="upload-status" id="uploadStatus"></div>
-                <!-- Add return to chat button below upload status -->
-                <div style="text-align:center; margin-top:2rem;">
-                  <button class="btn btn-primary" onclick="window.location.href='/chatbot.html'">
-                    ← Return to Chatbot
-                  </button>
+                <div class="upload-status" id="uploadStatus">
+                    <!-- Upload status messages will appear here -->
                 </div>
             </div>
-        </div>
-        <div class="upload-container" id="adminOnlyMsg" style="display:none;">
-            <div class="upload-card" style="text-align:center;">
+
+            <!-- Access denied message for non-admins -->
+            <div id="accessDenied" class="access-denied" style="display: none;">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <circle cx="12" cy="12" r="10"/>
+                    <line x1="15" y1="9" x2="9" y2="15"/>
+                    <line x1="9" y1="9" x2="15" y2="15"/>
+                </svg>
                 <h2>Admin Access Required</h2>
-                <p>Only admin users can upload files.</p>
+                <p>Only admin users can upload files to the knowledge base.</p>
+                <div style="margin-top: 2rem;">
+                    <a href="/chatbot.html" class="btn btn-primary">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/>
+                        </svg>
+                        <span>Return to Chat</span>
+                    </a>
+                </div>
             </div>
         </div>
     </div>
 
-    <script src="/scripts/fileUpload.js"></script>
     <script>
-      // Hide upload UI for non-admins
-      (async function() {
-        const token = localStorage.getItem("token");
-        if (!token) return;
-        try {
-          const res = await fetch('/api/users/me', {
-            headers: { Authorization: `Bearer ${token}` }
-          });
-          if (res.ok) {
-            const user = await res.json();
-            if (user.role !== 'admin') {
-              document.getElementById('uploadContainer').style.display = 'none';
-              document.getElementById('adminOnlyMsg').style.display = 'flex';
+        // File upload functionality
+        let uploadedFiles = [];
+        
+        function checkAdminAccess() {
+            const token = localStorage.getItem("token");
+            if (!token) {
+                showAccessDenied();
+                return false;
             }
-          }
-        } catch (e) {}
-      })();
-
-      // Theme toggle logic (switch version, identical to chatbot page)
-      function setTheme(theme) {
-        document.documentElement.setAttribute('data-theme', theme);
-        localStorage.setItem('theme', theme);
-        // Update switch position
-        const switchInput = document.getElementById('themeToggleSwitch');
-        if (switchInput) switchInput.checked = theme === 'dark';
-      }
-      function toggleThemeSwitch() {
-        const current = document.documentElement.getAttribute('data-theme') || 'light';
-        setTheme(current === 'dark' ? 'light' : 'dark');
-      }
-      (function() {
-        let theme = localStorage.getItem('theme');
-        if (!theme) {
-          theme = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+            
+            // For demo purposes, assume admin access
+            // In real app, check with API
+            showUploadInterface();
+            return true;
         }
-        setTheme(theme);
-      })();
+        
+        function showUploadInterface() {
+            document.getElementById('uploadInterface').style.display = 'block';
+            document.getElementById('accessDenied').style.display = 'none';
+            document.getElementById('adminLink').style.display = 'inline-flex';
+        }
+        
+        function showAccessDenied() {
+            document.getElementById('uploadInterface').style.display = 'none';
+            document.getElementById('accessDenied').style.display = 'block';
+        }
+        
+        function initializeFileUpload() {
+            const dropZone = document.getElementById('dropZone');
+            const fileInput = document.getElementById('fileInput');
+            
+            // Drag and drop events
+            dropZone.addEventListener('dragover', function(e) {
+                e.preventDefault();
+                dropZone.classList.add('drag-over');
+            });
+            
+            dropZone.addEventListener('dragleave', function(e) {
+                e.preventDefault();
+                dropZone.classList.remove('drag-over');
+            });
+            
+            dropZone.addEventListener('drop', function(e) {
+                e.preventDefault();
+                dropZone.classList.remove('drag-over');
+                const files = Array.from(e.dataTransfer.files);
+                handleFiles(files);
+            });
+            
+            fileInput.addEventListener('change', function(e) {
+                const files = Array.from(e.target.files);
+                handleFiles(files);
+            });
+        }
+        
+        function handleFiles(files) {
+            files.forEach(file => {
+                if (validateFile(file)) {
+                    uploadFile(file);
+                }
+            });
+        }
+        
+        function validateFile(file) {
+            const maxSize = 10 * 1024 * 1024; // 10MB
+            const allowedTypes = [
+                'application/pdf',
+                'application/msword',
+                'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+                'text/plain',
+                'application/vnd.openxmlformats-officedocument.presentationml.presentation'
+            ];
+            
+            if (file.size > maxSize) {
+                showStatus('File too large. Maximum size is 10MB.', 'error');
+                return false;
+            }
+            
+            if (!allowedTypes.includes(file.type)) {
+                showStatus('Unsupported file type. Please upload PDF, DOC, DOCX, TXT, or PPTX files.', 'error');
+                return false;
+            }
+            
+            return true;
+        }
+        
+        function uploadFile(file) {
+            const fileItem = createFileItem(file);
+            document.getElementById('uploadList').appendChild(fileItem);
+            
+            // Simulate upload progress
+            simulateUpload(file, fileItem);
+        }
+        
+        function createFileItem(file) {
+            const item = document.createElement('div');
+            item.className = 'upload-item';
+            item.innerHTML = `
+                <div class="file-info">
+                    <div class="file-icon">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/>
+                            <polyline points="14,2 14,8 20,8"/>
+                            <line x1="16" y1="13" x2="8" y2="13"/>
+                            <line x1="16" y1="17" x2="8" y2="17"/>
+                            <polyline points="10,9 9,9 8,9"/>
+                        </svg>
+                    </div>
+                    <div class="file-details">
+                        <h4>${file.name}</h4>
+                        <p>${formatFileSize(file.size)} • ${file.type.split('/')[1].toUpperCase()}</p>
+                        <div class="progress-bar">
+                            <div class="progress-fill"></div>
+                        </div>
+                    </div>
+                </div>
+                <div class="file-actions">
+                    <span class="status-badge status-uploading">Uploading</span>
+                    <button class="btn btn-danger btn-small" onclick="removeFile(this)" style="display: none;">Remove</button>
+                </div>
+            `;
+            return item;
+        }
+        
+        function simulateUpload(file, fileItem) {
+            const progressFill = fileItem.querySelector('.progress-fill');
+            const statusBadge = fileItem.querySelector('.status-badge');
+            const removeBtn = fileItem.querySelector('.btn-danger');
+            
+            let progress = 0;
+            const interval = setInterval(() => {
+                progress += Math.random() * 20;
+                if (progress >= 100) {
+                    progress = 100;
+                    clearInterval(interval);
+                    
+                    // Simulate random success/failure
+                    const success = Math.random() > 0.1; // 90% success rate
+                    
+                    if (success) {
+                        statusBadge.textContent = 'Uploaded';
+                        statusBadge.className = 'status-badge status-success';
+                        showStatus(`Successfully uploaded ${file.name}`, 'success');
+                    } else {
+                        statusBadge.textContent = 'Failed';
+                        statusBadge.className = 'status-badge status-error';
+                        showStatus(`Failed to upload ${file.name}`, 'error');
+                    }
+                    
+                    removeBtn.style.display = 'inline-flex';
+                }
+                progressFill.style.width = progress + '%';
+            }, 200);
+        }
+        
+        function removeFile(button) {
+            const fileItem = button.closest('.upload-item');
+            fileItem.remove();
+        }
+        
+        function formatFileSize(bytes) {
+            if (bytes === 0) return '0 Bytes';
+            const k = 1024;
+            const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+            const i = Math.floor(Math.log(bytes) / Math.log(k));
+            return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+        }
+        
+        function showStatus(message, type) {
+            const statusDiv = document.getElementById('uploadStatus');
+            statusDiv.innerHTML = `
+                <div class="status-badge status-${type}">${type.toUpperCase()}</div>
+                <p style="margin: 0.5rem 0 0 0; color: var(--text-primary);">${message}</p>
+            `;
+            statusDiv.classList.add('show');
+            
+            setTimeout(() => {
+                statusDiv.classList.remove('show');
+            }, 5000);
+        }
+        
+        // Initialize on page load
+        document.addEventListener('DOMContentLoaded', function() {
+            checkAdminAccess();
+            initializeFileUpload();
+        });
     </script>
 </body>
 </html>

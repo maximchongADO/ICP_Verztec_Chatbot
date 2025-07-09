@@ -905,9 +905,7 @@ function closeProfileDropdownOnClick(e) {
 
 // Wait for user info to be loaded and then populate profile
 document.addEventListener("DOMContentLoaded", function () {
-  // ...existing code...
-
-// Initialize chat history on page load
+  // Initialize chat history on page load
 window.addEventListener("DOMContentLoaded", function () {
   setTimeout(() => {
     // Load chat history automatically since it's now integrated into the main sidebar
@@ -925,7 +923,6 @@ window.addEventListener("DOMContentLoaded", function () {
     }
   }
   tryPopulateProfile();
-  // ...existing code...
 });
 
 // Show the confirmation popup for clearing chat
@@ -1036,15 +1033,27 @@ window.addEventListener("DOMContentLoaded", async function () {
 
 // Open profile modal
 function openProfileModal(event) {
-  event.stopPropagation();
+  // Prevent default and stop propagation to ensure click is captured
+  if (event) {
+    event.preventDefault();
+    event.stopPropagation();
+  }
+  
+  console.log("Profile modal opened"); // Debug log
+  
   const modal = document.getElementById("profileModal");
-  if (!modal) return;
+  if (!modal) {
+    console.error("Profile modal not found");
+    return;
+  }
+  
   // Populate user info
   const user = getCurrentUser();
   document.getElementById("modalProfileName").textContent = user?.username || "";
   document.getElementById("modalProfileId").textContent = user?.id ? `User ID: ${user.id}` : "";
   document.getElementById("modalProfileEmail").textContent = user?.email || "";
   document.getElementById("modalProfileRole").textContent = user?.role || "";
+  
   // Render analytics
   renderProfileAnalytics();
   modal.style.display = "flex";
@@ -1107,4 +1116,16 @@ function renderProfileAnalytics() {
       dashboard.innerHTML = `<div>Unable to load analytics.</div>`;
     });
 }
+
+// Add direct event listener to the sidebar profile
+document.addEventListener('DOMContentLoaded', function() {
+  const sidebarProfile = document.getElementById('sidebarProfile');
+  if (sidebarProfile) {
+    sidebarProfile.addEventListener('click', function(e) {
+      openProfileModal(e);
+    });
+    
+    console.log("Added event listener to sidebar profile");
+  }
+});
 

@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Verztec AI Chatbot | Intelligent Assistant</title>
+    <title>Verzbot | Intelligent Assistant</title>
     <link rel="stylesheet" href="/styles/main.css" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -11,13 +11,442 @@
       href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap"
       rel="stylesheet"
     />
+    <style>
+      /* Enhanced home page specific styles */
+      .home-container {
+        min-height: 100vh;
+        display: flex;
+        flex-direction: column;
+        background: var(--background-main);
+        position: relative;
+        overflow-x: hidden;
+        width: 100vw;
+        margin: 0;
+        padding: 0;
+      }
+
+      /* Animated background elements */
+      .bg-decoration {
+        position: absolute;
+        width: 100%;
+        height: 100%;
+        overflow: hidden;
+        z-index: 0;
+        pointer-events: none;
+      }
+
+      .bg-decoration::before {
+        content: '';
+        position: absolute;
+        top: -50%;
+        right: -50%;
+        width: 200%;
+        height: 200%;
+        background: radial-gradient(circle, rgba(212, 178, 76, 0.05) 0%, transparent 70%);
+        animation: float 20s ease-in-out infinite;
+      }
+
+      .bg-decoration::after {
+        content: '';
+        position: absolute;
+        bottom: -50%;
+        left: -50%;
+        width: 200%;
+        height: 200%;
+        background: radial-gradient(circle, rgba(212, 178, 76, 0.03) 0%, transparent 70%);
+        animation: float 25s ease-in-out infinite reverse;
+      }
+
+      @keyframes float {
+        0%, 100% { transform: translate(0, 0) rotate(0deg); }
+        33% { transform: translate(30px, -30px) rotate(120deg); }
+        66% { transform: translate(-20px, 20px) rotate(240deg); }
+      }
+
+      /* Enhanced header - edge to edge */
+      .home-header {
+        background: rgba(255, 255, 255, 0.95);
+        backdrop-filter: blur(20px);
+        border-bottom: 1px solid var(--border-color);
+        padding: 1rem 0;
+        position: relative;
+        z-index: 100;
+        box-shadow: 0 2px 20px rgba(0, 0, 0, 0.1);
+        width: 100vw;
+        margin: 0;
+      }
+
+      .home-header .container {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        max-width: none;
+        width: 100%;
+        padding: 0 2rem;
+        margin: 0;
+      }
+
+      .home-logo {
+        font-size: 1.8rem;
+        font-weight: 800;
+        font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+        background: linear-gradient(135deg, var(--primary-accent) 0%, var(--text-accent) 100%);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        background-clip: text;
+        text-decoration: none;
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        letter-spacing: -0.01em;
+      }
+
+      .nav-section {
+        display: flex;
+        align-items: center;
+        gap: 2rem;
+      }
+
+      .nav-links {
+        display: flex;
+        gap: 2rem;
+        list-style: none;
+        margin: 0;
+        padding: 0;
+        font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      }
+
+      .nav-links a {
+        color: var(--text-primary);
+        text-decoration: none;
+        font-weight: 600;
+        padding: 0.5rem 1rem;
+        border-radius: 12px;
+        transition: var(--transition);
+        position: relative;
+        font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      }
+
+      .nav-links a:hover {
+        background: var(--background-btn-hover);
+        color: var(--text-accent);
+        transform: translateY(-2px);
+      }
+
+      /* Enhanced hero section - edge to edge */
+      .hero-section {
+        flex: 1;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        text-align: center;
+        padding: 4rem 2rem;
+        position: relative;
+        z-index: 10;
+        width: 100vw;
+        margin: 0;
+        min-height: calc(100vh - 120px);
+      }
+
+      .hero-content {
+        max-width: 1200px;
+        margin: 0 auto;
+        width: 100%;
+        font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      }
+
+      .hero-badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.5rem;
+        background: rgba(212, 178, 76, 0.1);
+        color: var(--text-accent);
+        padding: 0.5rem 1.5rem;
+        border-radius: 50px;
+        font-size: 0.9rem;
+        font-weight: 600;
+        margin-bottom: 2rem;
+        border: 1px solid rgba(212, 178, 76, 0.2);
+        animation: slideInUp 0.8s ease-out 0.2s both;
+        font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      }
+
+      .hero-title {
+        font-size: 4rem;
+        font-weight: 900;
+        margin-bottom: 1.5rem;
+        background: linear-gradient(135deg, var(--text-primary) 0%, var(--text-accent) 100%);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        background-clip: text;
+        line-height: 1.1;
+        animation: slideInUp 0.8s ease-out 0.4s both;
+        font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+        letter-spacing: -0.02em;
+      }
+
+      .hero-subtitle {
+        font-size: 1.5rem;
+        color: var(--text-secondary);
+        margin-bottom: 3rem;
+        line-height: 1.6;
+        font-weight: 400;
+        animation: slideInUp 0.8s ease-out 0.6s both;
+        font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+        max-width: 800px;
+        margin-left: auto;
+        margin-right: auto;
+        margin-bottom: 3rem;
+      }
+
+      .hero-actions {
+        display: flex;
+        gap: 1.5rem;
+        justify-content: center;
+        flex-wrap: wrap;
+        margin-bottom: 4rem;
+        animation: slideInUp 0.8s ease-out 0.8s both;
+      }
+
+      .hero-btn {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.75rem;
+        padding: 1rem 2.5rem;
+        font-size: 1.1rem;
+        font-weight: 700;
+        text-decoration: none;
+        border-radius: 16px;
+        transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        position: relative;
+        overflow: hidden;
+        font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      }
+
+      .hero-btn-primary {
+        background: linear-gradient(135deg, var(--primary-accent) 0%, var(--primary-accent-hover) 100%);
+        color: white;
+        box-shadow: 0 8px 32px rgba(212, 178, 76, 0.3);
+      }
+
+      .hero-btn-primary:hover {
+        transform: translateY(-3px);
+        box-shadow: 0 12px 40px rgba(212, 178, 76, 0.4);
+      }
+
+      .hero-btn-secondary {
+        background: var(--background-card);
+        color: var(--text-primary);
+        border: 2px solid var(--border-color);
+        box-shadow: var(--shadow);
+      }
+
+      .hero-btn-secondary:hover {
+        background: var(--background-btn-hover);
+        border-color: var(--primary-accent);
+        transform: translateY(-3px);
+        box-shadow: var(--shadow-deep);
+      }
+
+      /* Feature grid */
+      .features-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+        gap: 2rem;
+        margin-top: 2rem;
+        animation: slideInUp 0.8s ease-out 1s both;
+        max-width: 1200px;
+        margin-left: auto;
+        margin-right: auto;
+      }
+
+      .feature-card {
+        background: var(--background-card);
+        padding: 2rem;
+        border-radius: 20px;
+        box-shadow: var(--shadow);
+        border: 1px solid var(--border-color);
+        transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        text-align: left;
+        font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      }
+
+      .feature-card:hover {
+        transform: translateY(-8px);
+        box-shadow: var(--shadow-deep);
+        border-color: rgba(212, 178, 76, 0.3);
+      }
+
+      .feature-icon {
+        width: 3rem;
+        height: 3rem;
+        background: linear-gradient(135deg, var(--primary-accent) 0%, var(--text-accent) 100%);
+        border-radius: 12px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        margin-bottom: 1.5rem;
+        font-size: 1.5rem;
+      }
+
+      .feature-title {
+        font-size: 1.25rem;
+        font-weight: 700;
+        color: var(--text-primary);
+        margin-bottom: 0.75rem;
+        font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      }
+
+      .feature-description {
+        color: var(--text-secondary);
+        line-height: 1.6;
+        font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      }
+
+      /* Footer - edge to edge */
+      .home-footer {
+        background: var(--background-footer);
+        border-top: 1px solid var(--border-color);
+        padding: 2rem 0;
+        text-align: center;
+        position: relative;
+        z-index: 10;
+        width: 100vw;
+        margin: 0;
+      }
+
+      .footer-content {
+        color: var(--text-secondary);
+        font-weight: 500;
+        font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+        max-width: 1200px;
+        margin: 0 auto;
+        padding: 0 2rem;
+      }
+
+      /* Animations */
+      @keyframes slideInUp {
+        from {
+          opacity: 0;
+          transform: translateY(30px);
+        }
+        to {
+          opacity: 1;
+          transform: translateY(0);
+        }
+      }
+
+      /* Dark mode adjustments */
+      html[data-theme="dark"] .home-header {
+        background: rgba(17, 17, 17, 0.95);
+        border-bottom-color: #333;
+      }
+
+      html[data-theme="dark"] .bg-decoration::before {
+        background: radial-gradient(circle, rgba(255, 215, 0, 0.08) 0%, transparent 70%);
+      }
+
+      html[data-theme="dark"] .bg-decoration::after {
+        background: radial-gradient(circle, rgba(255, 215, 0, 0.05) 0%, transparent 70%);
+      }
+
+      html[data-theme="dark"] .hero-badge {
+        background: rgba(255, 215, 0, 0.15);
+        border-color: rgba(255, 215, 0, 0.3);
+        color: var(--primary-accent);
+      }
+
+      html[data-theme="dark"] .hero-btn-primary {
+        box-shadow: 0 8px 32px rgba(255, 215, 0, 0.2);
+      }
+
+      html[data-theme="dark"] .hero-btn-primary:hover {
+        box-shadow: 0 12px 40px rgba(255, 215, 0, 0.3);
+      }
+
+      /* Responsive design */
+      @media (max-width: 768px) {
+        .home-header .container {
+          padding: 0 1rem;
+        }
+        
+        .hero-title {
+          font-size: 2.5rem;
+        }
+        
+        .hero-subtitle {
+          font-size: 1.2rem;
+        }
+        
+        .hero-actions {
+          flex-direction: column;
+          align-items: center;
+        }
+        
+        .nav-section {
+          gap: 1rem;
+        }
+        
+        .nav-links {
+          gap: 1rem;
+        }
+        
+        .features-grid {
+          grid-template-columns: 1fr;
+          gap: 1.5rem;
+          margin-left: 1rem;
+          margin-right: 1rem;
+        }
+        
+        .feature-card {
+          padding: 1.5rem;
+        }
+        
+        .hero-section {
+          padding: 3rem 1rem;
+        }
+        
+        .footer-content {
+          padding: 0 1rem;
+        }
+      }
+
+      /* Remove any container max-width constraints */
+      .container {
+        max-width: none !important;
+        width: 100% !important;
+        margin: 0 !important;
+        padding: 0 2rem !important;
+      }
+
+      /* Ensure full width */
+      * {
+        box-sizing: border-box;
+      }
+      
+      html, body {
+        margin: 0;
+        padding: 0;
+        width: 100%;
+        overflow-x: hidden;
+        font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      }
+    </style>
   </head>
   <body>
-    <div style="min-height:100vh;display:flex;flex-direction:column;">
-      <header>
+    <div class="home-container">
+      <div class="bg-decoration"></div>
+      
+      <header class="home-header">
         <div class="container">
-          <a href="/" class="logo">🤖 Verztec AI Chatbot</a>
-          <nav>
+          <a href="/" class="home-logo">
+            Verzbot
+          </a>
+          <nav class="nav-section">
+            <label class="theme-switch" title="Toggle light/dark mode">
+              <input type="checkbox" id="themeToggleSwitch" onchange="toggleTheme()" />
+              <span class="slider"></span>
+            </label>
             <ul class="nav-links">
               <li><a href="/login.html">Login</a></li>
             </ul>
@@ -25,34 +454,107 @@
         </div>
       </header>
 
-      <main style="flex:1;">
-        <section class="hero">
-          <div class="container">
-            <h1>Verztec AI Chatbot</h1>
-            <p>
-              Experience intelligent assistance with our advanced AI chatbot. 
-              Get instant answers about Verztec policies, procedures, and workflows 
-              to boost your productivity.
-            </p>
-            <div
-              style="
-                display: flex;
-                gap: 1rem;
-                justify-content: center;
-                flex-wrap: wrap;
-              "
-            >
-              <a href="/login.html" class="btn btn-primary">Get Started →</a>
+      <main class="hero-section">
+        <div class="hero-content">
+          <div class="hero-badge">
+            ⚡ Powered by Advanced AI
+          </div>
+          
+          <h1 class="hero-title">
+            Intelligent Assistant for Modern Workplaces
+          </h1>
+          
+          <p class="hero-subtitle">
+            Transform your productivity with our AI-powered chatbot. Get instant answers about company policies, procedures, and workflows. Experience the future of workplace assistance.
+          </p>
+          
+          <div class="hero-actions">
+            <a href="/login.html" class="hero-btn hero-btn-primary">
+              Get Started
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M5 12h14M12 5l7 7-7 7"/>
+              </svg>
+            </a>
+            <a href="#features" class="hero-btn hero-btn-secondary">
+              Learn More
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M8 12h8M12 8v8"/>
+              </svg>
+            </a>
+          </div>
+          
+          <div id="features" class="features-grid">
+            <div class="feature-card">
+              <div class="feature-icon">🚀</div>
+              <h3 class="feature-title">Instant Responses</h3>
+              <p class="feature-description">
+                Get immediate answers to your questions about company policies, procedures, and workflows without waiting.
+              </p>
+            </div>
+            
+            <div class="feature-card">
+              <div class="feature-icon">🎯</div>
+              <h3 class="feature-title">Smart & Accurate</h3>
+              <p class="feature-description">
+                Our AI understands context and provides precise information tailored to your specific needs and role.
+              </p>
+            </div>
+            
+            <div class="feature-card">
+              <div class="feature-icon">🔒</div>
+              <h3 class="feature-title">Secure & Private</h3>
+              <p class="feature-description">
+                Your conversations are protected with enterprise-grade security and privacy measures.
+              </p>
             </div>
           </div>
-        </section>
+        </div>
       </main>
 
-      <footer style="margin-top:auto;">
-        <div class="container">
-          <p>For the Future of Verztec</p>
+      <footer class="home-footer">
+        <div class="footer-content">
+          <p>&copy; 2024 Verztec. Building the future of intelligent workplace assistance.</p>
         </div>
       </footer>
     </div>
+
+    <script>
+      // Theme toggle functionality
+      function setTheme(theme) {
+        document.documentElement.setAttribute('data-theme', theme);
+        localStorage.setItem('theme', theme);
+        // Update switch position
+        const switchInput = document.getElementById('themeToggleSwitch');
+        if (switchInput) switchInput.checked = theme === 'dark';
+      }
+      
+      function toggleTheme() {
+        const current = document.documentElement.getAttribute('data-theme') || 'light';
+        setTheme(current === 'dark' ? 'light' : 'dark');
+      }
+      
+      // Initialize theme on load
+      (function() {
+        let theme = localStorage.getItem('theme');
+        if (!theme) {
+          theme = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+        }
+        setTheme(theme);
+      })();
+
+      // Smooth scrolling for anchor links
+      document.querySelectorAll('a[href^="#"]').forEach(anchor => {
+        anchor.addEventListener('click', function (e) {
+          e.preventDefault();
+          const target = document.querySelector(this.getAttribute('href'));
+          if (target) {
+            target.scrollIntoView({
+              behavior: 'smooth',
+              block: 'start'
+            });
+          }
+        });
+      });
+    </script>
   </body>
 </html>
