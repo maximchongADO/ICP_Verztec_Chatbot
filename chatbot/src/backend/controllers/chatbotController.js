@@ -9,10 +9,10 @@ const { lipSyncMessage, audioFileToBase64, readJsonTranscript } = require('./rhu
 
 const PYTHON_CHATBOT_URL = process.env.PYTHON_CHATBOT_URL || 'http://localhost:3000';
 
-// Initialize the Google Cloud TTS client
+// Initialize the Google Cloud TTS client with proper authentication
 const ttsClient = new textToSpeech.TextToSpeechClient({
-  keyFilename: path.resolve(__dirname, 'service-account-key.json'),
-  projectId: process.env.GOOGLE_CLOUD_PROJECT_ID || 'golden-frame-461314-e6'
+  keyFilename: path.resolve(__dirname, 'service-account-key.json'), // Updated to correct path
+  projectId: 'golden-frame-461314-e6'
 });
 
 const audioDir = path.resolve(__dirname, '../../public/audio');

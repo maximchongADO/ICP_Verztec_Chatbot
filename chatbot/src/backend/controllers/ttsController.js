@@ -4,10 +4,10 @@ const fs = require('fs');
 const { generateLipSync } = require('./rhubarbController');
 require('dotenv').config();
 
-// Initialize the Google Cloud TTS client
+// Initialize the Google Cloud TTS client with proper authentication
 const ttsClient = new textToSpeech.TextToSpeechClient({
-  keyFilename: path.resolve(__dirname, 'service-account-key.json'),
-  projectId: process.env.GOOGLE_CLOUD_PROJECT_ID || 'golden-frame-461314-e6'
+  keyFilename: path.resolve(__dirname, 'service-account-key.json'), // Updated to correct path
+  projectId:'golden-frame-461314-e6'
 });
 
 // Create audio directory if it doesn't exist

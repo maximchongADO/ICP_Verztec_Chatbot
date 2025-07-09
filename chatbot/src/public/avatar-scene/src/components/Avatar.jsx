@@ -28,24 +28,89 @@ export function Avatar(props) {
   const { message, onMessagePlayed } = useChat();
   const [lipsync, setLipsync] = useState();
   const [audio, setAudio] = useState();
+  const [isProcessing, setIsProcessing] = useState(false);
+  const [lastProcessedMessageId, setLastProcessedMessageId] = useState(null);
   const group = useRef();
 
   // Handle new message with audio and lip sync
   useEffect(() => {
-    console.log('Processing new message:', message);
-    if (!message) {
+    console.log('Avatar processing message:', message?.id, message?.type, !!message?.audio);
+    
+    // Guard against double processing
+    if (!message || isProcessing || message.id === lastProcessedMessageId) {
+      console.log('Skipping message processing:', { 
+        hasMessage: !!message, 
+        isProcessing, 
+        alreadyProcessed: message?.id === lastProcessedMessageId 
+      });
       return;
     }
     
+    // Only process bot messages with audio
+    if (message.type !== 'bot' || !message.audio) {
+      console.log('Message not suitable for avatar:', { type: message.type, hasAudio: !!message.audio });
+      return;
+    }
+    
+    console.log('Starting avatar message processing for message:', message.id);
+    setIsProcessing(true);
+    setLastProcessedMessageId(message.id);
     setLipsync(message.lipsync);
     
     if (message.audio) {
+      // Stop any currently playing audio
+      if (audio) {
+        console.log('Stopping previous audio');
+        audio.pause();
+        audio.currentTime = 0;
+      }
+      
       const audioElement = new Audio("data:audio/mp3;base64," + message.audio);
-      audioElement.play();
+      
+      audioElement.onloadstart = () => {
+        console.log('Audio loading started');
+      };
+      
+      audioElement.oncanplay = () => {
+        console.log('Audio can play');
+      };
+      
+      audioElement.onended = () => {
+        console.log('Audio playback ended');
+        setIsProcessing(false);
+        onMessagePlayed();
+      };
+      
+      audioElement.onerror = (error) => {
+        console.error('Audio playback failed:', error);
+        setIsProcessing(false);
+        onMessagePlayed();
+      };
+      
+      console.log('Starting audio playback');
+      audioElement.play().then(() => {
+        console.log('Audio playback started successfully');
+      }).catch(error => {
+        console.error('Audio play failed:', error);
+        setIsProcessing(false);
+        onMessagePlayed();
+      });
+      
       setAudio(audioElement);
-      audioElement.onended = onMessagePlayed;
+    } else {
+      setIsProcessing(false);
     }
-  }, [message, onMessagePlayed]);
+  }, [message, onMessagePlayed, audio, isProcessing, lastProcessedMessageId]);
+
+  // Cleanup effect
+  useEffect(() => {
+    return () => {
+      if (audio) {
+        audio.pause();
+        audio.currentTime = 0;
+      }
+    };
+  }, []);
 
   const lerpMorphTarget = (target, value, speed = 0.1) => {
     scene.traverse((child) => {

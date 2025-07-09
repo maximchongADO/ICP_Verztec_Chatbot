@@ -8,7 +8,7 @@ const execAsync = util.promisify(exec);
 // Path to Rhubarb executable
 const rhubarbPath = path.resolve(__dirname, '../../public/avatar-scene/Rhubarb-Lip-Sync-1.14.0-Windows/rhubarb.exe');
 const audioDir = path.resolve(__dirname, '../../public/audio');
-const lipSyncDir = path.resolve(__dirname, '../../public/lipsync');
+const lipSyncDir = path.resolve(__dirname, '../../public/audio');
 
 // Create directories if they don't exist
 if (!fs.existsSync(audioDir)) {
