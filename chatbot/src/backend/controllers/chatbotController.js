@@ -2,13 +2,27 @@ const fetch = require('node-fetch');
 const mysql = require('mysql2/promise');
 const dbConfig = require('../database/dbConfig');
 const crypto = require('crypto');
+const textToSpeech = require('@google-cloud/text-to-speech');
+const path = require('path');
+const fs = require('fs');
+const { lipSyncMessage, audioFileToBase64, readJsonTranscript } = require('./rhubarbController');
 
 const PYTHON_CHATBOT_URL = process.env.PYTHON_CHATBOT_URL || 'http://localhost:3000';
+
+// Initialize the Google Cloud TTS client
+const ttsClient = new textToSpeech.TextToSpeechClient({
+  keyFilename: path.resolve(__dirname, 'service-account-key.json'),
+  projectId: process.env.GOOGLE_CLOUD_PROJECT_ID || 'golden-frame-461314-e6'
+});
+
+const audioDir = path.resolve(__dirname, '../../public/audio');
+if (!fs.existsSync(audioDir)) {
+  fs.mkdirSync(audioDir, { recursive: true });
+}
 
 const callPythonChatbot = async (message, userId = "YABBABAABBBABBABAAB", chatHistory = []) => {
     try {
         console.log('Calling Python chatbot with:', { message, userId, chatHistory });
-        const fullMessage = `${message} YABABDODD`;   // ← append here
         const response = await fetch(`${PYTHON_CHATBOT_URL}/chatbot`, {
             method: 'POST',
             headers: {
@@ -16,7 +30,7 @@ const callPythonChatbot = async (message, userId = "YABBABAABBBABBABAAB", chatHi
                 'Accept': 'application/json'
             },
             body: JSON.stringify({
-                message: fullMessage,
+                message: message, // Send original message without appending
                 user_id: userId,
                 chat_history: chatHistory || []
             })
@@ -35,6 +49,90 @@ const callPythonChatbot = async (message, userId = "YABBABAABBBABBABAAB", chatHi
     } catch (error) {
         console.error('Python API call error:', error);
         throw error;
+    }
+};
+
+// Avatar chatbot endpoint with TTS and lip sync
+const processAvatarMessage = async (req, res) => {
+    try {
+        const { message } = req.body;
+        
+        if (!message?.trim()) {
+            return res.status(400).json({
+                success: false,
+                message: 'Message is required'
+            });
+        }
+
+        console.log('Processing avatar message:', message);
+
+        // Get response from Python chatbot
+        const chatbotResponse = await callPythonChatbot(message);
+        
+        if (!chatbotResponse || !chatbotResponse.message) {
+            throw new Error('Invalid response from Python chatbot');
+        }
+
+        const textInput = chatbotResponse.message;
+        console.log('Chatbot response text:', textInput);
+
+        // Generate unique filename
+        const timestamp = Date.now();
+        const fileName = `message_${timestamp}.mp3`;
+        const audioFilePath = path.join(audioDir, fileName);
+
+        // Generate TTS audio
+        console.log('Generating TTS audio...');
+        const request = {
+            input: { text: textInput },
+            voice: {
+                languageCode: 'en-GB',
+                name: 'en-GB-Standard-A',
+                ssmlGender: 'FEMALE'
+            },
+            audioConfig: {
+                audioEncoding: 'MP3',
+                speakingRate: 1.25,
+                pitch: 0.0,
+                volumeGainDb: 0.0
+            }
+        };
+
+        const [ttsResponse] = await ttsClient.synthesizeSpeech(request);
+        fs.writeFileSync(audioFilePath, ttsResponse.audioContent);
+        console.log('TTS audio saved:', fileName);
+
+        // Generate lip sync data
+        console.log('Generating lip sync...');
+        await lipSyncMessage(timestamp, true);
+        
+        // Convert audio to base64
+        const audioBase64 = await audioFileToBase64(audioFilePath);
+        
+        // Read lip sync data
+        const lipSyncPath = path.join(audioDir, `message_${timestamp}.json`);
+        const lipsync = await readJsonTranscript(lipSyncPath);
+        
+        console.log('Lip sync data loaded:', lipsync.mouthCues?.length, 'mouth cues');
+
+        // Create response message
+        const responseMessage = {
+            type: 'bot',
+            text: textInput,
+            audio: audioBase64,
+            lipsync: lipsync
+        };
+
+        console.log('Sending response with audio and lipsync data');
+        res.json({ messages: [responseMessage] });
+
+    } catch (error) {
+        console.error('Avatar message processing error:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Error processing avatar message',
+            error: error.message
+        });
     }
 };
 
@@ -81,9 +179,14 @@ const processMessage = async (req, res) => {
             success: true,
             message: response.message,
             images: response.images,
+            sources: response.sources || [],  // Pass through sources data
             timestamp: new Date().toISOString()
         });
-        console.log('Response sent to client:', response.images);
+        console.log('Response sent to client:', {
+            message: response.message ? response.message.substring(0, 100) + '...' : 'No message',
+            images: response.images,
+            sources: response.sources || []
+        });
 
     } catch (error) {
         console.error('Error processing message:', error);
@@ -271,5 +374,6 @@ module.exports = {
     getChatHistory,
     clearChatHistory,
     handleFeedback,
-    newChat
+    newChat,
+    processAvatarMessage
 };

@@ -43,7 +43,7 @@ function sendMessage() {
   // Disable send button
   const sendButton = document.getElementById("sendButton");
   sendButton.disabled = true;
-  const fullMessage = `${message} YABABDODD`;
+  // const fullMessage = `${message} YABABDODD`;
 
   // Add user message to chat
   addMessage(message, "user");
@@ -58,8 +58,8 @@ function sendMessage() {
   setTimeout(() => updateTypingIndicatorStatus("Generating response..."), 2200);
   setTimeout(() => updateTypingIndicatorStatus("Finalizing..."), 3200);
 
-  // Call chatbot API with correct chat_id
-  callChatbotAPI(message, user_id, chat_id)
+  // Call chatbot API with correct chat_id - send original message
+  callChatbotAPI(message, user_id, chat_id) // Don't send fullMessage
     .then((response) => {
       // Remove typing indicator
       hideTypingIndicator();
@@ -67,6 +67,11 @@ function sendMessage() {
       // Add bot response
       if (response) {
         addMessage(response.message, "bot");
+        
+        // Handle sources if available
+        if (Array.isArray(response.sources) && response.sources.length > 0) {
+          addSourcesToMessage(response.sources);
+        }
         
         if (Array.isArray(response.images) && response.images.length > 0) {
           sendImages(response.images);
@@ -301,6 +306,7 @@ async function callChatbotAPI(message,
         success: true,
         message: data.message,
         images: data.images || [], // Ensure images is an array
+        sources: data.sources || [] // Include sources data
       };
     } else {
       throw new Error("Invalid response format from chatbot");
@@ -562,6 +568,224 @@ function addMessage(textOrResponse, sender) {
   chatMessages.appendChild(messageDiv);
   chatMessages.scrollTop = chatMessages.scrollHeight;
   return messageDiv;
+}
+
+// Function to add source document links to the latest bot message
+function addSourcesToMessage(sources) {
+  const chatMessages = document.getElementById("chatMessages");
+  const latestBotMessage = chatMessages.querySelector(".message-ai:last-child .message-content");
+  
+  if (!latestBotMessage || !Array.isArray(sources) || sources.length === 0) {
+    return;
+  }
+  
+  // Create sources container
+  const sourcesDiv = document.createElement("div");
+  sourcesDiv.className = "message-sources";
+  
+  // Create header
+  const headerDiv = document.createElement("div");
+  headerDiv.className = "sources-header";
+  headerDiv.textContent = "References";
+  
+  // Create sources list
+  const listDiv = document.createElement("div");
+  listDiv.className = "sources-list";
+  
+  sources.forEach(source => {
+    const sourceItem = document.createElement("div");
+    sourceItem.className = "source-item";
+    
+    // Determine file type and icon
+    const fileType = getFileType(source.file_path);
+    const iconData = getFileIcon(fileType);
+    
+    if (source.is_clickable && source.file_path) {
+      sourceItem.classList.add("clickable");
+      sourceItem.addEventListener("click", () => openSourceDocument(source.file_path, sourceItem));
+    }
+    
+    // Create icon
+    const iconDiv = document.createElement("div");
+    iconDiv.className = "source-icon";
+    iconDiv.textContent = iconData.icon;
+    
+    // Create content container
+    const contentDiv = document.createElement("div");
+    contentDiv.className = "source-content";
+    
+    // Create name
+    const nameDiv = document.createElement("div");
+    nameDiv.className = "source-name";
+    nameDiv.textContent = source.name;
+    
+    // Create type
+    const typeDiv = document.createElement("div");
+    typeDiv.className = "source-type";
+    typeDiv.textContent = iconData.type;
+    
+    contentDiv.appendChild(nameDiv);
+    contentDiv.appendChild(typeDiv);
+    
+    // Create action (only show for clickable items)
+    if (source.is_clickable) {
+      const actionDiv = document.createElement("div");
+      actionDiv.className = "source-action";
+      actionDiv.textContent = "View";
+      sourceItem.appendChild(iconDiv);
+      sourceItem.appendChild(contentDiv);
+      sourceItem.appendChild(actionDiv);
+    } else {
+      sourceItem.appendChild(iconDiv);
+      sourceItem.appendChild(contentDiv);
+    }
+    
+    listDiv.appendChild(sourceItem);
+  });
+  
+  sourcesDiv.appendChild(headerDiv);
+  sourcesDiv.appendChild(listDiv);
+  latestBotMessage.appendChild(sourcesDiv);
+}
+
+// Helper function to determine file type
+function getFileType(filePath) {
+  if (!filePath) return 'unknown';
+  
+  const ext = filePath.split('.').pop().toLowerCase();
+  switch (ext) {
+    case 'pdf':
+      return 'pdf';
+    case 'doc':
+    case 'docx':
+      return 'word';
+    case 'ppt':
+    case 'pptx':
+      return 'powerpoint';
+    case 'xls':
+    case 'xlsx':
+      return 'excel';
+    case 'txt':
+      return 'text';
+    case 'jpg':
+    case 'jpeg':
+    case 'png':
+    case 'gif':
+      return 'image';
+    default:
+      return 'document';
+  }
+}
+
+// Helper function to get file icon and type description
+function getFileIcon(fileType) {
+  const icons = {
+    pdf: { icon: '📄', type: 'PDF Document' },
+    word: { icon: '📝', type: 'Word Document' },
+    powerpoint: { icon: '📊', type: 'PowerPoint Presentation' },
+    excel: { icon: '📈', type: 'Excel Spreadsheet' },
+    text: { icon: '📄', type: 'Text Document' },
+    image: { icon: '🖼️', type: 'Image File' },
+    document: { icon: '📄', type: 'Document' },
+    unknown: { icon: '📄', type: 'Document' }
+  };
+  
+  return icons[fileType] || icons.unknown;
+}
+
+// Enhanced function to open source document
+function openSourceDocument(filePath, sourceItem = null) {
+  try {
+    console.log("Opening source document:", filePath);
+    
+    // Add loading state
+    if (sourceItem) {
+      sourceItem.classList.add("loading");
+      const actionDiv = sourceItem.querySelector(".source-action");
+      if (actionDiv) {
+        actionDiv.textContent = "Opening...";
+      }
+    }
+    
+    // Extract filename from the full path
+    let fileName = '';
+    if (filePath.includes('\\')) {
+      // Windows path
+      fileName = filePath.split('\\').pop();
+    } else if (filePath.includes('/')) {
+      // Unix path
+      fileName = filePath.split('/').pop();
+    } else {
+      // Just filename
+      fileName = filePath;
+    }
+    
+    if (fileName) {
+      // Use the new document serving endpoint
+      const documentUrl = `/documents/${encodeURIComponent(fileName)}`;
+      
+      // Test if the file exists first
+      fetch(documentUrl, { method: 'HEAD' })
+        .then(response => {
+          if (response.ok) {
+            window.open(documentUrl, '_blank');
+            console.log("Successfully opened document URL:", documentUrl);
+            
+            // Show success feedback
+            if (sourceItem) {
+              sourceItem.classList.remove("loading");
+              const actionDiv = sourceItem.querySelector(".source-action");
+              if (actionDiv) {
+                actionDiv.textContent = "Opened ✓";
+                setTimeout(() => {
+                  actionDiv.textContent = "Click to open";
+                }, 2000);
+              }
+            }
+          } else {
+            throw new Error(`File not found (${response.status})`);
+          }
+        })
+        .catch(error => {
+          console.error("Error accessing document:", error);
+          handleDocumentError(sourceItem, error.message);
+        });
+    } else {
+      throw new Error("Could not extract filename from path");
+    }
+  } catch (error) {
+    console.error("Error opening source document:", error);
+    handleDocumentError(sourceItem, error.message);
+  }
+}
+
+// Helper function to handle document errors
+function handleDocumentError(sourceItem, errorMessage) {
+  if (sourceItem) {
+    sourceItem.classList.remove("loading");
+    sourceItem.classList.add("error");
+    
+    const actionDiv = sourceItem.querySelector(".source-action");
+    if (actionDiv) {
+      actionDiv.textContent = "Error opening";
+    }
+    
+    // Show error message
+    setTimeout(() => {
+      alert(`Unable to open document: ${errorMessage}`);
+    }, 100);
+    
+    // Reset error state after a delay
+    setTimeout(() => {
+      sourceItem.classList.remove("error");
+      const actionDiv = sourceItem.querySelector(".source-action");
+      if (actionDiv) {
+        actionDiv.textContent = "Click to open";
+      }
+    }, 3000);
+  } else {
+    alert(`Unable to open document: ${errorMessage}`);
+  }
 }
 
 // Helper function to escape HTML to prevent XSS

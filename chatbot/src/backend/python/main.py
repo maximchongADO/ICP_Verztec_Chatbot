@@ -12,7 +12,7 @@ from chatbot import (
     generate_answer_histoy_retrieval,
     memory, 
     logger, 
-    index
+    index,agentic_bot_v1
 )
 from memory_retrieval import (retrieve_user_messages_and_scores,get_all_chats_with_messages_for_user)
 from Freq_queries import (get_suggestions)
@@ -151,32 +151,46 @@ async def chat_endpoint(request: ChatRequest):
         if index is None:
             raise HTTPException(status_code=503, detail="Search index is not available")
         
-        response_message, image_list = generate_answer_histoy_retrieval(request.message, request.user_id, request.chat_id)
-        #response_message, image_list= generate_answer_histoy_retrieval(request.message , request.user_id, request.chat_id)
+       
+        #response_message, image_list = agentic_bot_v1(request.message, request.user_id, request.chat_id)
+        response_data = generate_answer_histoy_retrieval(request.message, request.user_id, request.chat_id)
+        
+        # Handle both old tuple format and new structured format
+        if isinstance(response_data, dict):
+            # New structured format
+            response_message = response_data.get('text', '')
+            image_list = response_data.get('images', [])
+            sources = response_data.get('sources', [])
+        else:
+            # Old tuple format (fallback)
+            response_message, image_list = response_data
+            sources = []
+        
         logger.info(f"Generated response: {response_message}")
         logger.info(f"Image list: {image_list}")
+        logger.info(f"Sources: {sources}")
         
-        
-        
-        return ChatResponse(
-            message=response_message,
-            user_id=request.user_id,
-            timestamp=datetime.utcnow().isoformat(),
-            success=True,
-            images=image_list
-        )
+        return {
+            "message": response_message,
+            "user_id": request.user_id,
+            "timestamp": datetime.utcnow().isoformat(),
+            "success": True,
+            "images": image_list,
+            "sources": sources
+        }
         
 
     except Exception as e:
         logger.error(f"Error processing chat request: {str(e)}", exc_info=True)
-        return ChatResponse(
-            message="An error occurred while processing your request. Please try again later.",
-            user_id=request.user_id,
-            timestamp=datetime.utcnow().isoformat(),
-            success=False,
-            error=str(e),
-            images=None
-        )
+        return {
+            "message": "An error occurred while processing your request. Please try again later.",
+            "user_id": request.user_id,
+            "timestamp": datetime.utcnow().isoformat(),
+            "success": False,
+            "error": str(e),
+            "images": [],
+            "sources": []
+        }
         
     from fastapi import APIRouter, HTTPException
 from fastapi.responses import JSONResponse

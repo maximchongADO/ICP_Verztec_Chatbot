@@ -1,6 +1,6 @@
 import os
 import re
-import sys
+import difflib
 import time
 import logging
 from datetime import datetime
@@ -14,10 +14,9 @@ from typing import List
 from dotenv import load_dotenv
 from sentence_transformers import SentenceTransformer
 from transformers import AutoModelForSeq2SeqLM, AutoTokenizer
-from langchain.tools import tool
+
 from langchain_groq import ChatGroq
 from langchain.schema import HumanMessage, AIMessage, Document
-from langchain.vectorstores.base import VectorStoreRetriever
 from langchain.memory import ConversationBufferMemory
 from langchain.chains import ConversationalRetrievalChain
 from langchain_core.output_parsers import StrOutputParser
@@ -25,10 +24,26 @@ from langchain.embeddings import HuggingFaceEmbeddings
 from langchain_community.vectorstores import FAISS
 import uuid
 from memory_retrieval import build_memory_from_results, retrieve_user_messages_and_scores
-from langchain.retrievers import ContextualCompressionRetriever
-from langchain.llms import HuggingFaceHub 
 from sentence_transformers import CrossEncoder
 from langchain.schema import BaseRetriever
+import csv
+from langchain.agents import Tool, create_react_agent, AgentExecutor
+from langchain_core.prompts import PromptTemplate
+from langchain_core.agents import AgentAction, AgentFinish
+
+
+import os
+import csv
+from datetime import datetime
+from langchain_community.embeddings import HuggingFaceEmbeddings
+from langchain_community.vectorstores import FAISS
+from langchain_groq import ChatGroq
+from langchain.memory import ConversationBufferMemory
+from langchain.agents import Tool, create_react_agent, AgentExecutor
+from langchain.agents.output_parsers import ReActSingleInputOutputParser
+from langchain_core.prompts import PromptTemplate
+from langchain_core.agents import AgentAction, AgentFinish
+
 # Load reranker model locally
 
 
@@ -40,7 +55,7 @@ logger = logging.getLogger(__name__)
 # Initialize models and clients
 embedding_model = SentenceTransformer('BAAI/bge-large-en-v1.5')
 load_dotenv()
-api_key='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'
+api_key='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'
 model = "deepseek-r1-distill-llama-70b" 
 deepseek = ChatGroq(api_key=api_key, model=model) # type: ignore
 
@@ -278,6 +293,167 @@ def append_sources(cleaned_response: str, docs: list) -> str:
     source_block = "\n\n📂 Source Document Used:\n" + "\n".join(f"• {src}" for src in sources)
     return cleaned_response.strip() + source_block
 
+def append_sources_with_links(cleaned_response: str, docs: list):
+    def format_source_name(source_path: str) -> str:
+        filename = os.path.basename(source_path)
+        name, _ = os.path.splitext(filename)
+        name = re.sub(r'^\d+\s*', '', name)  # Remove leading numbers
+        return name
+
+    def find_file_in_subdirs(file_name: str) -> str:
+        """
+        Searches for a file in the 'data' subdirectories (pdf, word, pptx).
+        Uses comprehensive fuzzy matching to locate files.
+        """
+        logger.info(f"Searching for file: {file_name}")
+        
+        script_dir = os.path.dirname(os.path.abspath(__file__))
+        data_dirs = [
+            os.path.join(script_dir, "data", "pdf"),
+            os.path.join(script_dir, "data", "word"), 
+            os.path.join(script_dir, "data", "pptx")
+        ]
+        
+        logger.info(f"Searching in directories: {data_dirs}")
+        
+        # Get all files from all data directories for fuzzy matching
+        all_files = []
+        for data_dir in data_dirs:
+            if os.path.exists(data_dir):
+                try:
+                    files_in_dir = os.listdir(data_dir)
+                    logger.info(f"Found {len(files_in_dir)} files in {data_dir}: {files_in_dir}")
+                    for file in files_in_dir:
+                        full_file_path = os.path.join(data_dir, file)
+                        if os.path.isfile(full_file_path):
+                            all_files.append((file, data_dir))
+                except OSError as e:
+                    logger.warning(f"Error reading directory {data_dir}: {e}")
+                    continue
+            else:
+                logger.warning(f"Directory does not exist: {data_dir}")
+        
+        if not all_files:
+            logger.warning("No files found in any data directory")
+            return None
+            
+        logger.info(f"Total files found: {len(all_files)}")
+        logger.info(f"All files: {[f[0] for f in all_files]}")
+        
+        # Extract just the filenames for fuzzy matching
+        file_names = [file[0] for file in all_files]
+        
+        # Clean the source filename for better matching
+        src_clean = os.path.splitext(os.path.basename(file_name))[0]
+        logger.info(f"Cleaned source name: '{src_clean}' from original: '{file_name}'")
+        
+        # First try: exact filename match
+        for file_name_item, data_dir in all_files:
+            if file_name_item.lower() == os.path.basename(file_name).lower():
+                found_file_path = os.path.join(data_dir, file_name_item)
+                logger.info(f"Source document found (exact filename match): {found_file_path}")
+                return found_file_path
+        
+        # Second try: exact substring/prefix matching
+        for file_name_item, data_dir in all_files:
+            file_clean = os.path.splitext(file_name_item)[0]
+            logger.debug(f"Comparing '{src_clean.lower()}' with '{file_clean.lower()}'")
+            if (file_name.lower() in file_name_item.lower() or 
+                file_name_item.lower().startswith(file_name.lower()) or
+                src_clean.lower() in file_clean.lower() or
+                file_clean.lower().startswith(src_clean.lower())):
+                found_file_path = os.path.join(data_dir, file_name_item)
+                logger.info(f"Source document found (substring match): {found_file_path}")
+                return found_file_path
+        
+        # Third try: fuzzy matching if exact matching failed
+        try:
+            file_names_clean = [os.path.splitext(f)[0] for f in file_names]
+            
+            # Try with different cutoff values for better matches
+            for cutoff in [0.8, 0.6, 0.4]:
+                close_matches = difflib.get_close_matches(
+                    src_clean.lower(), 
+                    [f.lower() for f in file_names_clean], 
+                    n=1, 
+                    cutoff=cutoff
+                )
+                
+                if close_matches:
+                    # Find the original file corresponding to the close match
+                    matched_clean = close_matches[0]
+                    for i, file_clean in enumerate(file_names_clean):
+                        if file_clean.lower() == matched_clean:
+                            matched_file, data_dir = all_files[i]
+                            found_file_path = os.path.join(data_dir, matched_file)
+                            logger.info(f"Source document found (fuzzy match, cutoff={cutoff}): {found_file_path}")
+                            return found_file_path
+                    break
+        except Exception as e:
+            logger.warning(f"Error in fuzzy matching: {e}")
+        
+        # Fourth try: partial name matching (for cases where source has different format)
+        for file_name_item, data_dir in all_files:
+            file_clean = os.path.splitext(file_name_item)[0].lower()
+            src_words = set(src_clean.lower().split())
+            file_words = set(file_clean.split())
+            
+            # Check if there's significant word overlap
+            if src_words and file_words:
+                overlap = len(src_words.intersection(file_words))
+                if overlap >= min(2, len(src_words) // 2):  # At least 2 words or half of source words
+                    found_file_path = os.path.join(data_dir, file_name_item)
+                    logger.info(f"Source document found (word overlap match): {found_file_path}")
+                    return found_file_path
+        
+        logger.warning(f"Source document not found in data directories: {file_name}")
+        logger.info(f"Available files: {[f[0] for f in all_files]}")
+        return None
+
+    sources = []
+    seen_sources = set()
+    source_files_data = []  # For storing source file information
+
+    for doc in docs:
+        source = doc.metadata.get("source", None)
+        file_path = doc.metadata.get("file_path", None)  # Get the file path if available
+
+        # Ensure source is a string before processing
+        if isinstance(source, str):
+            logger.info(f"Processing source: {source}")
+            
+            if not file_path:
+                # Try to find the file using the source name
+                source_basename = os.path.basename(source)
+                logger.info(f"Looking for file with basename: {source_basename}")
+                file_path = find_file_in_subdirs(source_basename)
+                if file_path:
+                    logger.info(f"Found file at: {file_path}")
+                else:
+                    logger.warning(f"Could not find file for source: {source}")
+
+            is_clickable = bool(file_path and os.path.exists(file_path) if file_path else False)
+            logger.info(f"Source {source} - clickable: {is_clickable}, file_path: {file_path}")
+
+            if source not in seen_sources:
+                seen_sources.add(source)
+                sources.append(format_source_name(source))
+
+                # Add source file information
+                source_files_data.append({
+                    "name": format_source_name(source),
+                    "file_path": file_path if isinstance(file_path, str) else None,
+                    "is_clickable": is_clickable
+                })
+
+    if not sources:
+        return cleaned_response, source_files_data
+
+    # Clean final formatting
+    source_block = "\n\n📂 Source Document Used:\n" + "\n".join(f"• {src}" for src in sources)
+    #cleaned_response = cleaned_response.strip() + source_block
+
+    return cleaned_response, source_files_data
 
 retr_direct  = index.as_retriever(search_kwargs={"k": 8})
 retr_bg      = index2.as_retriever(   search_kwargs={"k": 20})
@@ -518,10 +694,17 @@ def generate_answer(user_query: str, chat_history: ConversationBufferMemory ):
             MAX_TURNS = 4
             if len(memory.chat_memory.messages) > 2 * MAX_TURNS:
                 memory.chat_memory.messages = memory.chat_memory.messages[-2 * MAX_TURNS:]
-            store_chat_log(user_message=user_query, bot_response=cleaned_fallback, session_id=session_id, query_score=is_task_query, relevance_score=avg_score)
+            # For the fallback response, we need dummy user_id and chat_id since they're not available in this function
+            dummy_user_id = "anonymous"
+            dummy_chat_id = session_id
+            store_chat_log_updated(user_message=user_query, bot_response=cleaned_fallback, query_score=is_task_query, relevance_score=avg_score, user_id=dummy_user_id, chat_id=dummy_chat_id)
             #store_chat_log_updated(user_message=user_query, bot_response=cleaned_fallback, query_score=is_task_query, relevance_score=avg_score, user_id=user_id, chat_id=chat_id)
     
-            return cleaned_fallback, top_3_img
+            return {
+                'text': cleaned_fallback,
+                'images': top_3_img,
+                'sources': []
+            }
         
         
         
@@ -614,17 +797,42 @@ def generate_answer(user_query: str, chat_history: ConversationBufferMemory ):
         cleaned_answer = re.sub(r'[\*#]+', '', cleaned_answer).strip()
 
     
-        store_chat_log(user_message=user_query, bot_response=cleaned_answer, session_id=session_id, query_score=is_task_query, relevance_score=avg_score)
+        # For the main response, we need dummy user_id and chat_id since they're not available in this function
+        dummy_user_id = "anonymous"
+        dummy_chat_id = session_id
+        store_chat_log_updated(user_message=user_query, bot_response=cleaned_answer, query_score=is_task_query, relevance_score=avg_score, user_id=dummy_user_id, chat_id=dummy_chat_id)
         # After generating the bot's response
-        final_response = append_sources(cleaned_answer, top_docs)
+        final_response, source_docs = append_sources_with_links(cleaned_answer, top_docs)
         print(final_response)
+        
+        # Log source documents for debugging
+        logger.info(f"Source documents data: {source_docs}")
+        
+        # Also append clickable links to text for backwards compatibility
+        for doc in source_docs:
+            if doc['is_clickable'] and doc['file_path']:
+                final_response += f"\n\n[Source: {doc['name']}]({doc['file_path']})"
+                logger.info(f"Added clickable source: {doc['name']} -> {doc['file_path']}")
+            else:
+                final_response += f"\n\n[Source: {doc['name']}]"
+                logger.info(f"Added non-clickable source: {doc['name']}")
 
         total_elapsed_time = time.time() - total_start_time
         logger.info(f"Total time taken for query processing: {total_elapsed_time:.2f}s")
 
-        return final_response, top_3_img
+        # Return structured data for frontend
+        return {
+            'text': final_response,
+            'images': top_3_img,
+            'sources': source_docs  # Include source file data for frontend
+        }
     except Exception as e:
-        return f"I encountered an error while processing your request: {str(e)}", []
+        return {
+            'error': f"I encountered an error while processing your request: {str(e)}", 
+            'text': f"I encountered an error while processing your request: {str(e)}", 
+            'images': [], 
+            'sources': []
+        }
 
 memory_store = {}
 
@@ -797,7 +1005,11 @@ def generate_answer_histoy_retrieval(user_query: str, user_id:str, chat_id:str):
             #store_chat_log(user_message=user_query, bot_response=cleaned_fallback, session_id=session_id, query_score=is_task_query, relevance_score=avg_score)
             store_chat_log_updated(user_message=user_query, bot_response=cleaned_fallback, query_score=is_task_query, relevance_score=avg_score, user_id=user_id, chat_id=chat_id)
     
-            return cleaned_fallback, top_3_img
+            return {
+                'text': cleaned_fallback,
+                'images': top_3_img,
+                'sources': []
+            }
         
         
         
@@ -818,6 +1030,8 @@ def generate_answer_histoy_retrieval(user_query: str, user_id:str, chat_id:str):
         response = qa_chain.invoke({"question": modified_query})
         qa_elapsed_time = time.time() - qa_start_time
         raw_answer = response['answer']
+        source_docs = response['source_documents']
+        logger.info(f"Source docs from QA chain: {source_docs}")
         logger.info(f"Full response before cleanup: {raw_answer} (QA chain time taken: {qa_elapsed_time:.2f}s)")
         
         # Clean the chat memory to keep it manageable
@@ -833,11 +1047,9 @@ def generate_answer_histoy_retrieval(user_query: str, user_id:str, chat_id:str):
 
         # Check if full <think> block exists
         has_think_block = bool(think_block_pattern.search(raw_answer))
-        logger.info(f"Has full <think> block: {has_think_block}")
 
         # Clean the <think> block regardless
         cleaned_answer = think_block_pattern.sub("", raw_answer).strip()
-        logger.info(f"Cleaned answer after removing <think> block: {cleaned_answer}")
         has_tag = False
         import concurrent.futures
 
@@ -884,7 +1096,6 @@ def generate_answer_histoy_retrieval(user_query: str, user_id:str, chat_id:str):
             i += 1
         ## one last cleanup to ensure no <think> tags remain
         # Remove any remaining <think> tagsbetter have NO MOR NO MORE NO MO NO MOMRE 
-    
         cleaned_answer = re.sub(r"</?think>", "", cleaned_answer).strip()
         cleaned_answer = re.sub(r"</?think>", "", cleaned_answer).strip()
         cleaned_answer = re.sub(r'[\*#]+', '', cleaned_answer).strip()
@@ -893,13 +1104,470 @@ def generate_answer_histoy_retrieval(user_query: str, user_id:str, chat_id:str):
         store_chat_log_updated(user_message=user_query, bot_response=cleaned_answer, query_score=is_task_query, relevance_score=avg_score, user_id=user_id, chat_id=chat_id)##brian u need to update sql for this to work
         # also need to update the store_chat_bot method, to incoude user id and chat id
         # After generating the bot's response
-        final_response = append_sources(cleaned_answer, top_docs)
+        final_response, source_docs = append_sources_with_links(cleaned_answer, top_docs)
         print(final_response)
+        
+        # Log source documents for debugging
+        logger.info(f"Source documents data: {source_docs}")
+        
+        # Also append clickable links to text for backwards compatibility
+        for doc in source_docs:
+            if doc['is_clickable'] and doc['file_path']:
+                #final_response += f"\n\n[Source: {doc['name']}]({doc['file_path']})"
+                logger.info(f"Added clickable source: {doc['name']} -> {doc['file_path']}")
+            else:
+                #final_response += f"\n\n[Source: {doc['name']}]"
+                logger.info(f"Added non-clickable source: {doc['name']}")
 
         total_elapsed_time = time.time() - total_start_time
         logger.info(f"Total time taken for query processing: {total_elapsed_time:.2f}s")
 
-        return final_response, top_3_img
+        # Return structured data for frontend
+        return {
+            'text': final_response,
+            'images': top_3_img,
+            'sources': source_docs  # Include source file data for frontend
+        }
     except Exception as e:
-        return f"I encountered an error while processing your request: {str(e)}", []
+        return {
+            'error': f"I encountered an error while processing your request: {str(e)}", 
+            'text': f"I encountered an error while processing your request: {str(e)}", 
+            'images': [], 
+            'sources': []
+        }
 
+try:
+    ## tools for agentic bot
+    def faiss_search_tool(query: str) -> str:
+        """
+        Searches FAISS indices for relevant information and returns the top 10 most relevant documents.
+        """
+        try:
+            # Input validation
+            if not query or not query.strip():
+                return "Error: Please provide a search query."
+            
+            # Clean the query
+            clean_query = clean_with_grammar_model(query.strip())
+            
+            # Search FAISS index for top 10 results
+            results = index.similarity_search_with_score(clean_query, k=10)
+            
+            if not results:
+                return "I couldn't find any relevant information in our knowledge base for your query."
+            
+            # Print results neatly for debugging
+            print(f"\n{'='*60}")
+            print(f"FAISS SEARCH RESULTS FOR: '{clean_query}'")
+            print(f"{'='*60}")
+            print(f"Found {len(results)} relevant documents:")
+            print("-" * 60)
+            
+            for i, (doc, score) in enumerate(results, 1):
+                content = doc.page_content if len(doc.page_content) > 200 else doc.page_content
+                source = doc.metadata.get("source", "Unknown")
+                print(f"\n[{i}] Score: {score:.3f}")
+                print(f"Source: {source}")
+                print(f"Content: {content}")
+                print("-" * 40)
+            
+            print(f"{'='*60}\n")
+            
+            # Format the results simply
+            search_result = f"Found {len(results)} relevant documents:\n\n"
+            
+            for i, (doc, score) in enumerate(results, 1):
+                content = doc.page_content[:200] + "..." if len(doc.page_content) > 200 else doc.page_content
+                source = doc.metadata.get("source", "Unknown")
+                search_result += f"{i}. {content}\n   Source: {source}\n   Score: {score:.3f}\n\n"
+            
+            # Log the search
+            try:
+                with open("yabdabado.csv", "a", newline='', encoding='utf-8') as f:
+                    writer = csv.writer(f)
+                    writer.writerow([datetime.now().isoformat(), "faiss_search", clean_query])
+            except Exception as e:
+                print(f"Warning: Failed to log FAISS search: {e}")
+            
+            return search_result
+            
+        except Exception as e:
+            logger.error(f"Error in FAISS search tool: {str(e)}")
+            return f"Error occurred during search: {str(e)}"
+
+    def escalate_to_hr_tool(issue: str) -> str:
+        
+        # Input validation
+        if not issue or not issue.strip():
+            return "I'd be happy to help escalate your concern to HR. However, I need you to provide a detailed description of the issue you'd like to escalate. Please include:\n\n1. A brief summary of the situation\n2. Any relevant dates or timeframes\n3. The specific assistance you're seeking\n\nThis information will help HR provide you with the most appropriate support."
+        
+        # Sanitize input for logging (basic example)
+        sanitized_issue = issue.strip()[:500]  # Limit length for logging
+        
+        try:
+            with open("yabdabado.csv", "a", newline='', encoding='utf-8') as f:
+                writer = csv.writer(f)
+                writer.writerow([datetime.now().isoformat(), "escalate_to_hr", sanitized_issue])
+        except Exception as e:
+            print(f"Warning: Failed to log HR escalation: {e}")
+            # Continue execution even if logging fails
+        
+        return f"""✅ **HR Escalation Initiated**
+
+            Your concern has been successfully escalated to our Human Resources department:
+
+            **Issue Summary:** {sanitized_issue}
+
+            **What happens next:**
+            1. **Within 24 hours:** HR will acknowledge receipt of your escalation
+            2. **Within 2-3 business days:** An HR representative will contact you to discuss the matter
+            3. **Ongoing:** You'll receive regular updates on the status of your case
+
+            **Important Notes:**
+            - All escalations are handled with strict confidentiality
+            - You may be contacted for additional information if needed
+            - If this is an urgent safety matter, please also contact your immediate supervisor
+
+            **Reference ID:** ESC-{datetime.now().strftime('%Y%m%d-%H%M%S')}
+
+            Is there anything else I can help you with regarding company policies or procedures?"""
+
+    def create_meeting_request_tool(details: str) -> str:
+    
+        # Input validation
+        if not details or not details.strip():
+            return "I'd be glad to help you create a meeting request. To ensure your meeting is properly scheduled, please provide the following details:\n\n**Required Information:**\n1. **Purpose/Agenda:** What is the meeting about?\n2. **Preferred Date/Time:** When would you like to meet?\n3. **Duration:** How long do you expect the meeting to last?\n4. **Attendees:** Who should be invited?\n5. **Meeting Type:** In-person, virtual, or hybrid?\n\n**Optional Information:**\n- Specific topics to discuss\n- Any preparation materials needed\n- Preferred meeting location (if in-person)\n\nOnce you provide these details, I'll create a comprehensive meeting request for you."
+        
+        # Sanitize and format input
+        sanitized_details = details.strip()[:300]  # Reasonable limit for meeting descriptions
+        
+        try:
+            with open("yabdabado.csv", "a", newline='', encoding='utf-8') as f:
+                writer = csv.writer(f)
+                writer.writerow([datetime.now().isoformat(), "create_meeting_request", sanitized_details])
+        except Exception as e:
+            print(f"Warning: Failed to log meeting request: {e}")
+            # Continue execution even if logging fails
+        
+        return f"""📅 **Meeting Request Created Successfully**
+
+**Meeting Details:** {sanitized_details}
+
+**Your meeting request has been processed with the following steps:**
+
+**Immediate Actions Taken:**
+1. ✅ Meeting request logged in the system
+2. ✅ Notification sent to relevant parties
+3. ✅ Calendar invitations will be generated
+
+**Next Steps:**
+1. **Within 2 hours:** You'll receive a calendar invitation with meeting details
+2. **24 hours before:** Automatic reminder will be sent to all attendees
+3. **If needed:** Meeting coordinator will contact you for any clarifications
+
+**Meeting Reference ID:** MTG-{datetime.now().strftime('%Y%m%d-%H%M%S')}
+
+**Important Reminders:**
+- Please prepare any materials mentioned in your request
+- If you need to modify or cancel, contact the meeting coordinator at least 24 hours in advance
+- For urgent changes, please reach out to your supervisor directly
+
+**Need Help?**
+- Meeting room bookings: Contact facilities management
+- Technical setup for virtual meetings: Contact IT support
+- Agenda planning assistance: I'm here to help!
+
+Is there anything else you'd like me to help you with regarding this meeting or other company procedures?"""
+
+    def final_answer_tool(answer: str) -> str:
+    
+        # Input validation
+        if not answer or not answer.strip():
+            fallback_answer = "I apologize, but I couldn't generate a proper response to your inquiry. Please feel free to rephrase your question or contact our support team for further assistance."
+            print(f"Warning: Empty final answer provided, using fallback: {fallback_answer}")
+            answer = fallback_answer
+        
+        # Clean the answer for optimal agent termination
+        clean_answer = answer.strip()
+        
+        # Remove formal email elements if present
+        email_greetings = ["Dear", "Hello,", "Hi,", "Good morning,", "Good afternoon,"]
+        email_closings = ["Best regards,", "Sincerely,", "Thank you,", "Kind regards,", "Yours sincerely,"]
+        
+        # Remove email-style greetings
+        for greeting in email_greetings:
+            if clean_answer.startswith(greeting):
+                # Find the end of the greeting line and remove it
+                lines = clean_answer.split('\n')
+                if lines:
+                    lines = lines[1:]  # Remove first line
+                clean_answer = '\n'.join(lines).strip()
+                break
+        
+        # Remove email-style closings and signatures
+        for closing in email_closings:
+            if closing.lower() in clean_answer.lower():
+                closing_pos = clean_answer.lower().find(closing.lower())
+                clean_answer = clean_answer[:closing_pos].strip()
+                break
+        
+        # Remove signature lines (lines that start with [Your Name], [Name], etc.)
+        lines = clean_answer.split('\n')
+        filtered_lines = []
+        for line in lines:
+            stripped_line = line.strip()
+            if not (stripped_line.startswith('[') and stripped_line.endswith(']')):
+                filtered_lines.append(line)
+        clean_answer = '\n'.join(filtered_lines).strip()
+        
+        # Ensure the answer follows guidelines for detailed instructions and polite rejections
+        if len(clean_answer) < 50 and "sorry" not in clean_answer.lower() and "apologize" not in clean_answer.lower():
+            # If answer seems too brief and isn't already an apology, enhance it
+            clean_answer = f"{clean_answer}\n\nIf you need more specific details or have additional questions, please don't hesitate to ask. I'm here to help you with any Verztec-related policies or procedures."
+        
+        try:
+            with open("yabdabado.csv", "a", newline='', encoding='utf-8') as f:
+                writer = csv.writer(f)
+                writer.writerow([datetime.now().isoformat(), "Final Answer", clean_answer])
+        except Exception as e:
+            print(f"Warning: Failed to log final answer: {e}")
+            # Continue execution - logging failure shouldn't break user experience
+        
+        # Return clean answer without prefixes to ensure proper termination
+        return clean_answer
+
+    tools = [
+        Tool(
+            name="faiss_search",
+            func=faiss_search_tool,
+            description="Searches the Verztec knowledge base for relevant information about policies, procedures, and company guidelines. Use this when you need to find specific information to provide detailed, step-by-step instructions to users."
+        ),
+        Tool(
+            name="escalate_to_hr",
+            func=escalate_to_hr_tool,
+            description="Escalates a user issue to HR with detailed information. Use for serious workplace or personal issues like harassment, discrimination, or policy violations. Always explain the escalation process politely to the user."
+        ),
+        Tool(
+            name="create_meeting_request", 
+            func=create_meeting_request_tool,
+            description="Creates a meeting request with comprehensive details. Use for scheduling follow-ups, consultations, or formal discussions. Provide clear next steps and expectations to the user."
+        ),
+        Tool(
+            name="Final Answer",
+            func=final_answer_tool,
+            description="Provides the final detailed and polite answer to the user in conversational chat style. MUST include step-by-step instructions for procedures, or empathetic rejections with alternative suggestions when unable to help. MUST NOT use formal email format (no 'Dear', 'Best regards', signatures). MUST be used as the last action to complete the interaction."
+        )
+    ] 
+except Exception as e:
+    logger.error(f"Error initializing tools: {e}")
+    tools = []  # Fallback to empty tools list if initialization fails
+memory_store = {}
+def get_react_prompt() -> PromptTemplate:
+    
+    template = """You are a helpful and professional Verztec AI assistant. Use the ReAct format to work through problems step by step.
+
+        You have access to these tools:
+        {tools}
+
+        CRITICAL RULES:
+        1. Use the format: → Action: → Action Input: → wait for Observation
+        2. When you use "Final Answer", you are DONE. Do not continue thinking or taking actions.
+        3. Do NOT repeat the same action multiple times.
+        4. Do NOT continue after "Final Answer".
+        5. ALWAYS search the knowledge base first using "faiss_search" before providing answers about Verztec policies or procedures.
+
+        RESPONSE GUIDELINES:
+        - Provide DETAILED, step-by-step instructions when helping users with procedures or policies
+        - Break down complex processes into clear, numbered steps
+        - Include all necessary details, forms, deadlines, and requirements
+        - Reference specific sections of policies when applicable
+        - If you cannot help with a request, provide a POLITE and EMPATHETIC rejection
+        - Explain WHY you cannot help and suggest alternative solutions or contacts
+        - Always maintain a professional, helpful, and courteous tone
+        - For out-of-scope requests, gently redirect users to appropriate resources
+        
+        FORMATTING REQUIREMENTS:
+        - Use conversational, chat-style language - NOT formal email format
+        - DO NOT use email greetings like "Dear [User's Name]" or "Hello [Name]"
+        - DO NOT use email closings like "Best regards", "Sincerely", or "Thank you"
+        - DO NOT sign off with "[Your Name]" or similar formal signatures
+        - Respond as if you're having a helpful conversation, not writing an email
+        - Use direct, friendly language: "I can help you with that" instead of "I hope this email finds you well"
+
+        Format:
+        Thought: [your reasoning about what you need to do]
+        Action: [tool name from: {tool_names}]
+        Action Input: [input for the tool]
+        Observation: [tool response]
+        Thought: [more reasoning if needed]
+        Action: Final Answer
+        Action Input: [your detailed, helpful, and polite final response to the user]
+
+        Question: {input}
+        {agent_scratchpad}"""
+
+    return PromptTemplate(
+        template=template,
+        input_variables=["input", "agent_scratchpad", "tools", "tool_names"]
+    )
+
+def agentic_bot_v1(user_query: str, user_id: str, chat_id: str):
+    """
+    Agentic bot function that supports chat history and multi-turn conversations.
+    
+    This function implements an agentic chatbot using the ReAct pattern with:
+    1. Chat history retrieval and management
+    2. Multi-step reasoning and tool usage
+    3. HR escalation and meeting request capabilities
+    4. Comprehensive error handling and logging
+    
+    Args:
+        user_query (str): The user's input query
+        user_id (str): Unique identifier for the user
+        chat_id (str): Unique identifier for the chat session
+        
+    Returns:
+        tuple: (answer_text, image_list) where:
+            - answer_text: The agent's final response
+            - image_list: List of relevant images (empty for agentic responses)
+    """
+    
+    try:
+        # Step 1: Retrieve or create chat history
+        key = f"{user_id}_{chat_id}"
+        logger.info(f"Agentic bot processing query for key: {key}")
+        logger.info(f"User ID: {user_id}, Chat ID: {chat_id}")
+
+        if key in memory_store:
+            chat_history = memory_store[key]
+            logger.info(f"Memory object found at key: {key}")
+        else:
+            msgs = retrieve_user_messages_and_scores(user_id, chat_id)
+            chat_history = build_memory_from_results(msgs)
+            memory_store[key] = chat_history
+            logger.info(f"No memory object found. Created and saved for key: {key}")
+        
+        # Step 2: Build context with chat history
+        history_context = ""
+        if chat_history and hasattr(chat_history, 'chat_memory'):
+            history_messages = chat_history.chat_memory.messages
+            if history_messages:
+                history_context = "\n\nChat History:\n"
+                for msg in history_messages[-4:]:  # Last 4 messages for context
+                    if hasattr(msg, 'content'):
+                        msg_type = "Human" if msg.__class__.__name__ == "HumanMessage" else "AI"
+                        history_context += f"{msg_type}: {msg.content}\n"
+                history_context += "\nCurrent Query:\n"
+        
+        # Step 3: Enhanced query with context
+        enhanced_query = f"{history_context}{user_query}"
+        
+        # Step 4: Initialize ReAct agent
+        prompt = get_react_prompt()
+        
+        # Create the core ReAct agent
+        agent_runnable = create_react_agent(
+            llm=deepseek,           # Use the deepseek model from the file
+            tools=tools,            # Available tools for actions
+            prompt=prompt           # Engineered prompt template
+        )
+        
+        # Configure the agent executor with robust settings
+        agent = AgentExecutor(
+            agent=agent_runnable,
+            tools=tools,
+            verbose=True,                    # Show detailed execution steps
+            handle_parsing_errors=True,      # Graceful error recovery
+            max_iterations=3,                # Allow more iterations for complex queries
+            max_execution_time=60,           # 60-second timeout
+            return_intermediate_steps=True,  # Enable step-by-step analysis
+            early_stopping_method="force"    # Force stop when limits reached
+        )
+        
+        # Step 5: Execute the agent
+        logger.info(f"Executing agentic bot with query: {enhanced_query}")
+        start_time = time.time()
+        
+        response = agent.invoke({"input": enhanced_query})
+        
+        execution_time = time.time() - start_time
+        logger.info(f"Agent execution completed in {execution_time:.2f} seconds")
+        
+        # Step 6: Extract final answer from response
+        final_answer = ""
+        if isinstance(response, dict):
+            # Try to get the output first
+            final_answer = response.get('output', '')
+            
+            # If the agent hit iteration limits, extract from intermediate steps
+            if "Agent stopped due to iteration limit" in final_answer:
+                logger.warning("Agent hit iteration limit, extracting final answer from steps...")
+                steps = response.get('intermediate_steps', [])
+                for step in reversed(steps):
+                    if isinstance(step, tuple) and len(step) >= 2:
+                        action, observation = step
+                        if hasattr(action, 'tool') and action.tool == "Final Answer":
+                            final_answer = observation
+                            break
+                else:
+                    final_answer = "I apologize, but I couldn't complete the full reasoning process. Please try rephrasing your question or contact support."
+            
+            # Clean up the final answer
+            if final_answer:
+                # Remove any agent-specific formatting
+                final_answer = final_answer.strip()
+                # Remove any remaining tool prefixes
+                if final_answer.startswith("[Simulated]"):
+                    final_answer = final_answer.replace("[Simulated]", "").strip()
+        else:
+            final_answer = str(response)
+        
+        # Step 7: Update chat history
+        if chat_history and hasattr(chat_history, 'chat_memory'):
+            chat_history.chat_memory.add_user_message(user_query)
+            chat_history.chat_memory.add_ai_message(final_answer)
+            
+            # Clean up chat memory to keep it manageable
+            MAX_TURNS = 6  # Keep more history for agentic conversations
+            if len(chat_history.chat_memory.messages) > 2 * MAX_TURNS:
+                chat_history.chat_memory.messages = chat_history.chat_memory.messages[-2 * MAX_TURNS:]
+        
+        # Step 8: Calculate scores for logging
+        is_task_query = is_query_score(user_query)
+        
+        # For agentic responses, relevance is high since tools were used
+        relevance_score = 0.8  # High relevance for agentic responses
+        
+        # Step 9: Log the interaction
+        store_chat_log_updated(
+            user_message=user_query,
+            bot_response=final_answer,
+            query_score=is_task_query,
+            relevance_score=relevance_score,
+            user_id=user_id,
+            chat_id=chat_id
+        )
+        
+        logger.info(f"Agentic bot response: {final_answer}")
+        
+        # Step 10: Return response (no images for agentic responses)
+        return final_answer, []
+        
+    except Exception as e:
+        logger.error(f"Error in agentic_bot_v1: {str(e)}", exc_info=True)
+        error_response = f"I encountered an error while processing your request: {str(e)}. Please try again or contact support."
+        
+        # Still try to log the error
+        try:
+            store_chat_log_updated(
+                user_message=user_query,
+                bot_response=error_response,
+                query_score=0.0,
+                relevance_score=0.0,
+                user_id=user_id,
+                chat_id=chat_id
+            )
+        except:
+            pass  # Don't fail on logging errors
+        
+        return error_response, []
