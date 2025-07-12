@@ -3,20 +3,16 @@ const fetch = require('node-fetch');
 
 async function testChatbotAvatar() {
     try {
-        console.log('Testing /chatbot_avatar endpoint...');
+        console.log('Testing /chatbot_avatar_test endpoint...');
         
-        const response = await fetch('http://localhost:8000/chatbot_avatar', {
+        const response = await fetch('http://localhost:8000/chatbot_avatar_test', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
-                'Accept': 'application/json',
-                // For testing without auth - we'll add this to bypass auth
-                'Authorization': 'Bearer test-token'
+                'Accept': 'application/json'
             },
             body: JSON.stringify({
-                message: 'Hello, how are you?',
-                user_id: 'test-user',
-                chat_id: 'test-chat'
+                message: 'Hello, how are you today?'
             })
         });
 
@@ -28,10 +24,15 @@ async function testChatbotAvatar() {
         
         // Check if we got the expected fields
         console.log('\nChecking response fields:');
-        console.log('- success:', data.success);
-        console.log('- text:', data.text ? 'Present' : 'Missing');
-        console.log('- audio:', data.audio ? 'Present' : 'Missing');
-        console.log('- lipsync:', data.lipsync ? 'Present' : 'Missing');
+        if (data.messages && data.messages.length > 0) {
+            const message = data.messages[0];
+            console.log('- type:', message.type);
+            console.log('- text:', message.text ? 'Present' : 'Missing');
+            console.log('- audio:', message.audio ? 'Present' : 'Missing');
+            console.log('- lipsync:', message.lipsync ? 'Present' : 'Missing');
+        } else {
+            console.log('No messages in response');
+        }
         
     } catch (error) {
         console.error('Test failed:', error);
