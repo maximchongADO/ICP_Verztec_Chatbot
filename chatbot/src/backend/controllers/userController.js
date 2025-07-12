@@ -1,4 +1,3 @@
-
 const User = require('../models/user.js');
 const bcrypt = require('bcrypt');
 const fs = require('fs');
@@ -109,8 +108,8 @@ const adminCreateUser = async (req, res) => {
     if (!username || !email || !password || !role) {
         return res.status(400).json({ message: 'Missing required fields' });
     }
-    if (!['user', 'admin'].includes(role)) {
-        return res.status(400).json({ message: 'Role must be user or admin' });
+    if (!['user', 'admin', 'manager'].includes(role)) {
+        return res.status(400).json({ message: 'Role must be user, admin, or manager' });
     }
     try {
         const hashedPassword = await hashPassword(password);
@@ -145,8 +144,8 @@ const adminUpdateUser = async (req, res) => {
     if (!username && !email && !role && !password) {
         return res.status(400).json({ message: 'No fields to update' });
     }
-    if (role && !['user', 'admin'].includes(role)) {
-        return res.status(400).json({ message: 'Role must be user or admin' });
+    if (role && !['user', 'admin', 'manager'].includes(role)) {
+        return res.status(400).json({ message: 'Role must be user, admin, or manager' });
     }
     try {
         let updateFields = {};

@@ -55,7 +55,7 @@ logger = logging.getLogger(__name__)
 # Initialize models and clients
 embedding_model = SentenceTransformer('BAAI/bge-large-en-v1.5')
 load_dotenv()
-api_key='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'
+api_key='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'
 model = "deepseek-r1-distill-llama-70b" 
 deepseek = ChatGroq(api_key=api_key, model=model) # type: ignore
 
@@ -1226,7 +1226,8 @@ try:
             **Important Notes:**
             - All escalations are handled with strict confidentiality
             - You may be contacted for additional information if needed
-            - If this is an urgent safety matter, please also contact your immediate supervisor
+            - If this is an urgent safety matter, please also contact your immediate supervisor or manager
+            - For policy-related issues, your manager may also be involved in the resolution process
 
             **Reference ID:** ESC-{datetime.now().strftime('%Y%m%d-%H%M%S')}
 

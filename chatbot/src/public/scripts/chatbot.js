@@ -1098,6 +1098,12 @@ function isAdmin() {
   return getCurrentUser() && getCurrentUser().role === 'admin';
 }
 
+// Helper to check if current user is admin or manager
+function isAdminOrManager() {
+  const user = getCurrentUser();
+  return user && ['admin', 'manager'].includes(user.role);
+}
+
 // Profile dropdown logic
 function populateProfileSection() {
   const user = getCurrentUser();
@@ -1130,17 +1136,25 @@ function closeProfileDropdownOnClick(e) {
 // Wait for user info to be loaded and then populate profile
 document.addEventListener("DOMContentLoaded", function () {
   // Initialize chat history on page load
-window.addEventListener("DOMContentLoaded", function () {
   setTimeout(() => {
-    // Load chat history automatically since it's now integrated into the main sidebar
     getChatHistorySidebar();
   }, 200);
-});
+  
   // Wait for window.currentUser to be set (from HTML inline script)
   let tries = 0;
   function tryPopulateProfile() {
     if (window.currentUser) {
       populateProfileSection();
+      
+      // Show admin button for admin and manager roles
+      const adminBtn = document.getElementById("adminAddUserBtn");
+      if (adminBtn && isAdminOrManager()) {
+        adminBtn.style.display = "flex";
+        // Update button text for managers
+        if (window.currentUser.role === 'manager') {
+          adminBtn.querySelector('span').textContent = 'Manage Users';
+        }
+      }
     } else if (tries < 20) {
       tries++;
       setTimeout(tryPopulateProfile, 100);

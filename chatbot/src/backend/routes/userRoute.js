@@ -66,18 +66,18 @@ const userRoute = (app) => {
     authenticateToken,
     userController.getUserFeedback
   );
-  // Admin-only: company-wide analytics
+  // Admin or Manager: company-wide analytics
   app.get(
     "/api/users/company-analytics",
     authenticateToken,
-    authenticateToken.requireAdmin,
+    authenticateToken.requireAdminOrManager,
     userController.getCompanyAnalytics
   );
-  // Admin-only: all users' analytics
+  // Admin or Manager: all users' analytics
   app.get(
     "/api/users/all-analytics",
     authenticateToken,
-    authenticateToken.requireAdmin,
+    authenticateToken.requireAdminOrManager,
     userController.getAllUsersAnalytics
   );
 

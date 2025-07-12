@@ -26,7 +26,7 @@ const validatePassword = (password) => {
 };
 
 const validateUserType = (userType) => {
-  const validTypes = ['user', 'admin'];
+  const validTypes = ['user', 'admin', 'manager'];
   return validTypes.includes(userType.toLowerCase());
 };
 
@@ -155,7 +155,7 @@ const validateUserRecord = (row, rowIndex) => {
 
   // Validate user type
   if (!validateUserType(userRecord.user_type)) {
-    errors.push(`Invalid user type: ${userRecord.user_type}. Must be 'user' or 'admin'`);
+    errors.push(`Invalid user type: ${userRecord.user_type}. Must be 'user', 'admin', or 'manager'`);
   }
 
   // Validate username
@@ -350,7 +350,12 @@ const batchUploadUsers = async (req, res) => {
     res.json({
       success: true,
       message: 'Batch upload completed',
-      result: result
+      successful_uploads: result.successful_uploads,
+      failed_uploads: result.failed_uploads,
+      duplicates_handled: result.duplicates_handled,
+      errors: result.errors,
+      total_records: result.total_records,
+      processing_time: result.processing_time
     });
 
   } catch (error) {

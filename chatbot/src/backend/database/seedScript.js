@@ -151,6 +151,7 @@ async function insertInitialData(connection) {
         // Insert users
         const hashedPassword1 = await bcrypt.hash('password1234', 10);
         const hashedPassword2 = await bcrypt.hash('maximchong1', 10);
+        const hashedPassword3 = await bcrypt.hash('manager123', 10);
         
         const insertSQL = `
             INSERT INTO Users (username, email, password, role) 
@@ -158,6 +159,7 @@ async function insertInitialData(connection) {
         
         await connection.execute(insertSQL, ['Toby', 'toby@gmail.com', hashedPassword1, 'user']);
         await connection.execute(insertSQL, ['Maxim', 'maxim@gmail.com', hashedPassword2, 'admin']);
+        await connection.execute(insertSQL, ['Manager', 'manager@gmail.com', hashedPassword3, 'manager']);
         console.log('Users inserted successfully');
         
         // Update data directory path to be relative to src folder
