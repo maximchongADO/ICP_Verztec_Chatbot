@@ -941,21 +941,56 @@
         </div>
     </div>
 
+    <script src="/scripts/fileUpload.js"></script>
     <script>
-        // File upload functionality
-        let uploadedFiles = [];
-        
-        function checkAdminAccess() {
+        // Theme toggle functionality to match chatbot interface
+        function setTheme(theme) {
+            document.documentElement.setAttribute('data-theme', theme);
+            localStorage.setItem('theme', theme);
+        }
+
+        // Initialize theme on page load
+        (function() {
+            let theme = localStorage.getItem('theme');
+            if (!theme) {
+                theme = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+            }
+            setTheme(theme);
+        })();
+
+        // Check admin access using actual backend API
+        async function checkAdminAccess() {
             const token = localStorage.getItem("token");
             if (!token) {
                 showAccessDenied();
                 return false;
             }
             
-            // For demo purposes, assume admin access
-            // In real app, check with API
-            showUploadInterface();
-            return true;
+            try {
+                const response = await fetch('/api/users/me', {
+                    headers: { 
+                        'Authorization': `Bearer ${token}`,
+                        'Content-Type': 'application/json'
+                    }
+                });
+                
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                
+                const user = await response.json();
+                if (user && user.role === 'admin') {
+                    showUploadInterface();
+                    return true;
+                } else {
+                    showAccessDenied();
+                    return false;
+                }
+            } catch (error) {
+                console.error('Error checking admin access:', error);
+                showAccessDenied();
+                return false;
+            }
         }
         
         function showUploadInterface() {
@@ -967,51 +1002,16 @@
         function showAccessDenied() {
             document.getElementById('uploadInterface').style.display = 'none';
             document.getElementById('accessDenied').style.display = 'block';
+            document.getElementById('adminLink').style.display = 'none';
         }
         
-        function initializeFileUpload() {
-            const dropZone = document.getElementById('dropZone');
-            const fileInput = document.getElementById('fileInput');
-            
-            // Drag and drop events
-            dropZone.addEventListener('dragover', function(e) {
-                e.preventDefault();
-                dropZone.classList.add('drag-over');
-            });
-            
-            dropZone.addEventListener('dragleave', function(e) {
-                e.preventDefault();
-                dropZone.classList.remove('drag-over');
-            });
-            
-            dropZone.addEventListener('drop', function(e) {
-                e.preventDefault();
-                dropZone.classList.remove('drag-over');
-                const files = Array.from(e.dataTransfer.files);
-                handleFiles(files);
-            });
-            
-            fileInput.addEventListener('change', function(e) {
-                const files = Array.from(e.target.files);
-                handleFiles(files);
-            });
-        }
-        
-        function handleFiles(files) {
-            files.forEach(file => {
-                if (validateFile(file)) {
-                    uploadFile(file);
-                }
-            });
-        }
-        
-        function validateFile(file) {
-            const maxSize = 10 * 1024 * 1024; // 10MB
-            const allowedTypes = [
-                'application/pdf',
-                'application/msword',
-                'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-                'text/plain',
+        // Initialize on page load
+        document.addEventListener('DOMContentLoaded', function() {
+            checkAdminAccess();
+        });
+    </script>
+</body>
+</html>
                 'application/vnd.openxmlformats-officedocument.presentationml.presentation'
             ];
             
