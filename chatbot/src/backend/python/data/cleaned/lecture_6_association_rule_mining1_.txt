@@ -1,0 +1,74 @@
+--- Slide 1 --- Applied Analytics Association Rule Mining AA Diploma in Cybersecurity and Digital Forensics Diploma in Data Science Diploma in Information Technology Year 2/3 (2025/2026), Apr Semester Last update: 29-06-2025 <|image_start|>lecture_6_association_rule_mining1__slide1_img
+1.png<|image_end|> Lecture 6 <|image_start|>lecture_6_association_rule_mining1__slide1_img
+2.png<|image_end|> --- Slide 2 --- Topics Concepts of Mining Association Rules Strength of Association Rules Support, Confidence, Lift Process of Rule Generation The Apriori Algorithm Frequent Item Sets using Apriori Algorithm Rule Generation Limitations of Apriori Algorithm Lecture 6 Slide 2 --- Slide 3 --- Beer & Diaper The beer and diaper association story in Analytics circle is (urban) legendary (Power, 2002). Lecture 6 Slide 3 <|image_start|>lecture_6_association_rule_mining1__slide3_img
+3.gif<|image_end|> How did the supermarket determine such a relationship between products existed? Association Analysis --- Slide 4 --- Association Analysis Measures the strength of co-occurrence between one item and another The objective of this class of data mining algorithms is not to predict an occurrence of an item, like classification or regression do, but to find usable patterns in the co-occurrences of the items Association rules learning is a branch of an unsupervised learning process that discovers hidden patterns in data, in the form of easily recognizable rules Lecture 6 Slide 4 --- Slide 5 --- Association Analysis Association algorithms are widely used in retail analysis of transactions, recommendation engines, and online clickstream analysis across web pages. One of the popular applications of this technique is called Market Basket Analysis, which finds co-occurrences of one retail item with another item within the same retail purchase transaction Lecture 6 Slide 5 --- Slide 6 --- Association Analysis The model outcome of an association analysis can be represented as a set of rules, like the one below: { Item A } -> { Item B } If Item A is found in a transaction or a basket, there is a strong propensity of occurrence of Item B within the same transaction The antecedent and consequent of the rule can contain more than one item, like {Item A and Item C} Lecture 6 Slide 6 Antecedent/Premise Consequent/Conclusion --- Slide 7 --- Concepts of Mining Association Rules Step 1: Prepare the data in transaction format. An association algorithm needs input data to be formatted in a particular format Step 2 : Short-list frequently occurring item sets. Item sets are combination of items. An association algorithm limits the analysis to the most frequently occurring items, so the final rule set extracted in next step is more meaningful Step 3: Generate relevant association rules from item sets. Finally, the algorithm generates and filters the rules based on the interest measure Lecture 6 Slide 7 --- Slide 8 --- Concepts of Mining Association Rules Transaction Formats Lecture 6 Slide 8 Market Basket Transaction Format Binary/Sparse Format Non-Sparse Format --- Slide 9 --- Example Table below shows a list of sessions and media categories accessed during a given session. Our objective in this data mining task is to find associations between media categories. Lecture 6 Slide 9 <|image_start|>lecture_6_association_rule_mining1__slide9_img
+4.png<|image_end|> --- Slide 10 --- Item Sets { News, Finance } -> { Sports } An item set can occur either in the antecedent or in the consequent portion of the rule; Both sets should be disjointed, which means there should not be any common item on both sides of the rules Lecture 6 Slide 10 Item Set --- Slide 11 --- Strength of Association Rules Support Confidence Lift All these measures are based on the relative frequency of occurrences of a particular item set in the transactions data set used for training. Lecture 6 Slide 11 Training set must be unbiased and truly represent the universe of transactions --- Slide 12 --- Support The support of an item is simply the relative frequency of occurrence of an item set in the transaction set. Support({News}) = 5/6 =
+0.83 Support({News, Finance}) = 4/6 =
+0.67 Support({Sports}) = 2/6 =
+0.33 Lecture 6 Slide 12 <|image_start|>lecture_6_association_rule_mining1__slide12_img
+5.png<|image_end|> --- Slide 13 --- Support The support of a rule is a measure of how all the items in a rule are represented in overall transactions Support ({News} -> {Sports}) = 2/6 =
+0.33 What is the Support( {News, Finance} -> {Sports} )? Lecture 6 Slide 13 <|image_start|>lecture_6_association_rule_mining1__slide13_img
+6.png<|image_end|> =2/6 =
+0.33 --- Slide 14 --- Confidence The confidence of a rule measures the likelihood of occurrence of the consequent of the rule out of all the transactions that contain the antecedent of the rule. Confidence provides the reliability measure of the rule. Confidence of the rule (X -> Y) is calculated by Lecture 6 Slide 14 <|image_start|>lecture_6_association_rule_mining1__slide14_img
+7.png<|image_end|> --- Slide 15 --- Confidence What is the confidence of this rule? {News, Finance} -> {Sports} Half of the transactions that contain News and Finance also contain Sports This means 50% of users who visit the news and finance pages also visit sports pages Lecture 6 Slide 15 <|image_start|>lecture_6_association_rule_mining1__slide15_img
+8.png<|image_end|> <|image_start|>lecture_6_association_rule_mining1__slide15_img
+9.png<|image_end|> <|image_start|>lecture_6_association_rule_mining1__slide15_img
+10.png<|image_end|> --- Slide 16 --- Lift Though confidence of the rule is widely used, the frequency of occurrence of a rule consequent (conclusion) is largely ignored In some transaction item sets, this can provide spurious scrupulous rule sets because of the presence of infrequent items in the rule consequent. The lift of the rule can be calculated by: Lecture 6 Slide 16 <|image_start|>lecture_6_association_rule_mining1__slide16_img
+11.png<|image_end|> --- Slide 17 --- Lift What is the Lift of this rule? {News, Finance} -> {Sports} Lift is the ratio of the observed support of {News + Finance} and {Sports} with what is expected if {News + Finance} and {Sports} usage were completely independent Lift values closer to 1 mean the antecedent and consequent of the rules are independent and the rule is not interesting The higher the value of lift, the more interesting the rules are Lecture 6 Slide 17 <|image_start|>lecture_6_association_rule_mining1__slide17_img
+12.png<|image_end|> <|image_start|>lecture_6_association_rule_mining1__slide17_img
+13.png<|image_end|> <|image_start|>lecture_6_association_rule_mining1__slide17_img
+14.png<|image_end|> --- Slide 18 --- Process of Rule Generation Finding all frequent item sets For an association analysis of n items it is possible to find item sets excluding the null item set. As the number of items increase, there is an exponential increase in the number of item sets. Hence it is critical to set a minimal support threshold to discard less frequently occurring item sets in the transaction universe. Lecture 6 Slide 18 <|image_start|>lecture_6_association_rule_mining1__slide18_img
+15.png<|image_end|> --- Slide 19 --- Item Set Tree Lecture 6 Slide 19 <|image_start|>lecture_6_association_rule_mining1__slide19_img
+16.png<|image_end|> 4 items => 2^4 -1 = 15 item sets --- Slide 20 --- Process of Rule Generation Extracting rules from frequent item sets For the data set with n items it is possible to find rules (Tan et al., 2005). This step extracts all the rules with a confidence higher than a minimum confidence threshold Lecture 6 Slide 20 <|image_start|>lecture_6_association_rule_mining1__slide20_img
+17.png<|image_end|> e.g. 4 items => 15 item sets => 81-32+1 = 50 rules --- Slide 21 --- The Apriori Algorithm Association rule algorithms => efficiently find the frequent item sets from the universe of all the possible item sets The Apriori algorithm leverages two simple logical principles on the lattice item sets to reduce the number of item sets to be tested for the support measure The Apriori principles states that "If an item set is frequent, then all its subset items will be frequent." (Tan et al, 2005). The item set is "frequent" if the support for the item set is more than support threshold Conversely, if the item set is infrequent, then all its supersets will be infrequent Lecture 6 Slide 21 --- Slide 22 --- Frequent Item Sets using Apriori Principle Lecture 6 Slide 22 <|image_start|>lecture_6_association_rule_mining1__slide22_img
+18.png<|image_end|> Threshold Support =
+0.25
+0.33 --- Slide 23 --- Frequent Item Sets using Apriori Principle The support measures of the subset item sets for {News, Finance, Sports} are: Support {News, Finance, Sports} =
+0.33 (above threshold support) Support {News, Finance} =
+0.66 Support {News, Sports} =
+0.33 Support {Finance, Sports} =
+0.33 Support {News} =
+0.83 Support {Sports} =
+0.33 Support {Finance} =
+0.66 Lecture 6 Slide 23 --- Slide 24 --- Frequent Item Sets using Apriori Principle: Exclusion Conversely, if the item set is infrequent, then all its supersets will be infrequent. Lecture 6 Slide 24 <|image_start|>lecture_6_association_rule_mining1__slide24_img
+19.png<|image_end|>
+0.16 --- Slide 25 --- How is Apriori Principle helpful? The Apriori principle is helpful because not all item sets have to be considered for a support calculation and tested for the support threshold; Hence generation of the frequent item sets can be handled efficiently by eliminating a bunch of item sets that have an infrequent item or item sets (Bodon,2005) Lecture 6 Slide 25 --- Slide 26 --- Example: Frequent Item Set Generation Using the Apriori Principle Lecture 6 Slide 26 <|image_start|>lecture_6_association_rule_mining1__slide26_img
+20.png<|image_end|> 6 transactions Support Threshold =
+0.25 Threshold Support Count = 2 --- Slide 27 --- Example: Frequent Item Set Generation Using the Apriori Principle Lecture 6 Slide 27 <|image_start|>lecture_6_association_rule_mining1__slide27_img
+21.png<|image_end|> 4 items => 2^4 -1 = 15 item sets 3 items => 2^3 -1 = 7 item sets --- Slide 28 --- Rule Generation Once the frequent item sets are generated, the next step in association analysis is generating useful rules which have a clear antecedent (premise) and consequent (conclusion), in the format of the following rule: {Item A} - > {Item B} The usefulness of the rule can be approximated by an objective measure of interest such as confidence or lift Each frequent item set of n items can generate 2^n – 2 rules which involves all the n items. Lecture 6 Slide 28 check --- Slide 29 --- Rule Generation For example {News, Sports, Finance} can generate rules with the following confidence scores. {News, Sports}->{Finance} –
+0.33 /
+0.33 =
+1.0 {News, Finance}->{Sports} –
+0.33 /
+0.67 =
+0.5 {Sports, Finance}->{News} –
+0.33 /
+0.33 =
+1.0 {News}->{Sports, Finance} –
+0.33 /
+0.83 =
+0.4 {Sports}->{News, Finance} –
+0.33 /
+0.33 =
+1.0 {Finance}->{News, Sports} –
+0.33 /
+0.67 =
+0.5 It is possible to prune potentially low confidence rules using the same Apriori method Lecture 6 Slide 29 --- Slide 30 --- Rule Generation For a given frequent item set {News, Finance, Sports}, if the rule {News, Finance} -> {Sports} is a low confidence rule, then we can conclude any rules within the subset of the antecedent will be a low confidence rule {News, Sports}->{Finance} –
+0.33 /
+0.33 =
+1.0 {News, Finance}->{Sports} –
+0.33 /
+0.67 =
+0.5 {Sports, Finance}->{News} –
+0.33 /
+0.33 =
+1.0 {News}->{Sports, Finance} –
+0.33 /
+0.83 =
+0.4 {Sports}->{News, Finance} –
+0.33 /
+0.33 =
+1.0 {Finance}->{News, Sports} –
+0.33 /
+0.67 =
+0.5 Lecture 6 Slide 30 --- Slide 31 --- Example 1: Apriori Algorithm Example (MinSup = 50%, i.e. 2) Example Transaction Database Lecture 6 Slide 31 --- Slide 32 --- Recap: Generating Rules: Apriori Approach Overview No need to scan through the database for confidence For any K-itemset, there are 2k-2 possible rules. e.g. For {2,3,5}, there are 6 possible rules which involves all three items: {2,3}  {5}, {2,5}  {3}, {3,5}  {2}, {2}  {3,5}, {3}  {2,5}, and {5}  {2,3} e.g. Rule {2,5}  {3} has the confidence of 67% below MinConf = 90%. Then rule {2}  {3,5} & {5}  {2,3} also has insufficient confidence. Lecture 6 Slide 32 --- Slide 33 --- Recap: Generating Rules: Apriori Approach Apriori Rule Generation Algorithm Observation: Possible rules from an itemset {a, b, c, d} If any node has low confidence, all nodes in its sub-graphs have low confidence, and hence can be pruned (e.g. {b, c, d} {a}) Lecture 6 Slide 33 --- Slide 34 --- Generating Rules: Apriori Approach Apriori Rule Generation (Example) For frequent itemsets obtained from the previous example, F = {({1}, 2), ({2}, 3), ({3}, 3), ({5}, 3), ({1,3}, 2), ({2,3}, 2), ({2,5}, 3), ({3,5}, 2), ({2,3,5}, 2)}. Assuming MinConf = 90%, then: {1}  {3} cf = 100% and sup = 50% {5}  {2} cf = 100% and sup = 75% {2}  {5} cf = 100% and sup = 75% {3,5}  {2} cf = 100% and sup = 50% {2,3}  {5} cf = 100% and sup = 50% Lecture 6 Slide 34 --- Slide 35 --- Apriori: Limitations Limitations of Apriori Algorithm Exponential: The number of candidate itemsets generated, increases exponentially as MinSup decreases linearly. Wastage: The apriori algorithm already limits the number of candidates before counting the support. But still, many candidates are generated and later found infrequent. Multiple Scans: Apriori scans the database many times. The number of scans increases when frequent itemsets contain a large number of items. Heavy use of memory resources during in the generate-and-test process. --- Slide 36 --- Chapter Summary Boolean association rules state associations between the presence of certain items with the presence of some other items Association rules are measured and evaluated in terms of support, confidence and lift The most significant part of association rule mining is the discovery of frequent itemsets Apriori algorithm for finding frequent itemsets follows a create-and-test greedy approach. FP-growth algorithm offers an alternative by traversing a FP-tree without generating candidate itemsets Apriori approach is also used for generating rule expressions --- Slide 37 --- Related Online Resource Lecture 6 Slide 37 https://youtu.be/WGlMlS_Yydk --- Slide 38 --- References Chapter 8 of this book Tan, P-N., Steinbach, M. and Kumar, V. (2006), Introduction to Data Mining, Addison-Wesley, Chapters 6 Han, J. and Kamber, M. (2006), Data Mining: Concepts and Techniques, 2nd ed. Morgan Kaufmann, Chapter 5

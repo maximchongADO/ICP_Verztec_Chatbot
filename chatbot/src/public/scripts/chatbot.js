@@ -929,9 +929,17 @@ function handleFileUpload(event) {
 
   // Check admin before redirecting
   fetch('/api/users/me', {
-    headers: { Authorization: `Bearer ${token}` }
+    headers: { 
+      Authorization: `Bearer ${token}`,
+      'Content-Type': 'application/json'
+    }
   })
-    .then(res => res.ok ? res.json() : null)
+    .then(res => {
+      if (!res.ok) {
+        throw new Error(`HTTP error! status: ${res.status}`);
+      }
+      return res.json();
+    })
     .then(user => {
       if (user && user.role === 'admin') {
         window.location.href = "/fileupload.html";
@@ -939,7 +947,8 @@ function handleFileUpload(event) {
         showNoAccessPopup();
       }
     })
-    .catch(() => {
+    .catch((error) => {
+      console.error('Error checking admin access:', error);
       showNoAccessPopup();
     });
 }
