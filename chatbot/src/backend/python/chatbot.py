@@ -16,7 +16,7 @@ from typing import List
 from dotenv import load_dotenv
 from sentence_transformers import SentenceTransformer
 from transformers import AutoModelForSeq2SeqLM, AutoTokenizer
-
+from typing import Optional, Dict
 from langchain_groq import ChatGroq
 from langchain.schema import HumanMessage, AIMessage, Document
 from langchain.memory import ConversationBufferMemory
@@ -33,7 +33,16 @@ from langchain_core.prompts import PromptTemplate
 from langchain_core.agents import AgentAction, AgentFinish
 from langchain.prompts import ChatPromptTemplate
 from tool_executors import execute_confirmed_tool, execute_hr_escalation_tool, execute_meeting_scheduling_tool
-
+import csv
+import logging
+import os
+import re
+import smtplib
+from datetime import datetime, timedelta
+from typing import Optional, Dict, Any, List, Tuple
+from email.mime.text import MIMEText
+from email.mime.multipart import MIMEMultipart
+from dotenv import load_dotenv
 # Set up logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
@@ -1894,3 +1903,188 @@ def agentic_bot_v1(user_query: str, user_id: str, chat_id: str):
             pass  # Don't fail on logging errors
         
         return error_response, []
+    
+    
+    
+
+def extract_meeting_details(user_query: str) -> Dict[str, Any]:
+    """
+    Extract meeting details from natural language user query using LLM.
+    
+    Args:
+        user_query (str): User's natural language meeting request
+        
+    Returns:
+        dict: Extracted meeting details with confidence scores
+    """
+    try:
+        # Import the LLM models from chatbot.py when needed
+        from langchain_groq import ChatGroq
+        from langchain_core.prompts import ChatPromptTemplate
+        import json
+        import re
+        
+        # Initialize the LLM (using same config as in chatbot.py)
+        api_key = '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'
+        extraction_model = ChatGroq(
+            api_key=api_key, 
+            model="qwen/qwen3-32b",
+            temperature=0,
+            model_kwargs={
+                "top_p": 0,
+                "frequency_penalty": 0,
+                "presence_penalty": 0
+            }
+        )
+        
+        # Get current date and time context
+        from datetime import datetime
+        current_datetime = datetime.now()
+        current_date = current_datetime.strftime("%A, %B %d, %Y")
+        current_time = current_datetime.strftime("%I:%M %p")
+        
+        # Create extraction prompt with current date/time context
+        extraction_prompt = ChatPromptTemplate.from_messages([
+            ("system", """You are a meeting detail extraction assistant. Extract meeting details from user input and return ONLY a valid JSON object.
+
+CURRENT CONTEXT:
+- Today is: {current_date}
+- Current time is: {current_time}
+
+Required JSON format:
+{{
+    "subject": "string or null",
+    "date_time": "string or null", 
+    "duration": "string or null",
+    "participants": ["array", "of", "strings"],
+    "meeting_type": "virtual|in-person|hybrid or null",
+    "location": "string or null",
+    "priority": "high|normal|low",
+    "extraction_confidence": "high|medium|low"
+}}
+
+Extraction rules:
+- subject: Main topic/purpose of the meeting
+- date_time: Convert relative dates to specific dates/times. For example:
+  * "tomorrow" = the next day from today
+  * "next Monday" = the next Monday from today
+  * "this Friday" = the upcoming Friday this week
+  * Include both date and time when available (e.g., "Tuesday, July 16, 2025 at 3:00 PM")
+- duration: How long the meeting should be
+- participants: Names, emails, departments, titles mentioned
+- meeting_type: virtual (zoom/teams/online), in-person (conference room/office), or hybrid
+- location: Physical location, room names, or virtual platform
+- priority: high (urgent/asap/emergency), normal (default), low (when possible/eventually)
+- extraction_confidence: high (4+ fields), medium (2-3 fields), low (0-1 fields)
+
+Return ONLY the JSON object. No explanations."""),
+            ("human", "Extract meeting details from: {query}")
+        ])
+        
+        # Create and run the extraction chain
+        extraction_chain = extraction_prompt | extraction_model
+        
+        # Get the response
+        response = extraction_chain.invoke({
+            "query": user_query,
+            "current_date": current_date,
+            "current_time": current_time
+        })
+        raw_response = response.content.strip()
+        
+        logger.info(f"Raw LLM response: {raw_response}")
+        
+        # Clean up the response to extract JSON
+        # Remove any markdown formatting or extra text
+        json_start = raw_response.find('{')
+        json_end = raw_response.rfind('}') + 1
+        
+        if json_start != -1 and json_end > json_start:
+            json_str = raw_response[json_start:json_end]
+            logger.info(f"Extracted JSON string: {json_str}")
+            
+            # Additional cleanup for common issues
+            json_str = json_str.replace('\n', ' ').replace('\r', ' ')
+            json_str = re.sub(r'\s+', ' ', json_str)  # Replace multiple spaces with single space
+            
+            extracted_data = json.loads(json_str)
+            
+            # Add raw query for reference
+            extracted_data['raw_query'] = user_query.strip()
+            
+            # Validate and clean the extracted data
+            details = {
+                'subject': extracted_data.get('subject'),
+                'date_time': extracted_data.get('date_time'),
+                'duration': extracted_data.get('duration'),
+                'participants': extracted_data.get('participants', []) if isinstance(extracted_data.get('participants'), list) else [],
+                'meeting_type': extracted_data.get('meeting_type'),
+                'location': extracted_data.get('location'),
+                'priority': extracted_data.get('priority', 'normal'),
+                'raw_query': user_query.strip(),
+                'extraction_confidence': extracted_data.get('extraction_confidence', 'medium')
+            }
+            
+            logger.info(f"LLM extraction successful: {details}")
+            return details
+            
+        else:
+            raise ValueError("No valid JSON found in LLM response")
+            
+    except json.JSONDecodeError as e:
+        logger.error(f"JSON parsing failed at position {e.pos}: {str(e)}")
+        logger.error(f"Problematic JSON string: {json_str if 'json_str' in locals() else 'Not extracted'}")
+        logger.error(f"Full LLM response: {raw_response if 'raw_response' in locals() else 'Not available'}")
+        
+        # Continue to fallback logic...
+    except Exception as e:
+        logger.error(f"LLM extraction failed: {str(e)}, falling back to regex")
+        
+        # Fallback to basic regex extraction if LLM fails
+        details = {
+            'subject': None,
+            'date_time': None,
+            'duration': None,
+            'participants': [],
+            'meeting_type': None,
+            'location': None,
+            'priority': 'normal',
+            'raw_query': user_query.strip(),
+            'extraction_confidence': 'low'
+        }
+        
+        query_lower = user_query.lower().strip()
+        
+        # Basic regex fallbacks for critical fields
+        # Extract time mentions
+        time_patterns = [
+            r'\d{1,2}(?::\d{2})?\s*(?:am|pm)',
+            r'(?:at\s+)?\d{1,2}(?::\d{2})?',
+            r'tomorrow|today|next week|monday|tuesday|wednesday|thursday|friday|saturday|sunday'
+        ]
+        
+        for pattern in time_patterns:
+            match = re.search(pattern, query_lower)
+            if match:
+                details['date_time'] = match.group(0)
+                break
+        
+        # Extract participant names (simple pattern)
+        participant_match = re.search(r'with\s+([A-Z][a-z]+(?:\s+[A-Z][a-z]+)*)', user_query)
+        if participant_match:
+            details['participants'] = [participant_match.group(1)]
+        
+        # Extract room/location
+        room_match = re.search(r'(?:room|conference room)\s+([A-Za-z0-9]+)', query_lower)
+        if room_match:
+            details['location'] = room_match.group(1).upper()
+        
+        # Basic subject extraction (everything before time/participant mentions)
+        subject_match = re.search(r'^(.+?)(?:\s+(?:with|at|tomorrow|today|next|room))', query_lower)
+        if subject_match:
+            subject = subject_match.group(1).strip()
+            if len(subject) > 3:
+                details['subject'] = subject.replace('meeting', '').strip().title()
+        
+        return details
+

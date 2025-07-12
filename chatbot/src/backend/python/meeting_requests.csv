@@ -1,0 +1,2 @@
+request_id,timestamp,user_id,chat_id,original_query,user_description,extracted_subject,extracted_datetime,extracted_duration,extracted_participants,meeting_type,location,priority,extraction_confidence,status
+MTG-20250713-001450-2,2025-07-13T00:14:50.610941,2,fa6d5452-f71f-476c-b857-cf04680b621a,Set up a meeting with john from hr tmr?,,Meeting with John from HR,"Sunday, July 14, 2025",,John; HR,,,normal,high,AWAITING_USER_CONFIRMATION

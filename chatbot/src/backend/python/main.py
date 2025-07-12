@@ -53,6 +53,13 @@ class ChatResponse(BaseModel):
     error: Optional[str] = None
     images: Optional[List[str]] = None  # Add images field
 
+class MeetingConfirmationRequest(BaseModel):
+    user_response: str
+    meeting_request_id: str
+    user_id: str
+    chat_id: str
+    original_details: dict
+
 @app.exception_handler(Exception)
 async def global_exception_handler(request: Request, exc: Exception):
     logger.error(f"Global error handler: {str(exc)}", exc_info=True)
@@ -257,6 +264,7 @@ async def chat_endpoint(request: ChatRequest):
             tool_used = response_data.get('tool_used', False)
             tool_identified = response_data.get('tool_identified', 'none')
             tool_confidence = response_data.get('tool_confidence', '')
+            meeting_confirmation = response_data.get('meeting_confirmation', None)
         else:
             # Old tuple format (fallback)
             response_message, image_list = response_data
@@ -264,13 +272,14 @@ async def chat_endpoint(request: ChatRequest):
             tool_used = False
             tool_identified = 'none'
             tool_confidence = ''
+            meeting_confirmation = None
         
         logger.info(f"Generated response: {response_message}")
         logger.info(f"Image list: {image_list}")
         logger.info(f"Sources: {sources}")
         logger.info(f"Tool identified: {tool_identified}, Tool used: {tool_used}")
         
-        return {
+        response_dict = {
             "message": response_message,
             "user_id": request.user_id,
             "timestamp": datetime.utcnow().isoformat(),
@@ -281,6 +290,12 @@ async def chat_endpoint(request: ChatRequest):
             "tool_identified": tool_identified,
             "tool_confidence": tool_confidence
         }
+        
+        # Add meeting_confirmation data if present
+        if meeting_confirmation:
+            response_dict["meeting_confirmation"] = meeting_confirmation
+            
+        return response_dict
         
 
     except Exception as e:
@@ -298,11 +313,6 @@ async def chat_endpoint(request: ChatRequest):
             "tool_confidence": "error"
         }
         
-    from fastapi import APIRouter, HTTPException
-from fastapi.responses import JSONResponse
-
-from fastapi.responses import JSONResponse
-
 @app.post("/frequent")
 async def get_frequent_queries():
     logger.info("Received request for frequent queries")
@@ -353,6 +363,84 @@ async def upload_file(
     if not authorization or not authorization.startswith('Bearer '):
         raise HTTPException(status_code=403, detail="Invalid authorization")
     return await process_upload(file)
+
+@app.post("/meeting_confirmation")
+async def meeting_confirmation(request: MeetingConfirmationRequest):
+    """
+    Endpoint to handle meeting confirmation responses (confirm, modify, cancel).
+    """
+    logger.info(f"Received meeting confirmation request: {request}")
+    
+    try:
+        if not request.user_response.strip():
+            raise HTTPException(status_code=400, detail="User response cannot be empty")
+        
+        if not request.meeting_request_id:
+            raise HTTPException(status_code=400, detail="Meeting request ID is required")
+        
+        # Import the meeting confirmation handler from tool_executors
+        from tool_executors import handle_meeting_confirmation_response
+        
+        logger.info(f"Processing meeting confirmation: {request.user_response} for meeting {request.meeting_request_id}")
+        
+        # Execute the meeting confirmation response handler
+        response_data = handle_meeting_confirmation_response(
+            user_response=request.user_response,
+            meeting_request_id=request.meeting_request_id,
+            user_id=request.user_id,
+            chat_id=request.chat_id,
+            original_details=request.original_details,
+            store_chat_log_updated_func=None  # Will be imported dynamically if needed
+        )
+        
+        # Extract response data
+        if isinstance(response_data, dict):
+            response_message = response_data.get('text', '')
+            image_list = response_data.get('images', [])
+            sources = response_data.get('sources', [])
+            tool_used = response_data.get('tool_used', True)
+            tool_identified = response_data.get('tool_identified', 'meeting_response')
+            tool_confidence = response_data.get('tool_confidence', 'executed')
+        else:
+            # Fallback for unexpected format
+            response_message = str(response_data)
+            image_list = []
+            sources = []
+            tool_used = True
+            tool_identified = 'meeting_response'
+            tool_confidence = 'executed'
+        
+        logger.info(f"Generated meeting confirmation response: {response_message[:100]}...")
+        logger.info(f"Meeting action executed - identified: {tool_identified}, used: {tool_used}")
+        
+        return {
+            "message": response_message,
+            "user_id": request.user_id,
+            "chat_id": request.chat_id,
+            "timestamp": datetime.utcnow().isoformat(),
+            "success": True,
+            "images": image_list,
+            "sources": sources,
+            "tool_used": tool_used,
+            "tool_identified": tool_identified,
+            "tool_confidence": tool_confidence
+        }
+        
+    except Exception as e:
+        logger.error(f"Error processing meeting confirmation: {str(e)}", exc_info=True)
+        return {
+            "message": "Sorry, there was an error processing your meeting response. Please try again or contact support.",
+            "user_id": request.user_id,
+            "chat_id": request.chat_id,
+            "timestamp": datetime.utcnow().isoformat(),
+            "success": False,
+            "error": str(e),
+            "images": [],
+            "sources": [],
+            "tool_used": False,
+            "tool_identified": "meeting_confirmation_error",
+            "tool_confidence": "error"
+        }
 
 if __name__ == "__main__":
     try:
