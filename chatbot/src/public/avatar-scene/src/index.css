@@ -27,3 +27,250 @@ body.greenScreen {
   background-position: center;
   background-repeat: no-repeat;
 }
+
+/* Speech Bubble Styles - Updated for better positioning and yellow theme */
+.speech-bubble {
+  position: relative;
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.95), rgba(254, 249, 195, 0.95));
+  backdrop-filter: blur(20px);
+  border: 2px solid rgba(212, 178, 76, 0.4);
+  border-radius: 24px;
+  padding: 20px 24px;
+  max-width: 380px;
+  min-width: 280px;
+  box-shadow: 
+    0 20px 25px -5px rgba(212, 178, 76, 0.2),
+    0 10px 10px -5px rgba(212, 178, 76, 0.1),
+    0 0 0 1px rgba(255, 215, 0, 0.1);
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+  transform: translateZ(0);
+  will-change: transform;
+  font-size: 14px;
+}
+
+.speech-bubble-arrow {
+  position: absolute;
+  left: -14px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 0;
+  height: 0;
+  border-top: 14px solid transparent;
+  border-bottom: 14px solid transparent;
+  border-right: 14px solid rgba(255, 255, 255, 0.95);
+  filter: drop-shadow(-3px 0 6px rgba(212, 178, 76, 0.2));
+}
+
+/* Synchronized Text Styles - Yellow/Gold Theme */
+.synchronized-text-container {
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+  line-height: 1.6;
+}
+
+.text-display {
+  font-size: 15px;
+  font-weight: 500;
+  color: #a08a3c;
+  margin-bottom: 14px;
+  letter-spacing: -0.01em;
+  line-height: 1.5;
+}
+
+.word {
+  display: inline;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  position: relative;
+}
+
+.word.displayed {
+  opacity: 1;
+  color: #6b5b2c;
+  animation: wordFadeIn 0.4s ease-out;
+}
+
+.word.current {
+  color: #d4b24c;
+  font-weight: 700;
+  background: linear-gradient(135deg, #d4b24c, #ffd700);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  animation: wordHighlight 0.6s ease-out;
+  text-shadow: 0 0 20px rgba(212, 178, 76, 0.4);
+  transform: scale(1.05);
+}
+
+.typing-cursor {
+  color: #d4b24c;
+  font-weight: 600;
+  animation: blink 1s infinite;
+  margin-left: 2px;
+}
+
+/* Progress Container - Yellow Theme */
+.progress-container {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.progress-bar {
+  flex: 1;
+  height: 4px;
+  background: linear-gradient(90deg, #f7f3e7, #ecebe7);
+  border-radius: 2px;
+  overflow: hidden;
+  position: relative;
+}
+
+.progress-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #d4b24c, #ffd700, #ffed4a);
+  border-radius: 2px;
+  transition: width 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  position: relative;
+  box-shadow: 0 0 10px rgba(212, 178, 76, 0.5);
+}
+
+.progress-fill::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  right: 0;
+  width: 8px;
+  height: 100%;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.8));
+  animation: shimmer 2s infinite;
+}
+
+.progress-text {
+  font-size: 11px;
+  font-weight: 600;
+  color: #a08a3c;
+  white-space: nowrap;
+  letter-spacing: 0.025em;
+}
+
+/* Animations */
+@keyframes wordFadeIn {
+  0% {
+    opacity: 0;
+    transform: translateY(3px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes wordHighlight {
+  0% {
+    transform: scale(1);
+    filter: brightness(1);
+  }
+  50% {
+    transform: scale(1.08);
+    filter: brightness(1.3);
+  }
+  100% {
+    transform: scale(1.05);
+    filter: brightness(1.1);
+  }
+}
+
+@keyframes blink {
+  0%, 50% { opacity: 1; }
+  51%, 100% { opacity: 0; }
+}
+
+@keyframes shimmer {
+  0% { transform: translateX(-100%); }
+  100% { transform: translateX(100%); }
+}
+
+/* Responsive Design - Closer positioning */
+@media (max-width: 768px) {
+  .speech-bubble {
+    max-width: 280px;
+    min-width: 220px;
+    padding: 16px 20px;
+    font-size: 13px;
+  }
+  
+  .text-display {
+    font-size: 13px;
+  }
+  
+  .progress-text {
+    font-size: 10px;
+  }
+}
+
+/* Enhanced visual effects - Yellow theme */
+.speech-bubble:hover {
+  transform: translateY(-1px) translateZ(0);
+  box-shadow: 
+    0 25px 30px -5px rgba(212, 178, 76, 0.25),
+    0 15px 15px -5px rgba(212, 178, 76, 0.15),
+    0 0 0 1px rgba(255, 215, 0, 0.2);
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  border-color: rgba(212, 178, 76, 0.6);
+}
+
+/* Glassmorphism effect enhancement - Yellow theme */
+@supports (backdrop-filter: blur(20px)) {
+  .speech-bubble {
+    background: rgba(255, 255, 255, 0.85);
+    backdrop-filter: blur(20px) saturate(180%);
+  }
+}
+
+/* Dark mode support - Yellow theme */
+@media (prefers-color-scheme: dark) {
+  .speech-bubble {
+    background: linear-gradient(135deg, rgba(26, 24, 18, 0.95), rgba(36, 32, 20, 0.95));
+    border: 2px solid rgba(212, 178, 76, 0.5);
+  }
+  
+  .speech-bubble-arrow {
+    border-right-color: rgba(26, 24, 18, 0.95);
+  }
+  
+  .text-display {
+    color: #ffd700;
+  }
+  
+  .word.displayed {
+    color: #d4b24c;
+  }
+  
+  .word.current {
+    color: #ffd700;
+    background: linear-gradient(135deg, #ffd700, #ffed4a);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+  }
+  
+  .progress-bar {
+    background: linear-gradient(90deg, #2a2621, #3a322a);
+  }
+  
+  .progress-text {
+    color: #d4b24c;
+  }
+}
+
+/* Additional positioning improvements */
+.speech-bubble {
+  position: relative;
+  z-index: 1000;
+  margin: 0;
+}
+
+/* Ensure text is always visible */
+.synchronized-text-container {
+  min-height: 60px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}

@@ -3,6 +3,7 @@ import {
   ContactShadows,
   Environment,
   Text,
+  Html, // Add Html import for text overlay
 } from "@react-three/drei";
 import { Suspense, useEffect, useRef, useState } from "react";
 import { useChat } from "../hooks/useChat";
@@ -47,9 +48,10 @@ export const Experience = () => {
 
   useEffect(() => {
     if (cameraZoomed) {
-      cameraControls.current.setLookAt(0, 1.5, 1.5, 0, 1.5, 0, true);
+      // Adjust camera to show both avatar and text bubble better
+      cameraControls.current.setLookAt(0.6, 1.4, 1.5, 0, 1.2, 0, true);
     } else {
-      cameraControls.current.setLookAt(0, 2.2, 5, 0, 1.0, 0, true);
+      cameraControls.current.setLookAt(0, 2.2, 4.5, 0, 1.0, 0, true);
     }
   }, [cameraZoomed]);
   return (
