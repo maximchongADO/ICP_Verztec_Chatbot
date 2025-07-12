@@ -130,20 +130,27 @@ body {
     border-radius: 18px;
     font-size: 0.875rem;
     display: none;
+    background: var(--background-card);
+    border-radius: 12px;
+    padding: 1rem;
+    margin-bottom: 2rem;
+    text-align: center;
+    border: 1px solid transparent;
+    font-weight: 500;
 }
 
 .upload-status.success {
     display: block;
     background: rgba(16, 185, 129, 0.1);
     color: #10b981;
-    border: 1.5px solid #10b981;
+    border-color: #10b981;
 }
 
 .upload-status.error {
     display: block;
     background: rgba(239, 68, 68, 0.1);
     color: #dc3545;
-    border: 1.5px solid #dc3545;
+    border-color: #dc3545;
 }
 
 .upload-logo {
@@ -314,6 +321,11 @@ body {
     outline: none;
 }
 
+.nav-item:focus {
+  outline: 2px solid #d4b24c;
+  outline-offset: 2px;
+}
+
 .nav-item svg {
     width: 22px;
     height: 22px;
@@ -352,6 +364,7 @@ body {
   transition: background 0.18s, color 0.18s, border 0.18s;
   box-shadow: 0 1px 4px 0 rgba(212,178,76,0.04);
 }
+
 .theme-toggle-btn:hover,
 .theme-toggle-btn:focus {
   background: #f7f6f2;

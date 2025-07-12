@@ -9,7 +9,7 @@ const fileInput = document.getElementById('fileInput');
 const uploadList = document.getElementById('uploadList');
 const uploadStatus = document.getElementById('uploadStatus');
 
-// Prevent non-admins from using upload JS
+// Check admin access and disable UI for non-admins
 (function() {
     const token = localStorage.getItem("token");
     if (!token) return;
@@ -20,10 +20,14 @@ const uploadStatus = document.getElementById('uploadStatus');
     .then(user => {
         if (user && user.role !== 'admin') {
             showAdminPopup();
-            // Optionally, disable upload UI
-            document.getElementById('dropZone').style.pointerEvents = 'none';
-            document.getElementById('dropZone').style.opacity = '0.6';
-            document.getElementById('uploadList').style.opacity = '0.6';
+            // Disable upload UI
+            if (document.getElementById('dropZone')) {
+                document.getElementById('dropZone').style.pointerEvents = 'none';
+                document.getElementById('dropZone').style.opacity = '0.6';
+            }
+            if (document.getElementById('uploadList')) {
+                document.getElementById('uploadList').style.opacity = '0.6';
+            }
         }
     })
     .catch(() => {});
@@ -52,7 +56,9 @@ function showAdminPopup() {
 
 // Handle drag and drop events
 ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
-    dropZone.addEventListener(eventName, preventDefaults, false);
+    if (dropZone) {
+        dropZone.addEventListener(eventName, preventDefaults, false);
+    }
 });
 
 function preventDefaults(e) {
@@ -61,24 +67,36 @@ function preventDefaults(e) {
 }
 
 ['dragenter', 'dragover'].forEach(eventName => {
-    dropZone.addEventListener(eventName, highlight, false);
+    if (dropZone) {
+        dropZone.addEventListener(eventName, highlight, false);
+    }
 });
 
 ['dragleave', 'drop'].forEach(eventName => {
-    dropZone.addEventListener(eventName, unhighlight, false);
+    if (dropZone) {
+        dropZone.addEventListener(eventName, unhighlight, false);
+    }
 });
 
 function highlight() {
-    dropZone.classList.add('drag-over');
+    if (dropZone) {
+        dropZone.classList.add('drag-over');
+    }
 }
 
 function unhighlight() {
-    dropZone.classList.remove('drag-over');
+    if (dropZone) {
+        dropZone.classList.remove('drag-over');
+    }
 }
 
 // Handle dropped files
-dropZone.addEventListener('drop', handleDrop, false);
-fileInput.addEventListener('change', handleFileSelect, false);
+if (dropZone) {
+    dropZone.addEventListener('drop', handleDrop, false);
+}
+if (fileInput) {
+    fileInput.addEventListener('change', handleFileSelect, false);
+}
 
 function handleDrop(e) {
     const dt = e.dataTransfer;
@@ -96,8 +114,15 @@ function handleFiles(files) {
 }
 
 async function uploadFile(file) {
+    // Validate file before upload
+    if (!validateFile(file)) {
+        return;
+    }
+
     const fileItem = createFileItem(file);
-    uploadList.appendChild(fileItem);
+    if (uploadList) {
+        uploadList.appendChild(fileItem);
+    }
 
     const formData = new FormData();
     formData.append('file', file);
@@ -107,7 +132,7 @@ async function uploadFile(file) {
             method: 'POST',
             headers: {
                 'Authorization': `Bearer ${token}`,
-                // Remove Content-Type, let browser set it with boundary for FormData
+                // Don't set Content-Type, let browser set it with boundary for FormData
             },
             credentials: 'include',
             body: formData
@@ -130,6 +155,29 @@ async function uploadFile(file) {
     }
 }
 
+function validateFile(file) {
+    const maxSize = 10 * 1024 * 1024; // 10MB
+    const allowedTypes = [
+        'application/pdf',
+        'application/msword',
+        'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+        'text/plain',
+        'application/vnd.openxmlformats-officedocument.presentationml.presentation'
+    ];
+    
+    if (file.size > maxSize) {
+        showStatus('error', 'File too large. Maximum size is 10MB.');
+        return false;
+    }
+    
+    if (!allowedTypes.includes(file.type)) {
+        showStatus('error', 'Unsupported file type. Please upload PDF, DOC, DOCX, TXT, or PPTX files.');
+        return false;
+    }
+    
+    return true;
+}
+
 function createFileItem(file) {
     const fileItem = document.createElement('div');
     fileItem.className = 'file-item';
@@ -144,21 +192,25 @@ function createFileItem(file) {
 
 function updateFileStatus(fileItem, status, message) {
     const statusDiv = fileItem.querySelector('.file-status');
-    statusDiv.className = `file-status status-${status}`;
-    statusDiv.textContent = message;
+    if (statusDiv) {
+        statusDiv.className = `file-status status-${status}`;
+        statusDiv.textContent = message;
+    }
 }
 
 function showStatus(type, message) {
-    uploadStatus.className = `upload-status ${type}`;
-    uploadStatus.textContent = message;
-    uploadStatus.style.display = 'block';
-    
-    setTimeout(() => {
-        uploadStatus.style.display = 'none';
-    }, 5000);
+    if (uploadStatus) {
+        uploadStatus.className = `upload-status ${type}`;
+        uploadStatus.textContent = message;
+        uploadStatus.style.display = 'block';
+        
+        setTimeout(() => {
+            uploadStatus.style.display = 'none';
+        }, 5000);
+    }
 }
 
-// Add navigation functions
+// Navigation functions
 function logout() {
     localStorage.removeItem("token");
     localStorage.removeItem("userId");
