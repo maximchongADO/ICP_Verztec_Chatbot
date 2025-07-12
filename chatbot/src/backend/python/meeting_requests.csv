@@ -1,2 +1,5 @@
 request_id,timestamp,user_id,chat_id,original_query,user_description,extracted_subject,extracted_datetime,extracted_duration,extracted_participants,meeting_type,location,priority,extraction_confidence,status
 MTG-20250713-001450-2,2025-07-13T00:14:50.610941,2,fa6d5452-f71f-476c-b857-cf04680b621a,Set up a meeting with john from hr tmr?,,Meeting with John from HR,"Sunday, July 14, 2025",,John; HR,,,normal,high,AWAITING_USER_CONFIRMATION
+MTG-20250713-002012-2,2025-07-13T00:20:12.358739,2,97a08dc6-55b6-4dc6-af61-c3410198e12c,Set up a meeting with john from hr tmr?,,,"Sunday, July 14, 2025",,John; HR,,,normal,medium,AWAITING_USER_CONFIRMATION
+MTG-20250713-002312-2,2025-07-13T00:23:12.492047,2,97a08dc6-55b6-4dc6-af61-c3410198e12c,Set up a meeting with john from hr tmr?,,Meeting with John from HR,"Monday, July 14, 2025",,John; HR,,,normal,medium,AWAITING_USER_CONFIRMATION
+MTG-20250713-002923-2,2025-07-13T00:29:23.565592,2,f41be76c-cd49-40ac-8712-5eaee0863031,Set up a meeting with john from hr tmr?,,,"Monday, July 14, 2025",,John; HR,,,normal,medium,AWAITING_USER_CONFIRMATION

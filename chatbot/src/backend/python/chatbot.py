@@ -1183,9 +1183,7 @@ def generate_answer_histoy_retrieval(user_query: str, user_id:str, chat_id:str):
         
         # Step 4: Prepare tool-specific or standard prompt based on identified tool
         if tool_used and tool_identified != "none" and tool_identified in global_tools:
-            # Generate tool-specific confirmation response without using QA chain
             tool_data = global_tools[tool_identified]
-            
             if tool_identified == "raise_to_hr":
                 confirmation_response = """I understand you have a workplace concern that requires proper attention. I can help you escalate this issue to our Human Resources department.
 
@@ -1200,30 +1198,36 @@ Here's what will happen if you proceed:
 HR has the expertise and authority to handle sensitive workplace matters through proper channels, ensuring your concern gets the attention and resolution it deserves.
 
 Would you like me to proceed with escalating this matter to HR?"""
-                
             elif tool_identified == "schedule_meeting":
-                confirmation_response = """I can help you schedule a meeting to address this matter properly with the relevant stakeholders.
-
-**What I'll do for you:**
-• Submit your meeting request to our coordination team
-• Help identify the appropriate participants
-• Coordinate scheduling based on availability
-• Ensure proper meeting preparation and agenda setting
-
-**Benefits of scheduling a meeting:**
-• Face-to-face discussion for complex issues
-• Multiple stakeholders can participate
-• Formal documentation of decisions and action items
-• Structured approach to problem-solving
-
-Would you like me to proceed with scheduling a meeting? This will ensure all relevant parties can collaborate effectively to address your needs."""
-                
+                # Immediately extract meeting details
+                meeting_details = extract_meeting_details(user_query)
+                # Format meeting details for confirmation
+                details_lines = []
+                if meeting_details.get('subject'):
+                    details_lines.append(f"• **Subject:** {meeting_details['subject']}")
+                if meeting_details.get('date_time'):
+                    details_lines.append(f"• **Date/Time:** {meeting_details['date_time']}")
+                if meeting_details.get('duration'):
+                    details_lines.append(f"• **Duration:** {meeting_details['duration']}")
+                if meeting_details.get('participants'):
+                    details_lines.append(f"• **Participants:** {', '.join(meeting_details['participants'])}")
+                if meeting_details.get('meeting_type'):
+                    details_lines.append(f"• **Type:** {meeting_details['meeting_type']}")
+                if meeting_details.get('location'):
+                    details_lines.append(f"• **Location:** {meeting_details['location']}")
+                if meeting_details.get('priority'):
+                    details_lines.append(f"• **Priority:** {meeting_details['priority']}")
+                details_str = '\n'.join(details_lines) if details_lines else "(No details extracted)"
+                confirmation_response = (
+                    "I've extracted the following meeting details from your request:\n\n"
+                    f"{details_str}\n\n"
+                    "Would you like to confirm and schedule this meeting?\n"
+                    "(Please click 'Confirm' to proceed or 'Cancel' to abort.)"
+                )
             else:
-                # Fallback for any new tools
                 confirmation_response = f"""I've identified that your request requires the {tool_identified} tool. This will help ensure your request is handled through the appropriate channels with the right level of attention.
 
 Would you like me to proceed with activating this tool for your request?"""
-            
             # Store the confirmation response
             store_chat_log_updated(
                 user_message=user_query, 
@@ -1233,17 +1237,16 @@ Would you like me to proceed with activating this tool for your request?"""
                 user_id=user_id, 
                 chat_id=chat_id
             )
-            
             total_elapsed_time = time.time() - total_start_time
             logger.info(f"Total time taken for tool confirmation: {total_elapsed_time:.2f}s")
-            
             return {
                 'text': confirmation_response,
                 'images': [],
                 'sources': [],
                 'tool_used': tool_used,
                 'tool_identified': tool_identified,
-                'tool_confidence': tool_confidence
+                'tool_confidence': tool_confidence,
+                'meeting_details': meeting_details if tool_identified == "schedule_meeting" else None
             }
         else:
             # Use standard helpdesk prompt for non-tool queries
