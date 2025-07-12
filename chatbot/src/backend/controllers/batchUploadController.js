@@ -30,6 +30,22 @@ const validateUserType = (userType) => {
   return validTypes.includes(userType.toLowerCase());
 };
 
+const validateCountry = (country) => {
+  if (!country || country.trim() === '') return { valid: true, message: "Country is optional" };
+  const validCountries = ['china', 'singapore'];
+  return validCountries.includes(country.toLowerCase()) ? 
+    { valid: true, message: "Country is valid" } : 
+    { valid: false, message: "Country must be 'China' or 'Singapore'" };
+};
+
+const validateDepartment = (department) => {
+  if (!department || department.trim() === '') return { valid: true, message: "Department is optional" };
+  const validDepartments = ['it', 'hr'];
+  return validDepartments.includes(department.toLowerCase()) ? 
+    { valid: true, message: "Department is valid" } : 
+    { valid: false, message: "Department must be 'IT' or 'HR'" };
+};
+
 const validateUsername = (username) => {
   if (username.length < 3) {
     return { valid: false, message: "Username must be at least 3 characters long" };
@@ -101,15 +117,17 @@ const createUser = async (connection, userRecord) => {
     const hashedPassword = await hashPassword(userRecord.password);
     
     const insertQuery = `
-      INSERT INTO users (username, email, password, role) 
-      VALUES (?, ?, ?, ?)
+      INSERT INTO users (username, email, password, role, country, department) 
+      VALUES (?, ?, ?, ?, ?, ?)
     `;
     
     const values = [
       userRecord.username,
       userRecord.email,
       hashedPassword,
-      userRecord.user_type
+      userRecord.user_type,
+      userRecord.country || null,
+      userRecord.department || null
     ];
 
     await connection.execute(insertQuery, values);
@@ -139,7 +157,9 @@ const validateUserRecord = (row, rowIndex) => {
     username: String(row.username).trim(),
     email: String(row.email).trim(),
     password: String(row.password).trim(),
-    user_type: String(row.user_type).trim()
+    user_type: String(row.user_type).trim(),
+    country: row.country ? String(row.country).trim() : null,
+    department: row.department ? String(row.department).trim() : null
   };
 
   // Validate email format
@@ -162,6 +182,22 @@ const validateUserRecord = (row, rowIndex) => {
   const usernameValidation = validateUsername(userRecord.username);
   if (!usernameValidation.valid) {
     errors.push(usernameValidation.message);
+  }
+
+  // Validate country (optional)
+  if (userRecord.country) {
+    const countryValidation = validateCountry(userRecord.country);
+    if (!countryValidation.valid) {
+      errors.push(countryValidation.message);
+    }
+  }
+
+  // Validate department (optional)
+  if (userRecord.department) {
+    const departmentValidation = validateDepartment(userRecord.department);
+    if (!departmentValidation.valid) {
+      errors.push(departmentValidation.message);
+    }
   }
 
   return { 
@@ -406,27 +442,33 @@ const generateSampleFile = async (req, res) => {
         username: 'john_doe',
         email: 'john.doe@company.com',
         password: 'password123',
-        user_type: 'user'
+        user_type: 'user',
+        country: 'Singapore',
+        department: 'IT'
       },
       {
         username: 'jane_smith',
         email: 'jane.smith@company.com',
         password: 'securepass456',
-        user_type: 'user'
+        user_type: 'user',
+        country: 'China',
+        department: 'HR'
       },
       {
         username: 'admin_user',
         email: 'admin@company.com',
         password: 'adminpass789',
-        user_type: 'admin'
+        user_type: 'admin',
+        country: 'Singapore',
+        department: 'IT'
       }
     ];
 
     if (format === 'csv') {
       // Generate CSV
-      const csvHeader = 'username,email,password,user_type\n';
+      const csvHeader = 'username,email,password,user_type,country,department\n';
       const csvRows = sampleData.map(row => 
-        `${row.username},${row.email},${row.password},${row.user_type}`
+        `${row.username},${row.email},${row.password},${row.user_type},${row.country},${row.department}`
       ).join('\n');
       
       fs.writeFileSync(outputPath, csvHeader + csvRows);

@@ -59,6 +59,8 @@ const createTablesSQL = {
       email VARCHAR(50) NOT NULL UNIQUE,
       password VARCHAR(100) NOT NULL,
       role ENUM('user', 'admin','manager') NOT NULL,
+      country VARCHAR(100),
+      department VARCHAR(100),
       PRIMARY KEY (id)
     )`,
     

@@ -852,6 +852,8 @@
                 <th>Name</th>
                 <th>Email</th>
                 <th>Role</th>
+                <th>Country</th>
+                <th>Department</th>
                 <th>Status</th>
                 <th>Actions</th>
               </tr>
@@ -908,6 +910,24 @@
           </select>
         </div>
         
+        <div class="form-group">
+          <label for="userCountry" class="form-label">Country</label>
+          <select id="userCountry" name="country" class="form-select">
+            <option value="">Select country</option>
+            <option value="China">China</option>
+            <option value="Singapore">Singapore</option>
+          </select>
+        </div>
+        
+        <div class="form-group">
+          <label for="userDepartment" class="form-label">Department</label>
+          <select id="userDepartment" name="department" class="form-select">
+            <option value="">Select department</option>
+            <option value="IT">IT</option>
+            <option value="HR">HR</option>
+          </select>
+        </div>
+        
         <div class="form-group" style="display: flex; gap: 1rem; margin-top: 2rem;">
           <button type="submit" class="btn btn-primary" style="flex: 1;">Save User</button>
           <button type="button" class="btn btn-secondary" onclick="closeUserModal()" style="flex: 1;">Cancel</button>
@@ -937,6 +957,11 @@
             <li>email - Valid email address</li>
             <li>password - Password (min 6 characters)</li>
             <li>user_type - Either 'user' or 'admin'</li>
+          </ul>
+          <h4 style="margin: 1rem 0 0.5rem 0; color: var(--text-primary);">Optional Columns:</h4>
+          <ul style="margin: 0; padding-left: 1.5rem; color: var(--text-muted);">
+            <li>country - User's country (China or Singapore)</li>
+            <li>department - User's department (IT or HR)</li>
           </ul>
         </div>
       </div>
@@ -1015,7 +1040,7 @@
         const tbody = document.getElementById('usersTableBody');
         tbody.innerHTML = `
           <tr>
-            <td colspan="5" style="text-align: center; padding: 2rem;">
+            <td colspan="7" style="text-align: center; padding: 2rem;">
               <div style="color: var(--text-muted);">Loading users...</div>
             </td>
           </tr>
@@ -1027,6 +1052,8 @@
           name: user.username,
           email: user.email,
           role: user.role,
+          country: user.country,
+          department: user.department,
           status: 'active' // API doesn't return status, defaulting to active
         }));
         filteredUsers = [...users];
@@ -1038,7 +1065,7 @@
         const tbody = document.getElementById('usersTableBody');
         tbody.innerHTML = `
           <tr>
-            <td colspan="5" style="text-align: center; padding: 2rem;">
+            <td colspan="7" style="text-align: center; padding: 2rem;">
               <div style="color: var(--text-muted);">
                 <p>Failed to load users</p>
                 <button class="btn btn-secondary btn-small" onclick="loadUsers()">Retry</button>
@@ -1070,6 +1097,8 @@
           <td>${user.name}</td>
           <td>${user.email}</td>
           <td><span style="color: var(--text-accent); font-weight: 600; text-transform: capitalize;">${user.role}</span></td>
+          <td>${user.country || '-'}</td>
+          <td>${user.department || '-'}</td>
           <td><span class="status-badge status-${user.status}">${user.status}</span></td>
           <td>
             <div class="user-actions">
@@ -1086,7 +1115,9 @@
       filteredUsers = users.filter(user => 
         user.name.toLowerCase().includes(searchTerm) || 
         user.email.toLowerCase().includes(searchTerm) ||
-        user.role.toLowerCase().includes(searchTerm)
+        user.role.toLowerCase().includes(searchTerm) ||
+        (user.country && user.country.toLowerCase().includes(searchTerm)) ||
+        (user.department && user.department.toLowerCase().includes(searchTerm))
       );
       
       const tbody = document.getElementById('usersTableBody');
@@ -1125,6 +1156,8 @@
         document.getElementById('userName').value = user.name;
         document.getElementById('userEmail').value = user.email;
         document.getElementById('userRole').value = user.role;
+        document.getElementById('userCountry').value = user.country || '';
+        document.getElementById('userDepartment').value = user.department || '';
         document.getElementById('userPassword').placeholder = 'Leave blank to keep current password';
         document.getElementById('userPassword').required = false;
       } else {
@@ -1211,7 +1244,9 @@
       const userData = {
         username: formData.get('name'),
         email: formData.get('email'),
-        role: formData.get('role')
+        role: formData.get('role'),
+        country: formData.get('country'),
+        department: formData.get('department')
       };
       
       const password = formData.get('password');

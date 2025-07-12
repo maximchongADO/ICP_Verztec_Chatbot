@@ -2,12 +2,14 @@ const mysql = require('mysql2/promise');
 const dbConfig = require('../database/dbConfig.js');
 
 class User {
-    constructor(id, username, email, password, role) {
+    constructor(id, username, email, password, role, country, department) {
         this.id = id;
         this.username = username;
         this.email = email;
         this.password = password;
         this.role = role;
+        this.country = country;
+        this.department = department;
     }
 
     static toUserObj(row) {
@@ -16,7 +18,9 @@ class User {
             row.username,
             row.email,
             row.password,
-            row.role
+            row.role,
+            row.country,
+            row.department
         ) : null;
     }
 
@@ -31,19 +35,19 @@ class User {
     }
 
     static async getAllUsers() {
-        const sql = 'SELECT id, username, email, role FROM Users';
+        const sql = 'SELECT id, username, email, role, country, department FROM Users';
         const rows = await this.query(sql);
         return rows.map(row => this.toUserObj(row));
     }
 
     static async getUserById(id) {
-        const sql = 'SELECT id, username, role FROM Users WHERE id = ?';
+        const sql = 'SELECT id, username, role, country, department FROM Users WHERE id = ?';
         const rows = await this.query(sql, [id]);
         return this.toUserObj(rows[0]);
     }
 
     static async getUserByIdFull(id) {
-        const sql = 'SELECT id, username, email, role FROM Users WHERE id = ?';
+        const sql = 'SELECT id, username, email, role, country, department FROM Users WHERE id = ?';
         const rows = await this.query(sql, [id]);
         return rows[0];
     }
@@ -61,12 +65,14 @@ class User {
     }
 
     static async createUser(user) {
-        const sql = 'INSERT INTO Users (username, email, password, role) VALUES (?, ?, ?, ?)';
+        const sql = 'INSERT INTO Users (username, email, password, role, country, department) VALUES (?, ?, ?, ?, ?, ?)';
         const result = await this.query(sql, [
             user.username,
             user.email,
             user.password,
-            user.role
+            user.role,
+            user.country || null,
+            user.department || null
         ]);
         
         return this.getUserById(result.insertId);
@@ -74,7 +80,7 @@ class User {
 
     static async updateUser(id, fields) {
         if (!id || !fields || Object.keys(fields).length === 0) return null;
-        const allowed = ['username', 'email', 'password', 'role'];
+        const allowed = ['username', 'email', 'password', 'role', 'country', 'department'];
         const set = [];
         const params = [];
         for (const key of allowed) {

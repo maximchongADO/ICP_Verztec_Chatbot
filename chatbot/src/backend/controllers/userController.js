@@ -104,7 +104,7 @@ const adminCreateUser = async (req, res) => {
     if (!req.user || req.user.role !== 'admin') {
         return res.status(403).json({ message: 'Admin access required' });
     }
-    const { username, email, password, role } = req.body;
+    const { username, email, password, role, country, department } = req.body;
     if (!username || !email || !password || !role) {
         return res.status(400).json({ message: 'Missing required fields' });
     }
@@ -117,7 +117,9 @@ const adminCreateUser = async (req, res) => {
             username,
             email,
             password: hashedPassword,
-            role
+            role,
+            country,
+            department
         });
         res.status(201).json({
             message: 'User created successfully',
@@ -125,7 +127,9 @@ const adminCreateUser = async (req, res) => {
                 id: createdUser.id,
                 username: createdUser.username,
                 email: createdUser.email,
-                role: createdUser.role
+                role: createdUser.role,
+                country: createdUser.country,
+                department: createdUser.department
             }
         });
     } catch (error) {
@@ -140,8 +144,8 @@ const adminUpdateUser = async (req, res) => {
         return res.status(403).json({ message: 'Admin access required' });
     }
     const userId = req.params.id;
-    const { username, email, role, password } = req.body;
-    if (!username && !email && !role && !password) {
+    const { username, email, role, password, country, department } = req.body;
+    if (!username && !email && !role && !password && !country && !department) {
         return res.status(400).json({ message: 'No fields to update' });
     }
     if (role && !['user', 'admin', 'manager'].includes(role)) {
@@ -153,6 +157,8 @@ const adminUpdateUser = async (req, res) => {
         if (email) updateFields.email = email;
         if (role) updateFields.role = role;
         if (password) updateFields.password = await hashPassword(password);
+        if (country !== undefined) updateFields.country = country;
+        if (department !== undefined) updateFields.department = department;
 
         const updatedUser = await User.updateUser(userId, updateFields);
         if (!updatedUser) {
