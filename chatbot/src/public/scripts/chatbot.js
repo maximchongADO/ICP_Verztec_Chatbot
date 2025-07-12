@@ -66,10 +66,26 @@ function sendMessage() {
 
       // Add bot response
       if (response) {
-        addMessage(response.message, "bot");
+        // Check if tool_used is true and add confirmation buttons
+        const messageData = {
+          message: response.message,
+          images: response.images || [],
+          sources: response.sources || [],
+          tool_used: response.tool_used || false,
+          tool_identified: response.tool_identified || "none",
+          tool_confidence: response.tool_confidence || "",
+          original_message: message // Store original message for reprocessing
+        };
         
-        // Handle sources if available
-        if (Array.isArray(response.sources) && response.sources.length > 0) {
+        addMessage(messageData, "bot");
+        
+        // Log tool information for debugging
+        if (response.tool_used) {
+          console.log(`Tool detected - Type: ${response.tool_identified}, Confidence: ${response.tool_confidence}`);
+        }
+        
+        // Handle sources if available (only if not tool_used)
+        if (!response.tool_used && Array.isArray(response.sources) && response.sources.length > 0) {
           addSourcesToMessage(response.sources);
         }
         
@@ -306,7 +322,10 @@ async function callChatbotAPI(message,
         success: true,
         message: data.message,
         images: data.images || [], // Ensure images is an array
-        sources: data.sources || [] // Include sources data
+        sources: data.sources || [], // Include sources data
+        tool_used: data.tool_used || false, // Include tool_used flag
+        tool_identified: data.tool_identified || "none", // Include tool identification
+        tool_confidence: data.tool_confidence || "" // Include tool confidence
       };
     } else {
       throw new Error("Invalid response format from chatbot");
@@ -486,11 +505,19 @@ function sendImages(images) {
 function addMessage(textOrResponse, sender) {
   let text = textOrResponse;
   let images = [];
+  let tool_used = false;
+  let tool_identified = "none";
+  let tool_confidence = "";
+  let original_message = null;
 
   // Check if it's an object with message and images
   if (typeof textOrResponse === "object" && textOrResponse !== null && "message" in textOrResponse) {
     text = textOrResponse.message?.trim() || "";
     images = textOrResponse.images || [];
+    tool_used = textOrResponse.tool_used || false;
+    tool_identified = textOrResponse.tool_identified || "none";
+    tool_confidence = textOrResponse.tool_confidence || "";
+    original_message = textOrResponse.original_message || null;
   } 
   
   // NEW: If it's a plain image filename string like "example.png"
@@ -527,10 +554,60 @@ function addMessage(textOrResponse, sender) {
         `</div>`;
     }
 
+    // Add confirmation buttons if tool_used is true
+    let confirmationHtml = "";
+    if (tool_used && original_message) {
+      // Customize confirmation message based on tool type
+      let confirmationText = "Do you want me to proceed with this action?";
+      let yesButtonText = "✓ Yes, proceed";
+      let noButtonText = "✗ No, cancel";
+      let additionalInputs = "";
+      
+      if (tool_identified === "raise_to_hr") {
+        confirmationText = "This will escalate your issue to HR. Please provide additional details about the incident:";
+        yesButtonText = "✓ Yes, escalate to HR";
+        noButtonText = "✗ No, cancel";
+        additionalInputs = `
+          <div class="incident-details-section">
+            <label for="incidentDetails" class="incident-label">Incident Details:</label>
+            <textarea 
+              id="incidentDetails" 
+              class="incident-textarea" 
+              placeholder="Please describe the incident in detail, including when it occurred, who was involved, and any other relevant information..."
+              rows="4"
+            ></textarea>
+            <div class="incident-note">
+              <small>This information will be included in your HR escalation request.</small>
+            </div>
+          </div>
+        `;
+      } else if (tool_identified === "schedule_meeting") {
+        confirmationText = "This will schedule a meeting. Do you want to proceed?";
+        yesButtonText = "✓ Yes, schedule meeting";
+        noButtonText = "✗ No, cancel";
+      }
+      
+      confirmationHtml = `
+        <div class="tool-confirmation" data-tool-type="${tool_identified}" data-tool-confidence="${tool_confidence}" data-original-message="${escapeHtml(original_message)}">
+          <p class="confirmation-text">${confirmationText}</p>
+          ${additionalInputs}
+          <div class="confirmation-buttons">
+            <button class="confirm-btn yes" onclick="handleToolConfirmation(this, true)">
+              ${yesButtonText}
+            </button>
+            <button class="confirm-btn no" onclick="handleToolConfirmation(this, false)">
+              ${noButtonText}
+            </button>
+          </div>
+        </div>
+      `;
+    }
+
     messageDiv.innerHTML = `
       <div class="ai-message-avatar"></div>
       <div class="message-content ai-message">
         ${escapeHtml(text)}${imagesHtml}
+        ${confirmationHtml}
         <button class="copy-btn" title="Copy response" onclick="copyMessage(this)">📋</button>
       </div>
       <div class="feedback-buttons">
@@ -543,7 +620,7 @@ function addMessage(textOrResponse, sender) {
       </div>`;
   }
 
-  if (sender === "bot" && text) {
+  if (sender === "bot" && text && !tool_used) {
     setTimeout(() => speakMessage(text), 100);
 
     // Disable all previous feedback buttons
@@ -1352,4 +1429,148 @@ document.addEventListener('DOMContentLoaded', function() {
     console.log("Added event listener to sidebar profile");
   }
 });
+
+// Handle tool confirmation button clicks
+function handleToolConfirmation(button, confirmed) {
+  const messageDiv = button.closest('.message');
+  const confirmationDiv = button.closest('.tool-confirmation');
+  
+  if (!messageDiv || !confirmationDiv) return;
+  
+  // Get tool information from data attributes
+  const toolIdentified = confirmationDiv.getAttribute('data-tool-type');
+  const toolConfidence = confirmationDiv.getAttribute('data-tool-confidence');
+  const originalMessage = confirmationDiv.getAttribute('data-original-message');
+  
+  // Debug logging to verify we're getting the tool information
+  console.log('Tool confirmation - toolIdentified:', toolIdentified, 'toolConfidence:', toolConfidence);
+  
+  // Collect incident details if it's an HR escalation and user confirmed
+  let incidentDetails = null;
+  if (confirmed && toolIdentified === "raise_to_hr") {
+    const incidentTextarea = confirmationDiv.querySelector('#incidentDetails');
+    if (incidentTextarea) {
+      incidentDetails = incidentTextarea.value.trim();
+      // Validate that incident details are provided
+      if (!incidentDetails) {
+        // Highlight the textarea and show validation message
+        incidentTextarea.style.borderColor = '#ff4444';
+        incidentTextarea.style.boxShadow = '0 0 5px rgba(255, 68, 68, 0.3)';
+        
+        // Show validation message
+        let validationMsg = confirmationDiv.querySelector('.validation-message');
+        if (!validationMsg) {
+          validationMsg = document.createElement('div');
+          validationMsg.className = 'validation-message';
+          validationMsg.style.color = '#ff4444';
+          validationMsg.style.fontSize = '0.9em';
+          validationMsg.style.marginTop = '5px';
+          incidentTextarea.parentNode.appendChild(validationMsg);
+        }
+        validationMsg.textContent = 'Please provide incident details before proceeding.';
+        
+        // Focus on the textarea
+        incidentTextarea.focus();
+        return; // Don't proceed without incident details
+      }
+    }
+  }
+  
+  // Disable all confirmation buttons
+  const allButtons = confirmationDiv.querySelectorAll('.confirm-btn');
+  allButtons.forEach(btn => {
+    btn.disabled = true;
+    btn.style.opacity = '0.6';
+  });
+  
+  if (confirmed) {
+    // User confirmed - proceed with tool execution
+    confirmationDiv.innerHTML = `
+      <div class="confirmation-result confirmed">
+        <span class="confirmation-icon">✓</span>
+        <span class="confirmation-message">Processing your request...</span>
+      </div>
+    `;
+    
+    // Call the API with the cached tool identification and incident details
+    executeConfirmedTool(originalMessage, toolIdentified, toolConfidence, incidentDetails);
+  } else {
+    // User cancelled
+    confirmationDiv.innerHTML = `
+      <div class="confirmation-result cancelled">
+        <span class="confirmation-icon">✗</span>
+        <span class="confirmation-message">Action cancelled</span>
+      </div>
+    `;
+  }
+}
+
+// Execute the tool after user confirmation
+async function executeConfirmedTool(originalMessage, toolIdentified, toolConfidence, incidentDetails = null) {
+  const user_id = localStorage.getItem("userId") || "defaultUser";
+  const chat_id = localStorage.getItem("chat_id") || sessionStorage.getItem("chat_id") || "chat123";
+  
+  try {
+    // Show typing indicator
+    showTypingIndicator("Executing action...");
+    
+    // Prepare request body
+    const requestBody = {
+      message: originalMessage,
+      user_id: user_id,
+      chat_id: chat_id,
+      tool_identified: toolIdentified,
+      tool_confidence: toolConfidence
+    };
+    
+    // Add incident details if provided
+    if (incidentDetails && toolIdentified === "raise_to_hr") {
+      requestBody.user_description = incidentDetails;
+    }
+    
+    // Call tool confirmation API endpoint with cached tool identification
+    const response = await fetch("http://localhost:3000/tool_confirmation", {
+      method: "POST",
+      credentials: 'include',
+      headers: {
+        "Content-Type": "application/json",
+        "Accept": "application/json",
+        "Authorization": `Bearer ${token}`,
+      },
+      body: JSON.stringify(requestBody),
+    });
+
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+
+    const data = await response.json();
+    
+    // Remove typing indicator
+    hideTypingIndicator();
+    
+    if (data && data.message) {
+      // Add the final response
+      addMessage(data.message, "bot");
+      
+      // Log the tool execution result
+      console.log(`Tool executed - Type: ${data.tool_identified || toolIdentified}, Success: ${data.success}`);
+      
+      // Handle sources if available
+      if (Array.isArray(data.sources) && data.sources.length > 0) {
+        addSourcesToMessage(data.sources);
+      }
+      
+      if (Array.isArray(data.images) && data.images.length > 0) {
+        sendImages(data.images);
+      }
+    } else {
+      throw new Error("Invalid response from tool confirmation API");
+    }
+  } catch (error) {
+    console.error("Tool execution error:", error);
+    hideTypingIndicator();
+    addMessage("Sorry, there was an error executing the action. Please try again.", "bot");
+  }
+}
 

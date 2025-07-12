@@ -3,12 +3,14 @@ import re
 import difflib
 import time
 import logging
-from datetime import datetime
-from time import sleep
+import csv
 import uuid
 import numpy as np
 import pymysql
 import spacy
+import concurrent.futures
+from datetime import datetime
+from time import sleep
 from spacy.matcher import PhraseMatcher
 from typing import List
 from dotenv import load_dotenv
@@ -20,32 +22,16 @@ from langchain.schema import HumanMessage, AIMessage, Document
 from langchain.memory import ConversationBufferMemory
 from langchain.chains import ConversationalRetrievalChain
 from langchain_core.output_parsers import StrOutputParser
-from langchain.embeddings import HuggingFaceEmbeddings
 from langchain_community.vectorstores import FAISS
-import uuid
+from langchain_community.embeddings import HuggingFaceEmbeddings
 from memory_retrieval import build_memory_from_results, retrieve_user_messages_and_scores
 from sentence_transformers import CrossEncoder
 from langchain.schema import BaseRetriever
-import csv
-from langchain.agents import Tool, create_react_agent, AgentExecutor
-from langchain_core.prompts import PromptTemplate
-from langchain_core.agents import AgentAction, AgentFinish
-
-
-import os
-import csv
-from datetime import datetime
-from langchain_community.embeddings import HuggingFaceEmbeddings
-from langchain_community.vectorstores import FAISS
-from langchain_groq import ChatGroq
-from langchain.memory import ConversationBufferMemory
 from langchain.agents import Tool, create_react_agent, AgentExecutor
 from langchain.agents.output_parsers import ReActSingleInputOutputParser
 from langchain_core.prompts import PromptTemplate
 from langchain_core.agents import AgentAction, AgentFinish
-
-# Load reranker model locally
-
+from langchain.prompts import ChatPromptTemplate
 
 # Set up logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -55,9 +41,19 @@ logger = logging.getLogger(__name__)
 # Initialize models and clients
 embedding_model = SentenceTransformer('BAAI/bge-large-en-v1.5')
 load_dotenv()
-api_key='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'
+api_key='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'
+api_key2= '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'
 model = "deepseek-r1-distill-llama-70b" 
-deepseek = ChatGroq(api_key=api_key, model=model) # type: ignore
+deepseek = ChatGroq(api_key=api_key, model=model, temperature = 0.) # type: ignore
+decisionlayer_model=ChatGroq(api_key=api_key2, 
+                            model="qwen/qwen3-32b",
+                            temperature=0,                # ⬅ deterministic, no creativity
+                            model_kwargs={
+                                "top_p": 0,               # ⬅ eliminates sampling randomness
+                                "frequency_penalty": 0,
+                                "presence_penalty": 0
+                                }
+                            ) 
 
 
 # Initialize memory
@@ -146,6 +142,75 @@ def store_chat_log_updated(user_message, bot_response, query_score, relevance_sc
 
     cursor.close()
     conn.close()
+
+
+def store_hr_escalation(escalation_id, user_id, chat_id, user_message, issue_summary, status="PENDING", priority="NORMAL", user_description=None):
+    """
+    Store HR escalation data in the hr_escalations table.
+    
+    Args:
+        escalation_id (str): Unique escalation reference ID
+        user_id (str): User identifier
+        chat_id (str): Chat session identifier
+        user_message (str): Original user message that triggered escalation
+        issue_summary (str): Sanitized summary of the issue (max 800 chars)
+        status (str): Escalation status (default: PENDING)
+        priority (str): Escalation priority (default: NORMAL)
+        user_description (str, optional): Additional description provided by user
+    
+    Returns:
+        bool: True if successful, False otherwise
+    """
+    try:
+        conn = pymysql.connect(**DB_CONFIG)
+        cursor = conn.cursor()
+
+        timestamp = datetime.utcnow()
+        
+        # Insert escalation data (with fallback for tables without user_description column)
+        try:
+            # Try with user_description column first
+            insert_query = '''
+                INSERT INTO hr_escalations (
+                    escalation_id, timestamp, user_id, chat_id, 
+                    user_message, issue_summary, status, priority, user_description
+                ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+            '''
+            
+            cursor.execute(insert_query, (
+                escalation_id, timestamp, user_id, chat_id, 
+                user_message, issue_summary, status, priority, user_description
+            ))
+            
+        except pymysql.err.OperationalError as e:
+            # If user_description column doesn't exist, fall back to original schema
+            if "unknown column" in str(e).lower() or "doesn't exist" in str(e).lower():
+                logger.warning("user_description column not found, using fallback insert")
+                insert_query = '''
+                    INSERT INTO hr_escalations (
+                        escalation_id, timestamp, user_id, chat_id, 
+                        user_message, issue_summary, status, priority
+                    ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+                '''
+                
+                cursor.execute(insert_query, (
+                    escalation_id, timestamp, user_id, chat_id, 
+                    user_message, issue_summary, status, priority
+                ))
+            else:
+                raise  # Re-raise if it's a different error
+        
+        conn.commit()
+        logger.info(f"Stored HR escalation {escalation_id} for user {user_id} in chat {chat_id} at {timestamp}")
+        
+        cursor.close()
+        conn.close()
+        
+        return True
+        
+    except Exception as e:
+        logger.error(f"Error storing HR escalation {escalation_id}: {str(e)}")
+        return False
     
     
     
@@ -835,7 +900,18 @@ def generate_answer(user_query: str, chat_history: ConversationBufferMemory ):
         }
 
 memory_store = {}
-
+global_tools = {
+    "raise_to_hr": {
+        "description": "Raise the query to HR — for serious complaints, legal issues, or sensitive workplace matters.",
+        "prompt_style": "You are a compassionate and professional HR liaison assistant. When responding to sensitive workplace issues, harassment complaints, or legal matters, provide empathetic support while maintaining professional boundaries. Acknowledge the seriousness of the situation, offer immediate guidance on documentation and next steps, and reassure the user that their concerns will be handled confidentially and appropriately.",
+        "response_tone": "supportive_professional"
+    },
+    "schedule_meeting": {
+        "description": "Set up a meeting — for coordination involving multiple stakeholders or recurring issues.",
+        "prompt_style": "You are an efficient scheduling and coordination assistant. When handling meeting requests, focus on practical logistics, available time slots, and clear next steps. Be organized and detail-oriented in your responses, asking for necessary information like preferred dates, attendees, and meeting purpose.",
+        "response_tone": "organized_efficient"
+    }
+}
 def generate_answer_histoy_retrieval(user_query: str, user_id:str, chat_id:str):
     """
     Returns a tuple: (answer_text, image_list)
@@ -858,6 +934,9 @@ def generate_answer_histoy_retrieval(user_query: str, user_id:str, chat_id:str):
         
     
     try:
+        
+        
+        
         total_start_time = time.time()  # Start timing for the whole query
 
         parser = StrOutputParser()
@@ -869,6 +948,7 @@ def generate_answer_histoy_retrieval(user_query: str, user_id:str, chat_id:str):
             search_type="similarity",
             search_kwargs={"k": 10}
         )
+        
         
         
         
@@ -885,8 +965,81 @@ def generate_answer_histoy_retrieval(user_query: str, user_id:str, chat_id:str):
     
     
         # Refine query
-       
-        clean_query = clean_with_grammar_model(user_query)
+        # cos im too lazy to change all the refences below
+        clean_query = user_query
+        
+        # Use our global tools dictionary
+
+        # Generate formatted string for prompt
+        tool_descriptions = "\n".join([f"[{name}] — {tool_data['description']}" for name, tool_data in global_tools.items()])
+
+        # Prompt template with context and tool injection
+        decision_prompt = ChatPromptTemplate.from_messages([
+            ("system", """
+                You are the decision-making layer of a corporate assistant chatbot for internal employee support.
+                You have access to the following tools, but must ONLY use one if it is absolutely necessary:
+
+                {tool_descriptions}
+
+                Respond with ONLY one of the following tool tags:
+                - [tool_name] — to activate a tool
+                - [Continue] — if no tool is necessary
+
+                Only use a tool if the request is clearly serious, procedural, or high-impact. 
+                If the request can be answered normally, prefer [Continue].
+
+                Return ONLY the tag. No explanations.
+            """),
+            ("human", "{question}")
+        ])
+
+        # Create the decision chain
+        decision_chain = decision_prompt | decisionlayer_model
+
+        # Run it in your workflow
+        tool_response = decision_chain.invoke({
+            "tool_descriptions": tool_descriptions,
+            "question": clean_query
+        })
+
+        Tool_answer = re.sub(r"<think>.*?</think>", "", tool_response.content, flags=re.DOTALL).strip()
+        print(f"Tool decision: {Tool_answer}")
+        
+        # Identify and handle the selected tool with improved logic
+        tool_identified = "none"  # Default to none
+        tool_used = False
+        tool_confidence = Tool_answer  # Store raw decision for debugging
+        
+        # Normalize the tool answer for better matching
+        tool_answer_lower = Tool_answer.lower().strip()
+        
+        # Check for Continue first (highest priority)
+        if "continue" in tool_answer_lower or "[continue]" in tool_answer_lower:
+            tool_identified = "none"
+            tool_used = False
+            logger.info(f"No tool needed (Continue) for user {user_id}, query: {user_query}")
+            
+        # Check for HR escalation
+        elif "raise_to_hr" in tool_answer_lower or "[raise_to_hr]" in tool_answer_lower:
+            tool_identified = "raise_to_hr"
+            tool_used = True
+            logger.info(f"HR escalation tool identified for user {user_id}, query: {user_query}")
+            
+        # Check for meeting scheduling
+        elif "schedule_meeting" in tool_answer_lower or "[schedule_meeting]" in tool_answer_lower:
+            tool_identified = "schedule_meeting"
+            tool_used = True
+            logger.info(f"Meeting scheduling tool identified for user {user_id}, query: {user_query}")
+            
+        # Handle unknown or malformed responses
+        else:
+            tool_identified = "none"  # Default to none for safety
+            tool_used = False
+            logger.warning(f"Unknown or malformed tool decision: '{Tool_answer}' for user {user_id}, query: {user_query}. Defaulting to no tool.")
+            
+        logger.info(f"Final tool decision - identified: {tool_identified}, used: {tool_used}")
+           
+        
        
         # Step 3: Search BOTH FAISS indices for context 
         # for images, as well as for context relevance checks 
@@ -982,159 +1135,312 @@ def generate_answer_histoy_retrieval(user_query: str, user_id:str, chat_id:str):
                 'Do not answer any questions that are not related to Verztec helpdesk topics, and do not use any of the provided documents in your response. '
             )
 
-            #modified_query = "You are a verztec helpdesk assistant. You will only use the provided documents in your response. If the query is out of scope, say so.\n\n" + clean_query
-            #messages = [HumanMessage(content=fallback_prompt)]
+           
             messages = build_memory_prompt(memory, fallback_prompt)
             response = deepseek.generate([messages])
-
             raw_fallback = response.generations[0][0].text.strip()
 
             # Remove <think> block if present
             think_block_pattern = re.compile(r"<think>.*?</think>", flags=re.DOTALL)
             cleaned_fallback = think_block_pattern.sub("", raw_fallback).strip()
-            top_3_img = []  # No images for fallback response
+              
             # Store the fallback response in chat memory
-         
             memory.chat_memory.add_user_message(fallback_prompt)
             memory.chat_memory.add_ai_message(cleaned_fallback) 
+            
+            
             # Clean up chat memory to keep it manageable
             # Limit chat memory to last 4 turns (8 messages)
+            
             MAX_TURNS = 4
             if len(memory.chat_memory.messages) > 2 * MAX_TURNS:
                 memory.chat_memory.messages = memory.chat_memory.messages[-2 * MAX_TURNS:]
-            #store_chat_log(user_message=user_query, bot_response=cleaned_fallback, session_id=session_id, query_score=is_task_query, relevance_score=avg_score)
+                
             store_chat_log_updated(user_message=user_query, bot_response=cleaned_fallback, query_score=is_task_query, relevance_score=avg_score, user_id=user_id, chat_id=chat_id)
     
             return {
                 'text': cleaned_fallback,
-                'images': top_3_img,
-                'sources': []
+                'images': [],
+                'sources': [],
+                'tool_used': tool_used,
+                'tool_identified': tool_identified,
+                'tool_confidence': tool_confidence
             }
         
         
         
         
         logger.info("QA chain activated for query processing.")
-        # Step 4: Prepare full prompt and return LLM output
-        modified_query = "You are a  HELPFUL AND NICE verztec helpdesk assistant. You will only use the provided documents in your response. If the query is out of scope, say so.\n\n" + clean_query
-        modified_query = (
-            "You are a HELPFUL AND NICE Verztec helpdesk assistant. "
-            "You will only use the provided documents in your response. "
-            "If the query is out of scope, say so. "
-            "If there are any image tags or screenshots mentioned in the documents, "
-            "please reference them in your response where appropriate, such as 'See Screenshot 1' or 'Refer to the image above'.\n\n"
-            + clean_query
-        )
-
-        qa_start_time = time.time()
-        response = qa_chain.invoke({"question": modified_query})
-        qa_elapsed_time = time.time() - qa_start_time
-        raw_answer = response['answer']
-        source_docs = response['source_documents']
-        logger.info(f"Source docs from QA chain: {source_docs}")
-        logger.info(f"Full response before cleanup: {raw_answer} (QA chain time taken: {qa_elapsed_time:.2f}s)")
         
-        # Clean the chat memory to keep it manageable
-        # Limit chat memory to last 4 turns (8 messages)
-        MAX_TURNS = 4
-        if len(memory.chat_memory.messages) > 2 * MAX_TURNS:
-            memory.chat_memory.messages = memory.chat_memory.messages[-2 * MAX_TURNS:]
+        # Step 4: Prepare tool-specific or standard prompt based on identified tool
+        if tool_used and tool_identified != "none" and tool_identified in global_tools:
+            # Generate tool-specific confirmation response without using QA chain
+            tool_data = global_tools[tool_identified]
+            
+            if tool_identified == "raise_to_hr":
+                confirmation_response = """I understand you have a workplace concern that requires proper attention. I can help you escalate this issue to our Human Resources department.
 
-        # Define regex pattern to match full <think>...</think> block
-        think_block_pattern = re.compile(r"<think>.*?</think>", flags=re.DOTALL)
-       
-        
+Here's what will happen if you proceed:
 
-        # Check if full <think> block exists
-        has_think_block = bool(think_block_pattern.search(raw_answer))
+- Your concern will be securely logged with a unique reference number
+- The issue will be forwarded directly to qualified HR personnel 
+- Complete confidentiality will be maintained throughout the process
+- You'll receive a reference ID to track the progress of your case
+- HR will follow up with you within 24 hours to discuss next steps
 
-        # Clean the <think> block regardless
-        cleaned_answer = think_block_pattern.sub("", raw_answer).strip()
-        has_tag = False
-        import concurrent.futures
+HR has the expertise and authority to handle sensitive workplace matters through proper channels, ensuring your concern gets the attention and resolution it deserves.
 
-        # Timeout logic for retry
-        def retry_qa_chain():
-            return qa_chain.invoke({"question": clean_query})['answer']
+Would you like me to proceed with escalating this matter to HR?"""
+                
+            elif tool_identified == "schedule_meeting":
+                confirmation_response = """I can help you schedule a meeting to address this matter properly with the relevant stakeholders.
 
-        i = 1  # Ensure i is defined
-        while has_tag and i == 1:
-            if not has_think_block:
-                logger.warning("Missing full <think> block — retrying query once...")
-                try:
-                    retry_start = time.time()
-                    with concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor:
-                        future = executor.submit(retry_qa_chain)
-                        raw_answer_retry = future.result(timeout=30)
-                    retry_elapsed = time.time() - retry_start
-                    logger.info(f"Retry response: {raw_answer_retry} (Retry time taken: {retry_elapsed:.2f}s)")
-                    sleep(1)  # Optional: wait a bit before retrying
-                    cleaned_answer = think_block_pattern.sub("", raw_answer_retry).strip()
-                except concurrent.futures.TimeoutError:
-                    logger.error("QA chain retry timed out after 30 seconds.")
-                    cleaned_answer = "Sorry, the system took too long to generate a response. Please try again in a moment."
-                    break
-                except Exception as e:
-                    logger.error(f"Error during QA chain retry: {e}")
-                    cleaned_answer = f"Sorry, an error occurred while generating a response: {e}"
-                    break
+**What I'll do for you:**
+• Submit your meeting request to our coordination team
+• Help identify the appropriate participants
+• Coordinate scheduling based on availability
+• Ensure proper meeting preparation and agenda setting
+
+**Benefits of scheduling a meeting:**
+• Face-to-face discussion for complex issues
+• Multiple stakeholders can participate
+• Formal documentation of decisions and action items
+• Structured approach to problem-solving
+
+Would you like me to proceed with scheduling a meeting? This will ensure all relevant parties can collaborate effectively to address your needs."""
+                
             else:
-                logger.info("Full <think> block found and removed successfully")
-            block_tag_pattern = re.compile(r"<([a-zA-Z0-9_]+)>.*?</\1>", flags=re.DOTALL)
+                # Fallback for any new tools
+                confirmation_response = f"""I've identified that your request requires the {tool_identified} tool. This will help ensure your request is handled through the appropriate channels with the right level of attention.
 
-            # Check if there are any block tags at all
-            has_any_block_tag = bool(block_tag_pattern.search(raw_answer))
-            if has_any_block_tag:
-                logger.info("Block tags found in response, cleaning them up")
+Would you like me to proceed with activating this tool for your request?"""
+            
+            # Store the confirmation response
+            store_chat_log_updated(
+                user_message=user_query, 
+                bot_response=confirmation_response, 
+                query_score=is_task_query, 
+                relevance_score=avg_score, 
+                user_id=user_id, 
+                chat_id=chat_id
+            )
+            
+            total_elapsed_time = time.time() - total_start_time
+            logger.info(f"Total time taken for tool confirmation: {total_elapsed_time:.2f}s")
+            
+            return {
+                'text': confirmation_response,
+                'images': [],
+                'sources': [],
+                'tool_used': tool_used,
+                'tool_identified': tool_identified,
+                'tool_confidence': tool_confidence
+            }
+        else:
+            # Use standard helpdesk prompt for non-tool queries
+            modified_query = (
+                "You are a HELPFUL AND NICE Verztec helpdesk assistant. "
+                "You will only use the provided documents in your response. "
+                "If the query is out of scope, say so. "
+                "If there are any image tags or screenshots mentioned in the documents, please reference them in your response where appropriate, such as 'See Screenshot 1' or 'Refer to the image above' these images will be made obvious with the <image> tags.\n\n"
+                + clean_query
+            )
 
-            # Remove all block tags
-            cleaned_answer = block_tag_pattern.sub("", raw_answer).strip()
-            cleaned_answer = re.sub(r"^\s+", "", cleaned_answer)
-            has_any_block_tag = bool(block_tag_pattern.search(raw_answer))
-            if not has_any_block_tag:
-                has_tag = False
-            i += 1
-        ## one last cleanup to ensure no <think> tags remain
-        # Remove any remaining <think> tagsbetter have NO MOR NO MORE NO MO NO MOMRE 
-        cleaned_answer = re.sub(r"</?think>", "", cleaned_answer).strip()
-        cleaned_answer = re.sub(r"</?think>", "", cleaned_answer).strip()
-        cleaned_answer = re.sub(r'[\*#]+', '', cleaned_answer).strip()
+            qa_start_time = time.time()
+            response = qa_chain.invoke({"question": modified_query})
+            qa_elapsed_time = time.time() - qa_start_time
+            raw_answer = response['answer']
+            source_docs = response['source_documents']
+            #logger.info(f"Source docs from QA chain: {source_docs}")
+            logger.info(f"(QA chain time taken: {qa_elapsed_time:.2f}s)")
+            
+            # Clean the chat memory to keep it manageable
+            # Limit chat memory to last 4 turns (8 messages)
+            
+            MAX_TURNS = 4
+            if len(memory.chat_memory.messages) > 2 * MAX_TURNS:
+                memory.chat_memory.messages = memory.chat_memory.messages[-2 * MAX_TURNS:]
+
+            # Define regex pattern to match full <think>...</think> block
+            think_block_pattern = re.compile(r"<think>.*?</think>", flags=re.DOTALL)
+           
+            
+
+            # Check if full <think> block exists
+            has_think_block = bool(think_block_pattern.search(raw_answer))
+
+            # Clean the <think> block regardless
+            cleaned_answer = think_block_pattern.sub("", raw_answer).strip()
+            has_tag = False
+            import concurrent.futures
+
+            # Timeout logic for retry
+            def retry_qa_chain():
+                return qa_chain.invoke({"question": clean_query})['answer']
+
+            i = 1  # Ensure i is defined
+            while has_tag and i == 1:
+                if not has_think_block:
+                    logger.warning("Missing full <think> block — retrying query once...")
+                    try:
+                        retry_start = time.time()
+                        with concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor:
+                            future = executor.submit(retry_qa_chain)
+                            raw_answer_retry = future.result(timeout=30)
+                        retry_elapsed = time.time() - retry_start
+                        logger.info(f"Retry response: {raw_answer_retry} (Retry time taken: {retry_elapsed:.2f}s)")
+                        sleep(1)  # Optional: wait a bit before retrying
+                        cleaned_answer = think_block_pattern.sub("", raw_answer_retry).strip()
+                    except concurrent.futures.TimeoutError:
+                        logger.error("QA chain retry timed out after 30 seconds.")
+                        cleaned_answer = "Sorry, the system took too long to generate a response. Please try again in a moment."
+                        break
+                    except Exception as e:
+                        logger.error(f"Error during QA chain retry: {e}")
+                        cleaned_answer = f"Sorry, an error occurred while generating a response: {e}"
+                        break
+                else:
+                    logger.info("Full <think> block found and removed successfully")
+                block_tag_pattern = re.compile(r"<([a-zA-Z0-9_]+)>.*?</\1>", flags=re.DOTALL)
+
+                # Check if there are any block tags at all
+                has_any_block_tag = bool(block_tag_pattern.search(raw_answer))
+                if has_any_block_tag:
+                    logger.info("Block tags found in response, cleaning them up")
+
+                # Remove all block tags
+                cleaned_answer = block_tag_pattern.sub("", raw_answer).strip()
+                cleaned_answer = re.sub(r"^\s+", "", cleaned_answer)
+                has_any_block_tag = bool(block_tag_pattern.search(raw_answer))
+                if not has_any_block_tag:
+                    has_tag = False
+                i += 1
+            ## one last cleanup to ensure no <think> tags remain
+            # Remove any remaining <think> tagsbetter have NO MOR NO MORE NO MO NO MOMRE 
+            cleaned_answer = re.sub(r"</?think>", "", cleaned_answer).strip()
         
-    
-        store_chat_log_updated(user_message=user_query, bot_response=cleaned_answer, query_score=is_task_query, relevance_score=avg_score, user_id=user_id, chat_id=chat_id)##brian u need to update sql for this to work
-        # also need to update the store_chat_bot method, to incoude user id and chat id
-        # After generating the bot's response
-        final_response, source_docs = append_sources_with_links(cleaned_answer, top_docs)
-        print(final_response)
-        
-        # Log source documents for debugging
-        logger.info(f"Source documents data: {source_docs}")
-        
-        # Also append clickable links to text for backwards compatibility
-        for doc in source_docs:
-            if doc['is_clickable'] and doc['file_path']:
-                #final_response += f"\n\n[Source: {doc['name']}]({doc['file_path']})"
-                logger.info(f"Added clickable source: {doc['name']} -> {doc['file_path']}")
-            else:
-                #final_response += f"\n\n[Source: {doc['name']}]"
-                logger.info(f"Added non-clickable source: {doc['name']}")
+            cleaned_answer = re.sub(r'[\*#]+', '', cleaned_answer).strip()
+            
+           
+            store_chat_log_updated(user_message=user_query, bot_response=cleaned_answer, query_score=is_task_query, relevance_score=avg_score, user_id=user_id, chat_id=chat_id)##brian u need to update sql for this to work
+            # also need to update the store_chat_bot method, to incoude user id and chat id
+            # After generating the bot's response
+            final_response, source_docs = append_sources_with_links(cleaned_answer, top_docs)
+            print(final_response)
+            
+            # Log source documents for debugging
+            logger.info(f"Source documents data: {source_docs}")
+            
+            # Also append clickable links to text for backwards compatibility
+            for doc in source_docs:
+                if doc['is_clickable'] and doc['file_path']:
+                    #final_response += f"\n\n[Source: {doc['name']}]({doc['file_path']})"
+                    logger.info(f"Added clickable source: {doc['name']} -> {doc['file_path']}")
+                else:
+                    #final_response += f"\n\n[Source: {doc['name']}]"
+                    logger.info(f"Added non-clickable source: {doc['name']}")
 
-        total_elapsed_time = time.time() - total_start_time
-        logger.info(f"Total time taken for query processing: {total_elapsed_time:.2f}s")
+            total_elapsed_time = time.time() - total_start_time
+            logger.info(f"Total time taken for query processing: {total_elapsed_time:.2f}s")
 
-        # Return structured data for frontend
-        return {
-            'text': final_response,
-            'images': top_3_img,
-            'sources': source_docs  # Include source file data for frontend
-        }
+            # Return structured data for frontend
+            return {
+                'text': final_response,
+                'images': top_3_img,
+                'sources': source_docs,
+                'tool_used': tool_used,
+                'tool_identified': tool_identified,
+                'tool_confidence': tool_confidence
+            }
     except Exception as e:
         return {
             'error': f"I encountered an error while processing your request: {str(e)}", 
             'text': f"I encountered an error while processing your request: {str(e)}", 
             'images': [], 
-            'sources': []
+            'sources': [],
+            'tool_used': False,
+            'tool_identified': "none",
+            'tool_confidence': "error"
         }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 try:
     ## tools for agentic bot
@@ -1196,41 +1502,66 @@ try:
             return f"Error occurred during search: {str(e)}"
 
     def escalate_to_hr_tool(issue: str) -> str:
-        
+        """
+        Enhanced HR escalation tool with better formatting and error handling.
+        """
         # Input validation
         if not issue or not issue.strip():
-            return "I'd be happy to help escalate your concern to HR. However, I need you to provide a detailed description of the issue you'd like to escalate. Please include:\n\n1. A brief summary of the situation\n2. Any relevant dates or timeframes\n3. The specific assistance you're seeking\n\nThis information will help HR provide you with the most appropriate support."
+            return """I'd be happy to help escalate your concern to HR. However, I need you to provide a detailed description of the issue you'd like to escalate. Please include:
+
+**Required Information:**
+1. A brief summary of the situation
+2. Any relevant dates or timeframes  
+3. The specific assistance you're seeking
+
+This information will help HR provide you with the most appropriate support."""
         
-        # Sanitize input for logging (basic example)
-        sanitized_issue = issue.strip()[:500]  # Limit length for logging
+        # Sanitize and structure the input for logging
+        sanitized_issue = issue.strip()[:800]  # Increased limit for better context
+        escalation_id = f"ESC-{datetime.now().strftime('%Y%m%d-%H%M%S')}"
         
+        # Enhanced logging with structured data
         try:
             with open("yabdabado.csv", "a", newline='', encoding='utf-8') as f:
                 writer = csv.writer(f)
-                writer.writerow([datetime.now().isoformat(), "escalate_to_hr", sanitized_issue])
+                writer.writerow([
+                    datetime.now().isoformat(), 
+                    "escalate_to_hr", 
+                    escalation_id,
+                    sanitized_issue[:200] + "..." if len(sanitized_issue) > 200 else sanitized_issue
+                ])
+            logger.info(f"HR escalation logged with ID: {escalation_id}")
         except Exception as e:
-            print(f"Warning: Failed to log HR escalation: {e}")
+            logger.error(f"Failed to log HR escalation: {e}")
             # Continue execution even if logging fails
         
-        return f"""✅ **HR Escalation Initiated**
+        return f"""🚨 **HR Escalation Successfully Initiated**
 
-            Your concern has been successfully escalated to our Human Resources department:
+Your concern has been escalated to our Human Resources department with the highest priority.
 
-            **Issue Summary:** {sanitized_issue}
+**Escalation Details:**
+• **Reference ID:** {escalation_id}
+• **Date & Time:** {datetime.now().strftime('%B %d, %Y at %I:%M %p')}
+• **Status:** Active and Under Review
 
-            **What happens next:**
-            1. **Within 24 hours:** HR will acknowledge receipt of your escalation
-            2. **Within 2-3 business days:** An HR representative will contact you to discuss the matter
-            3. **Ongoing:** You'll receive regular updates on the status of your case
+**What Happens Next:**
+1. **Immediate:** Your case has been logged in our HR system
+2. **Within 4 hours:** HR will acknowledge receipt via email
+3. **Within 24 hours:** An HR representative will contact you directly
+4. **Ongoing:** You'll receive regular updates until resolution
 
-            **Important Notes:**
-            - All escalations are handled with strict confidentiality
-            - You may be contacted for additional information if needed
-            - If this is an urgent safety matter, please also contact your immediate supervisor
+**Important Information:**
+• All escalations are handled with **strict confidentiality**
+• You may be contacted for additional details if needed
+• For urgent safety matters, also contact your immediate supervisor
+• Keep your reference ID for tracking purposes
 
-            **Reference ID:** ESC-{datetime.now().strftime('%Y%m%d-%H%M%S')}
+**Contact Information:**
+• **HR Emergency Line:** Available 24/7 for urgent matters
+• **HR Email:** hr@verztec.com
+• **HR Direct Line:** [Your HR Phone Number]
 
-            Is there anything else I can help you with regarding company policies or procedures?"""
+Your wellbeing and concerns are our top priority. HR is equipped to handle sensitive matters with the care and attention they deserve."""
 
     def create_meeting_request_tool(details: str) -> str:
     
@@ -1571,3 +1902,298 @@ def agentic_bot_v1(user_query: str, user_id: str, chat_id: str):
             pass  # Don't fail on logging errors
         
         return error_response, []
+
+def execute_confirmed_tool(tool_identified: str, user_query: str, user_id: str, chat_id: str, user_description: str = None):
+    """
+    Execute the confirmed tool based on the tool identification.
+    
+    Args:
+        tool_identified (str): The identified tool name from the decision layer
+        user_query (str): The original user query
+        user_id (str): User identifier
+        chat_id (str): Chat session identifier
+        user_description (str, optional): Additional description provided by user (for HR escalations)
+        
+    Returns:
+        dict: Response containing the tool execution result with text, images, sources, etc.
+    """
+    logger.info(f"Executing confirmed tool: {tool_identified} for user {user_id}")
+    if user_description:
+        logger.info(f"User description provided: {user_description[:100]}...")
+    
+    try:
+        # Check if the tool exists in our global tools dictionary
+        if tool_identified not in global_tools:
+            logger.error(f"Tool '{tool_identified}' not found in available tools: {list(global_tools.keys())}")
+            return {
+                'text': f"Sorry, the requested tool '{tool_identified}' is not available. Please try again or contact support.",
+                'images': [],
+                'sources': [],
+                'tool_used': False,
+                'tool_identified': tool_identified,
+                'tool_confidence': 'error - tool not found'
+            }
+        
+        # Execute the appropriate tool based on identification
+        if tool_identified == "raise_to_hr":
+            return execute_hr_escalation_tool(user_query, user_id, chat_id, user_description)
+            
+        elif tool_identified == "schedule_meeting":
+            return execute_meeting_scheduling_tool(user_query, user_id, chat_id)
+            
+        else:
+            logger.warning(f"Tool '{tool_identified}' exists but no execution handler implemented")
+            return {
+                'text': f"The tool '{tool_identified}' is available but not yet implemented. This feature is coming soon!",
+                'images': [],
+                'sources': [],
+                'tool_used': False,
+                'tool_identified': tool_identified,
+                'tool_confidence': 'error - handler not implemented'
+            }
+            
+    except Exception as e:
+        logger.error(f"Error executing tool '{tool_identified}': {str(e)}", exc_info=True)
+        return {
+            'text': f"An error occurred while executing the {tool_identified} tool. Please try again or contact support.",
+            'images': [],
+            'sources': [],
+            'tool_used': False,
+            'tool_identified': tool_identified,
+            'tool_confidence': f'error - {str(e)}'
+        }
+
+
+def execute_hr_escalation_tool(user_query: str, user_id: str, chat_id: str, user_description: str = None):
+    """
+    Execute HR escalation tool with enhanced logging and response formatting.
+    
+    Args:
+        user_query (str): The original user query that triggered HR escalation
+        user_id (str): User identifier
+        chat_id (str): Chat session identifier
+        user_description (str, optional): Additional description provided by the user
+        
+    Returns:
+        dict: Formatted response for HR escalation
+    """
+    try:
+        # Use user description if provided, otherwise fall back to original query
+        primary_issue = user_description if user_description and user_description.strip() else user_query
+        
+        # Sanitize and structure the input for logging
+        sanitized_issue = primary_issue.strip()[:800]  # Limit for better context
+        escalation_id = f"ESC-{datetime.now().strftime('%Y%m%d-%H%M%S')}-{user_id[:8]}"
+        
+        # Enhanced logging with structured data
+        logger.info(f"HR Escalation initiated - ID: {escalation_id}, User: {user_id}, Chat: {chat_id}")
+        if user_description:
+            logger.info(f"User provided detailed description: {user_description[:200]}...")
+        
+        # Store HR escalation in dedicated database table
+        db_success = store_hr_escalation(
+            escalation_id=escalation_id,
+            user_id=user_id,
+            chat_id=chat_id,
+            user_message=user_query,
+            issue_summary=sanitized_issue,
+            status="PENDING",
+            priority="NORMAL",
+            user_description=user_description
+        )
+        
+        if not db_success:
+            logger.warning(f"Failed to store HR escalation {escalation_id} in database, but continuing with process")
+        
+        # Also maintain CSV backup logging
+        try:
+            with open("hr_escalations.csv", "a", newline='', encoding='utf-8') as f:
+                writer = csv.writer(f)
+                # Write header if file is empty
+                if f.tell() == 0:
+                    writer.writerow(["escalation_id", "timestamp", "user_id", "chat_id", "original_query", "user_description", "issue_summary", "status"])
+                
+                writer.writerow([
+                    escalation_id,
+                    datetime.now().isoformat(),
+                    user_id,
+                    chat_id,
+                    user_query[:200] + "..." if len(user_query) > 200 else user_query,
+                    user_description[:300] + "..." if user_description and len(user_description) > 300 else (user_description or ""),
+                    sanitized_issue,
+                    "PENDING"
+                ])
+                
+        except Exception as log_error:
+            logger.error(f"Failed to log HR escalation to CSV: {log_error}")
+        
+        # Store in chat logs as well for tracking
+        try:
+            escalation_summary = f"HR_ESCALATION_INITIATED: {escalation_id}"
+            if user_description:
+                escalation_summary += f" | User Description: {user_description[:100]}..."
+            
+            store_chat_log_updated(
+                user_message=user_query, 
+                bot_response=escalation_summary, 
+                query_score=0.0, 
+                relevance_score=1.0, 
+                user_id=user_id, 
+                chat_id=chat_id
+            )
+        except Exception as db_error:
+            logger.error(f"Failed to store HR escalation in chat logs: {db_error}")
+        
+        # Build the response message with conditional acknowledgment of user description
+        description_acknowledgment = ""
+        if user_description and user_description.strip():
+            description_acknowledgment = f"\n\n**Issue Description Recorded:**\n\"{user_description[:200]}{'...' if len(user_description) > 200 else ''}\"\n\n"
+        
+        hr_response = f"""🚨 **HR Escalation Successfully Initiated**
+
+Your concern has been escalated to our Human Resources department with the highest priority.{description_acknowledgment}
+**Escalation Details:**
+• **Reference ID:** {escalation_id}
+• **Date & Time:** {datetime.now().strftime('%B %d, %Y at %I:%M %p')}
+• **Status:** Active and Under Review
+
+**What Happens Next:**
+1. **Immediate:** Your case has been logged in our HR system
+2. **Within 4 hours:** HR will acknowledge receipt via email
+3. **Within 24 hours:** An HR representative will contact you directly
+4. **Ongoing:** You'll receive regular updates until resolution
+
+**Important Information:**
+• All escalations are handled with **strict confidentiality**
+• You may be contacted for additional details if needed
+• For urgent safety matters, also contact your immediate supervisor
+• Keep your reference ID for tracking purposes
+
+**Contact Information:**
+• **HR Emergency Line:** Available 24/7 for urgent matters
+• **HR Email:** hr@verztec.com
+• **HR Direct Line:** [Your HR Phone Number]
+
+Your wellbeing and concerns are our top priority. HR is equipped to handle sensitive matters with the care and attention they deserve."""
+
+        return {
+            'text': hr_response,
+            'images': [],
+            'sources': [],
+            'tool_used': True,
+            'tool_identified': 'raise_to_hr',
+            'tool_confidence': 'executed_successfully'
+        }
+        
+    except Exception as e:
+        logger.error(f"Error in HR escalation tool: {str(e)}", exc_info=True)
+        return {
+            'text': "Sorry, there was an error processing your HR escalation. Please contact HR directly or try again later.",
+            'images': [],
+            'sources': [],
+            'tool_used': False,
+            'tool_identified': 'raise_to_hr',
+            'tool_confidence': f'error - {str(e)}'
+        }
+
+
+def execute_meeting_scheduling_tool(user_query: str, user_id: str, chat_id: str):
+    """
+    Execute meeting scheduling tool with logging and response formatting.
+    
+    Args:
+        user_query (str): The original user query that triggered meeting scheduling
+        user_id (str): User identifier
+        chat_id (str): Chat session identifier
+        
+    Returns:
+        dict: Formatted response for meeting scheduling
+    """
+    try:
+        # Sanitize and structure the input
+        sanitized_details = user_query.strip()[:500]
+        meeting_request_id = f"MTG-{datetime.now().strftime('%Y%m%d-%H%M%S')}-{user_id[:8]}"
+        
+        # Log the meeting request
+        logger.info(f"Meeting request initiated - ID: {meeting_request_id}, User: {user_id}, Chat: {chat_id}")
+        
+        try:
+            with open("meeting_requests.csv", "a", newline='', encoding='utf-8') as f:
+                writer = csv.writer(f)
+                # Write header if file is empty
+                if f.tell() == 0:
+                    writer.writerow(["request_id", "timestamp", "user_id", "chat_id", "meeting_details", "status"])
+                
+                writer.writerow([
+                    meeting_request_id,
+                    datetime.now().isoformat(),
+                    user_id,
+                    chat_id,
+                    sanitized_details,
+                    "PENDING"
+                ])
+                
+        except Exception as log_error:
+            logger.error(f"Failed to log meeting request: {log_error}")
+        
+        # Store in database
+        try:
+            store_chat_log_updated(
+                user_message=user_query, 
+                bot_response=f"MEETING_REQUEST_INITIATED: {meeting_request_id}", 
+                query_score=1.0, 
+                relevance_score=0.0, 
+                user_id=user_id, 
+                chat_id=chat_id
+            )
+        except Exception as db_error:
+            logger.error(f"Failed to store meeting request in database: {db_error}")
+        
+        meeting_response = f"""📅 **Meeting Request Successfully Submitted**
+
+Your meeting request has been submitted and is being processed by our coordination team.
+
+**Request Details:**
+• **Request ID:** {meeting_request_id}
+• **Date & Time:** {datetime.now().strftime('%B %d, %Y at %I:%M %p')}
+• **Status:** Pending Review
+
+**What Happens Next:**
+1. **Within 2 hours:** Your request will be reviewed by our coordination team
+2. **Within 1 business day:** You'll receive meeting options and scheduling details
+3. **Upon confirmation:** Calendar invitations will be sent to all participants
+4. **24 hours before:** You'll receive a meeting reminder with agenda
+
+**Meeting Request Summary:**
+{sanitized_details}
+
+**Next Steps:**
+• Our team will contact you to discuss specific requirements
+• Please check your email for updates on scheduling options
+• If urgent, you can also contact the coordination team directly
+
+**Contact Information:**
+• **Coordination Team:** meetings@verztec.com
+• **Direct Line:** [Meeting Coordination Number]
+
+Thank you for using our meeting coordination service. We'll ensure your meeting is scheduled efficiently!"""
+
+        return {
+            'text': meeting_response,
+            'images': [],
+            'sources': [],
+            'tool_used': True,
+            'tool_identified': 'schedule_meeting',
+            'tool_confidence': 'executed_successfully'
+        }
+        
+    except Exception as e:
+        logger.error(f"Error in meeting scheduling tool: {str(e)}", exc_info=True)
+        return {
+            'text': "Sorry, there was an error processing your meeting request. Please contact the coordination team directly or try again later.",
+            'images': [],
+            'sources': [],
+            'tool_used': False,
+            'tool_identified': 'schedule_meeting',
+            'tool_confidence': f'error - {str(e)}'
+        }

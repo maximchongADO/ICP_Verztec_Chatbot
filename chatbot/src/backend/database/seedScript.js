@@ -70,13 +70,36 @@ const createTablesSQL = {
       uploaded_by INT,
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
       FOREIGN KEY (uploaded_by) REFERENCES Users(id) ON DELETE SET NULL
+    )`,
+    
+  hr_escalations: `
+    CREATE TABLE IF NOT EXISTS hr_escalations (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      escalation_id VARCHAR(50) UNIQUE NOT NULL,
+      timestamp DATETIME NOT NULL,
+      user_id VARCHAR(100) NOT NULL,
+      chat_id VARCHAR(100) NOT NULL,
+      user_message TEXT NOT NULL,
+      issue_summary TEXT NOT NULL,
+      user_description TEXT NULL,
+      status ENUM('PENDING', 'ACKNOWLEDGED', 'IN_PROGRESS', 'RESOLVED', 'CLOSED') DEFAULT 'PENDING',
+      priority ENUM('LOW', 'NORMAL', 'HIGH', 'URGENT') DEFAULT 'NORMAL',
+      assigned_to VARCHAR(100) NULL,
+      notes TEXT NULL,
+      resolved_at DATETIME NULL,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+      INDEX idx_escalation_id (escalation_id),
+      INDEX idx_user_id (user_id),
+      INDEX idx_status (status),
+      INDEX idx_timestamp (timestamp)
     )`
   };
 
 async function createTables(connection) {
   try {
     // Create tables in order (roles first, then users due to foreign key)
-    const tableOrder = ['documents', 'knowledge_chunks', 'chat_logs', 'extracted_texts', 'roles', 'users', 'cleaned_texts'];
+    const tableOrder = ['documents', 'knowledge_chunks', 'chat_logs', 'extracted_texts', 'roles', 'users', 'cleaned_texts', 'hr_escalations'];
     
     for (const tableName of tableOrder) {
       await connection.execute(createTablesSQL[tableName]);

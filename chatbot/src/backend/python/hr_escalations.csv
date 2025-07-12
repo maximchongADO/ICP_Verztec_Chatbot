@@ -1,0 +1,15 @@
+escalation_id,timestamp,user_id,chat_id,issue_summary,status
+ESC-20250712-155811-2,2025-07-12T15:58:11.175594,2,21e68e4b-7e94-4e8c-8720-5b3f8c17968d,my boss touched me,PENDING
+ESC-20250712-160034-2,2025-07-12T16:00:34.754301,2,21e68e4b-7e94-4e8c-8720-5b3f8c17968d,my boss touched me,PENDING
+ESC-20250712-161706-2,2025-07-12T16:17:06.454124,2,21e68e4b-7e94-4e8c-8720-5b3f8c17968d,my boss just touched me,PENDING
+ESC-20250712-162543-2,2025-07-12T16:25:43.813799,2,21e68e4b-7e94-4e8c-8720-5b3f8c17968d,i need to contact hr but i dont know how to can you do it for me,PENDING
+ESC-20250712-162912-2,2025-07-12T16:29:12.491012,2,21e68e4b-7e94-4e8c-8720-5b3f8c17968d,i think my coworker is stalking me..,PENDING
+ESC-20250712-164409-2,2025-07-12T16:44:09.084478,2,21e68e4b-7e94-4e8c-8720-5b3f8c17968d,i think my coworker is stalking me..,PENDING
+ESC-20250712-170536-2,2025-07-12T17:05:36.302686,2,21e68e4b-7e94-4e8c-8720-5b3f8c17968d,i think my coworker is stalking me..,PENDING
+ESC-20250712-172651-2,2025-07-12T17:26:51.370028,2,21e68e4b-7e94-4e8c-8720-5b3f8c17968d,I think my coworker is stalking me?,HE RUBBED MY COOCH BRAH,HE RUBBED MY COOCH BRAH,PENDING
+ESC-20250712-173449-2,2025-07-12T17:34:49.241857,2,21e68e4b-7e94-4e8c-8720-5b3f8c17968d,I think my coworker is stalking me?,,I think my coworker is stalking me?,PENDING
+ESC-20250712-173542-2,2025-07-12T17:35:42.451168,2,21e68e4b-7e94-4e8c-8720-5b3f8c17968d,I think my coworker is stalking me?,,I think my coworker is stalking me?,PENDING
+ESC-20250712-173819-2,2025-07-12T17:38:19.578873,2,21e68e4b-7e94-4e8c-8720-5b3f8c17968d,I think my coworker is stalking me?,,I think my coworker is stalking me?,PENDING
+ESC-20250712-173852-2,2025-07-12T17:38:52.989853,2,21e68e4b-7e94-4e8c-8720-5b3f8c17968d,I think my coworker is stalking me?,,I think my coworker is stalking me?,PENDING
+ESC-20250712-174333-2,2025-07-12T17:43:33.377036,2,21e68e4b-7e94-4e8c-8720-5b3f8c17968d,my coworker is stalking me,ffefefef,ffefefef,PENDING
+ESC-20250712-174458-2,2025-07-12T17:44:58.139160,2,21e68e4b-7e94-4e8c-8720-5b3f8c17968d,My coworker is stalking me?,HIIII,HIIII,PENDING
