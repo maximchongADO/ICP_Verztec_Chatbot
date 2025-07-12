@@ -13,8 +13,9 @@ from chatbot import (
     memory, 
     logger, 
     index,agentic_bot_v1,
-    execute_confirmed_tool
+    global_tools
 )
+from tool_executors import execute_confirmed_tool
 from memory_retrieval import (retrieve_user_messages_and_scores,get_all_chats_with_messages_for_user)
 from Freq_queries import (get_suggestions)
 from fileUpload import process_upload
@@ -170,7 +171,14 @@ async def tool_confirmation(request: ChatRequest):
         # Execute the confirmed tool using the cached identification
         if tool_identified and tool_identified != 'none':
             logger.info(f"Executing confirmed tool: {tool_identified}")
-            response_data = execute_confirmed_tool(tool_identified, request.message, request.user_id, request.chat_id, user_description)
+            response_data = execute_confirmed_tool(
+                tool_identified, 
+                request.message, 
+                request.user_id, 
+                request.chat_id, 
+                user_description,
+                global_tools
+            )
         else:
             # No tool to execute, return error
             logger.warning("No tool identified for execution in confirmation request")
