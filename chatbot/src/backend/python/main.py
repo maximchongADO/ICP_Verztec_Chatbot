@@ -12,7 +12,8 @@ from chatbot import (
     generate_answer_histoy_retrieval,
     memory, 
     logger, 
-    index,agentic_bot_v1
+    index,agentic_bot_v1,
+    execute_confirmed_tool
 )
 from memory_retrieval import (retrieve_user_messages_and_scores,get_all_chats_with_messages_for_user)
 from Freq_queries import (get_suggestions)
@@ -39,6 +40,9 @@ class ChatRequest(BaseModel):
     chat_history: Optional[List[str]] = []
     user_id: Optional[str] = None
     chat_id: Optional[str] = None
+    tool_identified: Optional[str] = None  # For tool confirmation requests
+    tool_confidence: Optional[str] = None  # For tool confirmation requests
+    user_description: Optional[str] = None  # For HR escalation description
 
 class ChatResponse(BaseModel):
     message: str
@@ -140,7 +144,88 @@ async def avatar_endpoint(request:ChatRequest):
             error=str(e),
             images=None
         )
-
+@app.post("/tool_confirmation")
+async def tool_confirmation(request: ChatRequest):
+    """
+    Endpoint to execute confirmed tool and return response with original user and chat ID.
+    """
+    logger.info(f"Received tool confirmation request: {request}")
+    
+    try:
+        if not request.message.strip():
+            raise HTTPException(status_code=400, detail="Message cannot be empty")
+        
+        if index is None:
+            raise HTTPException(status_code=503, detail="Search index is not available")
+        
+        # Use the cached tool identification from the frontend
+        tool_identified = request.tool_identified or "none"
+        tool_confidence = request.tool_confidence or "unknown"
+        user_description = request.user_description or None
+        
+        logger.info(f"Using cached tool identification: {tool_identified} (confidence: {tool_confidence})")
+        if user_description:
+            logger.info(f"User provided description: {user_description[:100]}...")
+        
+        # Execute the confirmed tool using the cached identification
+        if tool_identified and tool_identified != 'none':
+            logger.info(f"Executing confirmed tool: {tool_identified}")
+            response_data = execute_confirmed_tool(tool_identified, request.message, request.user_id, request.chat_id, user_description)
+        else:
+            # No tool to execute, return error
+            logger.warning("No tool identified for execution in confirmation request")
+            raise HTTPException(status_code=400, detail="No tool identified for execution")
+        
+        # Handle both old tuple format and new structured format
+        if isinstance(response_data, dict):
+            # New structured format
+            response_message = response_data.get('text', '')
+            image_list = response_data.get('images', [])
+            sources = response_data.get('sources', [])
+            tool_used = response_data.get('tool_used', True)  # Default to True since this is tool confirmation
+            final_tool_identified = response_data.get('tool_identified', tool_identified)
+            final_tool_confidence = response_data.get('tool_confidence', tool_confidence)
+        else:
+            # Old tuple format (fallback)
+            response_message, image_list = response_data
+            sources = []
+            tool_used = True  # Tool was confirmed and executed
+            final_tool_identified = tool_identified
+            final_tool_confidence = tool_confidence
+        
+        logger.info(f"Generated tool confirmation response: {response_message}")
+        logger.info(f"Image list: {image_list}")
+        logger.info(f"Sources: {sources}")
+        logger.info(f"Tool executed - identified: {final_tool_identified}, used: {tool_used}")
+        
+        return {
+            "message": response_message,
+            "user_id": request.user_id,
+            "chat_id": request.chat_id,
+            "timestamp": datetime.utcnow().isoformat(),
+            "success": True,
+            "images": image_list,
+            "sources": sources,
+            "tool_used": tool_used,
+            "tool_identified": final_tool_identified,
+            "tool_confidence": final_tool_confidence
+        }
+        
+    except Exception as e:
+        logger.error(f"Error processing tool confirmation request: {str(e)}", exc_info=True)
+        return {
+            "message": "An error occurred while processing your request. Please try again later.",
+            "user_id": request.user_id,
+            "chat_id": request.chat_id,
+            "timestamp": datetime.utcnow().isoformat(),
+            "success": False,
+            "error": str(e),
+            "images": [],
+            "sources": [],
+            "tool_used": False,
+            "tool_identified": "none",
+            "tool_confidence": "error"
+        }
 @app.post("/chatbot")
 async def chat_endpoint(request: ChatRequest):
     logger.info(f"Received chat request: {request}")
@@ -161,14 +246,21 @@ async def chat_endpoint(request: ChatRequest):
             response_message = response_data.get('text', '')
             image_list = response_data.get('images', [])
             sources = response_data.get('sources', [])
+            tool_used = response_data.get('tool_used', False)
+            tool_identified = response_data.get('tool_identified', 'none')
+            tool_confidence = response_data.get('tool_confidence', '')
         else:
             # Old tuple format (fallback)
             response_message, image_list = response_data
             sources = []
+            tool_used = False
+            tool_identified = 'none'
+            tool_confidence = ''
         
         logger.info(f"Generated response: {response_message}")
         logger.info(f"Image list: {image_list}")
         logger.info(f"Sources: {sources}")
+        logger.info(f"Tool identified: {tool_identified}, Tool used: {tool_used}")
         
         return {
             "message": response_message,
@@ -176,7 +268,10 @@ async def chat_endpoint(request: ChatRequest):
             "timestamp": datetime.utcnow().isoformat(),
             "success": True,
             "images": image_list,
-            "sources": sources
+            "sources": sources,
+            "tool_used": tool_used,
+            "tool_identified": tool_identified,
+            "tool_confidence": tool_confidence
         }
         
 
@@ -189,7 +284,10 @@ async def chat_endpoint(request: ChatRequest):
             "success": False,
             "error": str(e),
             "images": [],
-            "sources": []
+            "sources": [],
+            "tool_used": False,
+            "tool_identified": "none",
+            "tool_confidence": "error"
         }
         
     from fastapi import APIRouter, HTTPException
