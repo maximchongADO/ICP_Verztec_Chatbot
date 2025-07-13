@@ -677,7 +677,7 @@ function addSourcesToMessage(sources) {
       sourceItem.classList.add("clickable");
       sourceItem.addEventListener("click", () => openSourceDocument(source.file_path, sourceItem));
     }
-    
+
     // Create icon
     const iconDiv = document.createElement("div");
     iconDiv.className = "source-icon";
