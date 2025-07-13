@@ -600,7 +600,7 @@ hybrid_retriever_obj = HybridRetriever(
                 top_k_final=5
             )
 
-
+## legacy   
 def generate_answer(user_query: str, chat_history: ConversationBufferMemory ):
     """
     Returns a tuple: (answer_text, image_list)
@@ -921,6 +921,10 @@ global_tools = {
         "response_tone": "organized_efficient"
     }
 }
+
+
+
+
 def generate_answer_histoy_retrieval(user_query: str, user_id:str, chat_id:str):
     """
     Returns a tuple: (answer_text, image_list)
@@ -1164,6 +1168,9 @@ def generate_answer_histoy_retrieval(user_query: str, user_id:str, chat_id:str):
             MAX_TURNS = 4
             if len(memory.chat_memory.messages) > 2 * MAX_TURNS:
                 memory.chat_memory.messages = memory.chat_memory.messages[-2 * MAX_TURNS:]
+            if tool_used:
+                is_task_query = 0  # Force task query for fallback response
+                avg_score = 2  # Force average score for fallback response
                 
             store_chat_log_updated(user_message=user_query, bot_response=cleaned_fallback, query_score=is_task_query, relevance_score=avg_score, user_id=user_id, chat_id=chat_id)
     
@@ -1184,20 +1191,22 @@ def generate_answer_histoy_retrieval(user_query: str, user_id:str, chat_id:str):
         # Step 4: Prepare tool-specific or standard prompt based on identified tool
         if tool_used and tool_identified != "none" and tool_identified in global_tools:
             tool_data = global_tools[tool_identified]
+            is_task_query=0
+            avg_score=1
             if tool_identified == "raise_to_hr":
                 confirmation_response = """I understand you have a workplace concern that requires proper attention. I can help you escalate this issue to our Human Resources department.
 
-Here's what will happen if you proceed:
+                            Here's what will happen if you proceed:
 
-- Your concern will be securely logged with a unique reference number
-- The issue will be forwarded directly to qualified HR personnel 
-- Complete confidentiality will be maintained throughout the process
-- You'll receive a reference ID to track the progress of your case
-- HR will follow up with you within 24 hours to discuss next steps
+                            - Your concern will be securely logged with a unique reference number
+                            - The issue will be forwarded directly to qualified HR personnel 
+                            - Complete confidentiality will be maintained throughout the process
+                            - You'll receive a reference ID to track the progress of your case
+                            - HR will follow up with you within 24 hours to discuss next steps
 
-HR has the expertise and authority to handle sensitive workplace matters through proper channels, ensuring your concern gets the attention and resolution it deserves.
+                            HR has the expertise and authority to handle sensitive workplace matters through proper channels, ensuring your concern gets the attention and resolution it deserves.
 
-Would you like me to proceed with escalating this matter to HR?"""
+                            Would you like me to proceed with escalating this matter to HR?"""
             elif tool_identified == "schedule_meeting":
                 # Immediately extract meeting details
                 meeting_details = extract_meeting_details(user_query)
@@ -1229,16 +1238,9 @@ Would you like me to proceed with escalating this matter to HR?"""
             else:
                 confirmation_response = f"""I've identified that your request requires the {tool_identified} tool. This will help ensure your request is handled through the appropriate channels with the right level of attention.
 
-Would you like me to proceed with activating this tool for your request?"""
+                    Would you like me to proceed with activating this tool for your request?"""
             # Store the confirmation response
-            store_chat_log_updated(
-                user_message=user_query, 
-                bot_response=confirmation_response, 
-                query_score=is_task_query, 
-                relevance_score=avg_score, 
-                user_id=user_id, 
-                chat_id=chat_id
-            )
+           
             total_elapsed_time = time.time() - total_start_time
             logger.info(f"Total time taken for tool confirmation: {total_elapsed_time:.2f}s")
             return {
@@ -1334,9 +1336,11 @@ Would you like me to proceed with activating this tool for your request?"""
             cleaned_answer = re.sub(r"</?think>", "", cleaned_answer).strip()
         
             cleaned_answer = re.sub(r'[\*#]+', '', cleaned_answer).strip()
+            #user_query = user_query+"AHHAHAHAHHA"
             
            
             store_chat_log_updated(user_message=user_query, bot_response=cleaned_answer, query_score=is_task_query, relevance_score=avg_score, user_id=user_id, chat_id=chat_id)##brian u need to update sql for this to work
+            logger.info(f"Stored chat log for user {user_id}, chat {chat_id} with query score {is_task_query} and relevance score {avg_score}")
             # also need to update the store_chat_bot method, to incoude user id and chat id
             # After generating the bot's response
             final_response, source_docs = append_sources_with_links(cleaned_answer, top_docs)

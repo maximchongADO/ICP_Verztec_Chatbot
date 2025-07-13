@@ -1,71 +1,4 @@
-# Meeting request email sender (modeled after send_hr_escalation_email)
-def send_meeting_request_email(
-    meeting_request_id: str,
-    user_id: str,
-    chat_id: str,
-    meeting_details: dict,
-    user_query: str = None,
-    user_description: str = None,
-    meeting_email: str = None
-) -> bool:
-    """
-    Send an email notification for a meeting request.
-    """
-    try:
-        smtp_server = os.getenv('SMTP_SERVER', 'smtp.gmail.com')
-        smtp_port = int(os.getenv('SMTP_PORT', 587))
-        sender_email = os.getenv('SENDER_EMAIL')
-        sender_password = os.getenv('SENDER_APP_PASSWORD')
-        if not sender_email or not sender_password:
-            logger.error("Missing email configuration: SENDER_EMAIL or SENDER_APP_PASSWORD not set in environment")
-            return False
-        if meeting_email is None:
-            meeting_email = os.getenv('MEETING_CONFIRM_EMAIL', 'meetings@verztec.com')
-        message = MIMEMultipart()
-        message["From"] = sender_email
-        message["To"] = meeting_email
-        message["Subject"] = f"Meeting Request - {meeting_request_id}"
-        email_body = f"""
-MEETING REQUEST INITIATED
 
-Meeting ID: {meeting_request_id}
-Date & Time: {datetime.now().strftime('%B %d, %Y at %I:%M %p')}
-User ID: {user_id}
-Chat ID: {chat_id}
-
-Subject: {meeting_details.get('subject', 'Not specified')}
-Date/Time: {meeting_details.get('date_time', 'Not specified')}
-Duration: {meeting_details.get('duration', 'Not specified')}
-Participants: {', '.join(meeting_details.get('participants', []))}
-Meeting Type: {meeting_details.get('meeting_type', 'Not specified')}
-Location: {meeting_details.get('location', 'Not specified')}
-Priority: {meeting_details.get('priority', 'normal')}
-
-Original User Query: {user_query or ''}
-Additional Description: {user_description or ''}
-
-This meeting request has been initiated and is awaiting user confirmation.
-"""
-        message.attach(MIMEText(email_body, "plain"))
-        try:
-            logger.info(f"Attempting to send meeting email to {meeting_email} using SMTP server {smtp_server}:{smtp_port}")
-            server = smtplib.SMTP(smtp_server, smtp_port)
-            server.starttls()
-            server.login(sender_email, sender_password)
-            server.sendmail(sender_email, meeting_email, message.as_string())
-            server.quit()
-            logger.info(f"Meeting request email sent to {meeting_email} for meeting {meeting_request_id}")
-            return True
-        except Exception as smtp_error:
-            logger.error(f"SMTP error sending meeting email for {meeting_request_id}: {str(smtp_error)}")
-            logger.info(f"Failed to send - Email Content for {meeting_request_id}:")
-            logger.info(f"To: {meeting_email}")
-            logger.info(f"Subject: Meeting Request - {meeting_request_id}")
-            logger.info(f"Body: {email_body}")
-            return False
-    except Exception as e:
-        logger.error(f"Failed to send meeting request email for {meeting_request_id}: {str(e)}")
-        return False
 """
 Tool Execution Functions for Verztec Chatbot
 
@@ -227,6 +160,83 @@ Verztec AI Assistant
     except Exception as e:
         logger.error(f"Failed to send HR escalation email for {escalation_id}: {str(e)}")
         return False
+    
+    
+    
+    
+    
+    
+# Meeting request email sender (modeled after send_hr_escalation_email)
+def send_meeting_request_email(
+    meeting_request_id: str,
+    user_id: str,
+    chat_id: str,
+    meeting_details: dict,
+    user_query: str = None,
+    user_description: str = None,
+    meeting_email: str = None
+) -> bool:
+    """
+    Send an email notification for a meeting request.
+    """
+    try:
+        smtp_server = os.getenv('SMTP_SERVER', 'smtp.gmail.com')
+        smtp_port = int(os.getenv('SMTP_PORT', 587))
+        sender_email = os.getenv('SENDER_EMAIL')
+        sender_password = os.getenv('SENDER_APP_PASSWORD')
+        if not sender_email or not sender_password:
+            logger.error("Missing email configuration: SENDER_EMAIL or SENDER_APP_PASSWORD not set in environment")
+            return False
+        if meeting_email is None:
+            meeting_email = os.getenv('MEETING_CONFIRM_EMAIL', 'meetings@verztec.com')
+        message = MIMEMultipart()
+        message["From"] = sender_email
+        message["To"] = meeting_email
+        message["Subject"] = f"Meeting Request - {meeting_request_id}"
+        email_body = f"""
+MEETING REQUEST INITIATED
+
+Meeting ID: {meeting_request_id}
+Date & Time: {datetime.now().strftime('%B %d, %Y at %I:%M %p')}
+User ID: {user_id}
+Chat ID: {chat_id}
+
+Subject: {meeting_details.get('subject', 'Not specified')}
+Date/Time: {meeting_details.get('date_time', 'Not specified')}
+Duration: {meeting_details.get('duration', 'Not specified')}
+Participants: {', '.join(meeting_details.get('participants', []))}
+Meeting Type: {meeting_details.get('meeting_type', 'Not specified')}
+Location: {meeting_details.get('location', 'Not specified')}
+Priority: {meeting_details.get('priority', 'normal')}
+
+Original User Query: {user_query or ''}
+Additional Description: {user_description or ''}
+
+This meeting request has been initiated and is awaiting user confirmation.
+"""
+        message.attach(MIMEText(email_body, "plain"))
+        try:
+            logger.info(f"Attempting to send meeting email to {meeting_email} using SMTP server {smtp_server}:{smtp_port}")
+            server = smtplib.SMTP(smtp_server, smtp_port)
+            server.starttls()
+            server.login(sender_email, sender_password)
+            server.sendmail(sender_email, meeting_email, message.as_string())
+            server.quit()
+            logger.info(f"Meeting request email sent to {meeting_email} for meeting {meeting_request_id}")
+            return True
+        except Exception as smtp_error:
+            logger.error(f"SMTP error sending meeting email for {meeting_request_id}: {str(smtp_error)}")
+            logger.info(f"Failed to send - Email Content for {meeting_request_id}:")
+            logger.info(f"To: {meeting_email}")
+            logger.info(f"Subject: Meeting Request - {meeting_request_id}")
+            logger.info(f"Body: {email_body}")
+            return False
+    except Exception as e:
+        logger.error(f"Failed to send meeting request email for {meeting_request_id}: {str(e)}")
+        return False
+
+
+
 
 
 def extract_meeting_details(user_query: str) -> Dict[str, Any]:
@@ -411,6 +421,10 @@ Return ONLY the JSON object. No explanations."""),
         return details
 
 
+
+
+
+
 def execute_confirmed_tool(
     tool_identified: str, 
     user_query: str, 
@@ -510,6 +524,9 @@ def execute_confirmed_tool(
             'tool_identified': tool_identified,
             'tool_confidence': f'error - {str(e)}'
         }
+
+
+
 
 
 def execute_hr_escalation_tool(
@@ -615,7 +632,7 @@ def execute_hr_escalation_tool(
                     user_message=user_query, 
                     bot_response=escalation_summary, 
                     query_score=0.0, 
-                    relevance_score=1.0, 
+                    relevance_score=2.0, 
                     user_id=user_id, 
                     chat_id=chat_id
                 )
@@ -676,6 +693,10 @@ Your wellbeing and concerns are our top priority. HR is equipped to handle sensi
         }
 
 
+
+
+
+
 def execute_meeting_scheduling_tool(
         # Send meeting request email using the new function
        
@@ -707,10 +728,13 @@ def execute_meeting_scheduling_tool(
         
         # Extract meeting details from combined input
         meeting_details = extract_meeting_details(combined_input)
-        
+        if meeting_details is None:
+            logger.warning("Meeting details extraction failed; using empty details.")
+            meeting_details = {}
+
         # Generate meeting request ID
         meeting_request_id = f"MTG-{datetime.now().strftime('%Y%m%d-%H%M%S')}-{user_id[:8]}"
-        
+
         # Enhanced logging with extracted details
         logger.info(f"Meeting request initiated - ID: {meeting_request_id}, User: {user_id}, Chat: {chat_id}")
         logger.info(f"Extracted details - Subject: {meeting_details.get('subject', 'Not specified')}")
@@ -730,7 +754,7 @@ def execute_meeting_scheduling_tool(
             meeting_email=os.getenv('HR_EMAIL', 'jwwl6424@gmail.com') 
         )
         if email_sent:
-            logger.info(f"Meeting request email sent to {os.getenv('MEETING_CONFIRM_EMAIL', 'meetings@verztec.com')} for meeting {meeting_request_id}")
+            logger.info(f"Meeting request email sent to {os.getenv('HR_EMAIL', 'jwwl6424@gmail.com') } for meeting {meeting_request_id}")
         else:
             logger.warning(f"Failed to send meeting request email for meeting {meeting_request_id}")
         
@@ -780,8 +804,8 @@ def execute_meeting_scheduling_tool(
                 store_chat_log_updated_func(
                     user_message=user_query, 
                     bot_response=meeting_summary, 
-                    query_score=1.0, 
-                    relevance_score=0.0, 
+                    query_score=0.0, 
+                    relevance_score=2.0, 
                     user_id=user_id, 
                     chat_id=chat_id
                 )

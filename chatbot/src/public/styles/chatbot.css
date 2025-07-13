@@ -1,3 +1,116 @@
+/* Tool Confirmation Block - Adaptive for Light/Dark Mode */
+
+/* Tool Confirmation Block - Improved for Light/Dark Mode and UI Consistency */
+
+
+.tool-confirmation.modern {
+  background: var(--chat-bg, #f8fafd);
+  border: 1px solid var(--chat-border, #e0e6ef);
+  border-radius: 8px;
+  padding: 6px 8px 4px 8px;
+  margin: 6px 0 0 0;
+  box-shadow: 0 1px 2px rgba(60,80,120,0.03);
+  font-size: 0.96em;
+  color: var(--chat-text, #222);
+  max-width: 480px;
+
+  width: 100%;
+  align-self: flex-start;
+}
+.tool-confirm-title {
+  font-size: 0.98em;
+  font-weight: 600;
+  margin-bottom: 1px;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  letter-spacing: 0.01em;
+}
+.tool-icon.hr { color: #b36a5e; font-size: 0.98em; }
+.tool-icon.meeting { color: #3a7bd5; font-size: 0.98em; }
+.tool-confirm-desc {
+  margin-bottom: 3px;
+  color: var(--chat-desc, #444);
+  font-size: 0.93em;
+}
+.incident-details-section {
+  margin-bottom: 3px;
+}
+.incident-label {
+  font-weight: 500;
+  margin-bottom: 1px;
+  display: block;
+  font-size: 0.93em;
+}
+.incident-textarea {
+  width: 100%;
+  max-width: 480px;
+  border-radius: 4px;
+  border: 1px solid var(--chat-input-border, #d0d7e2);
+  padding: 3px 6px;
+  font-size: 0.93em;
+  margin-bottom: 1px;
+  resize: vertical;
+  min-height: 16px;
+  background: var(--chat-input-bg, #fff);
+  color: var(--chat-input-text, #222);
+  box-sizing: border-box;
+}
+.incident-note small {
+  color: var(--chat-note, #888);
+  font-size: 0.85em;
+}
+.confirmation-buttons {
+  display: flex;
+  gap: 5px;
+  margin-top: 2px;
+}
+.confirm-btn {
+  padding: 3px 8px;
+  border-radius: 4px;
+  border: none;
+  font-size: 0.93em;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+  box-shadow: 0 1px 1px rgba(60,80,120,0.02);
+}
+.confirm-btn.yes {
+  background: var(--chat-btn-primary-bg, #3a7bd5);
+  color: var(--chat-btn-primary-text, #fff);
+}
+.confirm-btn.no {
+  background: var(--chat-btn-secondary-bg, #e0e6ef);
+  color: var(--chat-btn-secondary-text, #444);
+}
+.confirm-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+@media (prefers-color-scheme: dark) {
+  .tool-confirmation.modern {
+    --chat-bg: #181a1b;
+    --chat-border: #23272e;
+    --chat-text: #eaeaea;
+    --chat-desc: #bdbdbd;
+    --chat-input-bg: #23272e;
+    --chat-input-text: #f5f5f5;
+    --chat-input-border: #353a42;
+    --chat-note: #bdbdbd;
+    --chat-btn-primary-bg: #3a7bd5;
+    --chat-btn-primary-text: #fff;
+    --chat-btn-secondary-bg: #23272e;
+    --chat-btn-secondary-text: #eaeaea;
+    box-shadow: 0 2px 12px rgba(0,0,0,0.18);
+  }
+  .tool-confirmation.modern .incident-textarea {
+    color: #f5f5f5 !important;
+    background: #23272e !important;
+    border-color: #353a42 !important;
+    caret-color: #fff !important;
+  }
+}
 /* Enhanced theme transitions - super smooth */
 :root {
   --theme-transition-duration: 0.7s;
@@ -96,18 +209,18 @@ svg,
 
 /* Sidebar */
 .sidebar {
-  width: 320px;
-  min-width: 320px;
-  max-width: 320px;
-  background: linear-gradient(145deg, #ffffff 0%, #f8f9fa 50%, #e9ecef 100%);
-  color: #495057;
-  border-radius: 0;
-  box-shadow: 
-    0 20px 60px rgba(0,0,0,0.08),
-    0 4px 20px rgba(0,0,0,0.04),
-    inset 0 1px 0 rgba(255,255,255,0.9);
-  border-right: 1px solid rgba(0,0,0,0.06);
-  backdrop-filter: blur(20px);
+  width: 100%;
+  max-width: 220px;
+  border-radius: 4px;
+  border: 1px solid var(--chat-input-border, #d0d7e2);
+  padding: 2px 5px;
+  font-size: 0.92em;
+  margin-bottom: 1px;
+  resize: vertical;
+  min-height: 12px;
+  background: var(--chat-input-bg, #fff);
+  color: var(--chat-input-text, #222);
+  box-sizing: border-box;
   display: flex;
   flex-direction: column;
   align-items: stretch;
@@ -2551,3 +2664,77 @@ body.dark-theme .source-item.error .source-action {
   background: rgba(255, 59, 48, 0.15);
 }
 
+.tool-confirmation.modern {
+  background: #f8fafd;
+  border: 1.5px solid #e0e6ef;
+  border-radius: 14px;
+  padding: 22px 20px 16px 20px;
+  margin: 18px 0 0 0;
+  box-shadow: 0 2px 12px rgba(60,80,120,0.07);
+  font-size: 1.05em;
+  color: #222;
+}
+.tool-confirm-title {
+  font-size: 1.18em;
+  font-weight: 600;
+  margin-bottom: 6px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.tool-icon.hr { color: #b36a5e; font-size: 1.3em; }
+.tool-icon.meeting { color: #3a7bd5; font-size: 1.3em; }
+.tool-confirm-desc {
+  margin-bottom: 12px;
+  color: #444;
+}
+.incident-details-section {
+  margin-bottom: 12px;
+}
+.incident-label {
+  font-weight: 500;
+  margin-bottom: 4px;
+  display: block;
+}
+.incident-textarea {
+  width: 100%;
+  border-radius: 8px;
+  border: 1px solid #d0d7e2;
+  padding: 8px 10px;
+  font-size: 1em;
+  margin-bottom: 4px;
+  resize: vertical;
+  min-height: 60px;
+  background: #fff;
+  color: #222;
+}
+.incident-note small {
+  color: #888;
+  font-size: 0.93em;
+}
+.confirmation-buttons {
+  display: flex;
+  gap: 12px;
+  margin-top: 10px;
+}
+.confirm-btn {
+  padding: 8px 18px;
+  border-radius: 7px;
+  border: none;
+  font-size: 1em;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+.confirm-btn.yes {
+  background: #3a7bd5;
+  color: #fff;
+}
+.confirm-btn.no {
+  background: #e0e6ef;
+  color: #444;
+}
+.confirm-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}

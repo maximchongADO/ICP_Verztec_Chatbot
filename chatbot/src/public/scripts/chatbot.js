@@ -563,62 +563,58 @@ function addMessage(textOrResponse, sender) {
       let noButtonText = "✗ No, cancel";
       let additionalInputs = "";
       
-      if (tool_identified === "raise_to_hr") {
-        confirmationText = "This will escalate your issue to HR. Please provide additional details about the incident:";
-        yesButtonText = "✓ Yes, escalate to HR";
-        noButtonText = "✗ No, cancel";
-        additionalInputs = `
-          <div class="incident-details-section">
-            <label for="incidentDetails" class="incident-label">Incident Details:</label>
-            <textarea 
-              id="incidentDetails" 
-              class="incident-textarea" 
-              placeholder="Please describe the incident in detail, including when it occurred, who was involved, and any other relevant information..."
-              rows="4"
-            ></textarea>
-            <div class="incident-note">
-              <small>This information will be included in your HR escalation request.</small>
-            </div>
-          </div>
-        `;
-      } else if (tool_identified === "schedule_meeting") {
-        confirmationText = "This will schedule a meeting. Do you want to proceed?";
-        yesButtonText = "✓ Yes, schedule meeting";
-        noButtonText = "✗ No, cancel";
-      }
-      
-      confirmationHtml = `
-        <div class="tool-confirmation" data-tool-type="${tool_identified}" data-tool-confidence="${tool_confidence}" data-original-message="${escapeHtml(original_message)}">
-          <p class="confirmation-text">${confirmationText}</p>
-          ${additionalInputs}
-          <div class="confirmation-buttons">
-            <button class="confirm-btn yes" onclick="handleToolConfirmation(this, true)">
-              ${yesButtonText}
-            </button>
-            <button class="confirm-btn no" onclick="handleToolConfirmation(this, false)">
-              ${noButtonText}
-            </button>
-          </div>
+
+    if (tool_identified === "raise_to_hr") {
+      confirmationText = `<div class="tool-confirm-title"><span class="tool-icon hr">👤</span>Escalate to HR</div><div class="tool-confirm-desc">This will escalate your issue to <b>Human Resources</b>. Please provide additional details about the incident:</div>`;
+      yesButtonText = "✓ Yes, escalate to HR";
+      noButtonText = "✗ No, cancel";
+      additionalInputs = `<div class="incident-details-section"><label for="incidentDetails" class="incident-label">Incident Details:</label><textarea id="incidentDetails" class="incident-textarea" placeholder="Describe the incident in detail (when, who, what happened)..." rows="1"></textarea><div class="incident-note"><small>All information will be included in your HR escalation request and handled confidentially.</small></div></div>`;
+    } else if (tool_identified === "schedule_meeting") {
+      confirmationText = `
+        <div class="tool-confirm-title">
+          <span class="tool-icon meeting">📅</span>
+          Schedule a Meeting
+        </div>
+        <div class="tool-confirm-desc">
+          This will schedule a meeting. Do you want to proceed?
         </div>
       `;
+      yesButtonText = "✓ Yes, schedule meeting";
+      noButtonText = "✗ No, cancel";
     }
 
-    messageDiv.innerHTML = `
-      <div class="ai-message-avatar"></div>
-      <div class="message-content ai-message">
-        ${escapeHtml(text)}${imagesHtml}
-        ${confirmationHtml}
-        <button class="copy-btn" title="Copy response" onclick="copyMessage(this)">📋</button>
+    confirmationHtml = `
+      <div class="tool-confirmation modern" data-tool-type="${tool_identified}" data-tool-confidence="${tool_confidence}" data-original-message="${escapeHtml(original_message)}">
+        ${confirmationText}
+        ${additionalInputs}
+        <div class="confirmation-buttons">
+          <button class="confirm-btn yes" onclick="handleToolConfirmation(this, true)">
+            ${yesButtonText}
+          </button>
+          <button class="confirm-btn no" onclick="handleToolConfirmation(this, false)">
+            ${noButtonText}
+          </button>
+        </div>
       </div>
-      <div class="feedback-buttons">
-        <button class="feedback-btn positive" onclick="handleFeedback(this, true)">
-          👍 Helpful
-        </button>
-        <button class="feedback-btn negative" onclick="handleFeedback(this, false)">
-          👎 Not Helpful
-        </button>
-      </div>`;
+    `;
   }
+
+  messageDiv.innerHTML = `
+    <div class="ai-message-avatar"></div>
+    <div class="message-content ai-message">
+      ${escapeHtml(text)}${imagesHtml}
+      ${confirmationHtml}
+      <button class="copy-btn" title="Copy response" onclick="copyMessage(this)">📋</button>
+    </div>
+    <div class="feedback-buttons">
+      <button class="feedback-btn positive" onclick="handleFeedback(this, true)">
+        👍 Helpful
+      </button>
+      <button class="feedback-btn negative" onclick="handleFeedback(this, false)">
+        👎 Not Helpful
+      </button>
+    </div>`;
+}
 
   if (sender === "bot" && text && !tool_used) {
     setTimeout(() => speakMessage(text), 100);
