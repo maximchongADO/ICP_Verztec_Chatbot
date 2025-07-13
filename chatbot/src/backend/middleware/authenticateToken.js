@@ -15,7 +15,7 @@ const authenticateToken = (req,res,next) => {
     }
 
     //verify token
-    jwt.verify(token, process.env.ACCESS_TOKEN_SECRET || process.env.JWT_SECRET || 'fallback-secret-key', (err,user) => {
+    jwt.verify(token, process.env.JWT_SECRET || 'fallback-secret-key', (err,user) => {
         if (err) {
             console.log('Token verification failed:', err.message);
             return res.status(403).json({ 

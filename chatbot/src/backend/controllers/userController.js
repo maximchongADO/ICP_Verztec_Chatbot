@@ -12,7 +12,7 @@ const hashPassword = async (password) => {
 }
 
 const generateAccessToken = (user) => {
-    const secret = process.env.JWT_SECRET || process.env.ACCESS_TOKEN_SECRET || 'fallback-secret-key';
+    const secret = process.env.JWT_SECRET || 'fallback-secret-key';
     return jwt.sign({ userId: user.id, role: user.role }, secret, { expiresIn: '1h' });
 }
 
@@ -222,7 +222,7 @@ const decodeJWT = async (req, res) => {
         return res.status(401).json({ message: 'No token provided' });
     }
     try {
-        const decoded = jwt.verify(token, process.env.JWT_SECRET);
+        const decoded = jwt.verify(token, process.env.JWT_SECRET || 'fallback-secret-key');
         res.status(200).json(decoded);
     } catch (error) {
         console.error('Error decoding JWT:', error);

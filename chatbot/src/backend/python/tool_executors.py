@@ -670,7 +670,8 @@ Contact Information:
 • HR Email: hr@verztec.com
 • HR Direct Line: [Your HR Phone Number]
 
-Your wellbeing and concerns are our top priority. HR is equipped to handle sensitive matters with the care and attention they deserve."""
+Your wellbeing and concerns are our top priority. HR is equipped to handle sensitive matters with the care and attention they deserve.
+Please inform me if you would like to escalate this matter further or if you have any additional questions."""
 
         return {
             'text': hr_response,

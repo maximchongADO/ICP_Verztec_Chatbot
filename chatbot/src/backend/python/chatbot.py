@@ -1,3 +1,5 @@
+
+
 import os
 import re
 import difflib
@@ -32,7 +34,7 @@ from langchain.agents.output_parsers import ReActSingleInputOutputParser
 from langchain_core.prompts import PromptTemplate
 from langchain_core.agents import AgentAction, AgentFinish
 from langchain.prompts import ChatPromptTemplate
-from tool_executors import execute_confirmed_tool, execute_hr_escalation_tool, execute_meeting_scheduling_tool
+#from tool_executors import execute_confirmed_tool, execute_hr_escalation_tool, execute_meeting_scheduling_tool
 import csv
 import logging
 import os
@@ -921,10 +923,99 @@ global_tools = {
         "response_tone": "organized_efficient"
     }
 }
+# Utility: Get last bot message from ConversationBufferMemory
+def get_last_bot_message(chat_history):
+    """
+    Returns the content of the last AI (bot) message from a ConversationBufferMemory object.
+    """
+    history = chat_history.load_memory_variables({}).get("chat_history", [])
+    # history is a list of HumanMessage and AIMessage objects (if return_messages=True)
+    for msg in reversed(history):
+        if hasattr(msg, 'content') and msg.__class__.__name__ == 'answer':
+            return msg.content
+    return None
+
+def create_chat_name(user_id: str, chat_id: str, chat_history: ConversationBufferMemory):
+    """
+    Checks DB for chat name. If not found, uses decisionlayer_model to generate one.
+    """
+    key = f"{user_id}_{chat_id}"
+    logger.info(f"Creating chat name for key: {key}")
+
+    # Connect to MySQL
+    conn = pymysql.connect(**DB_CONFIG)
+    cursor = conn.cursor()
+
+    try:
+        # Fetch existing chat_name
+        select_query = """
+            SELECT chat_name
+            FROM chat_logs
+            WHERE user_id = %s AND chat_id = %s
+            ORDER BY timestamp DESC
+            LIMIT 1;
+        """
+        cursor.execute(select_query, (user_id, chat_id))
+        result = cursor.fetchone()
+
+        if result and result[0]:
+            chat_name = result[0]
+            logger.info(f"Existing chat name found: {chat_name}")
+        else:
+            # Get conversation history
+
+            messages = chat_history.load_memory_variables({}).get("chat_history", "")
+            # Handle both list (return_messages=True) and string cases
+            if isinstance(messages, list):
+                # Convert to string for prompt, and count user messages
+                user_msgs = [m.content for m in messages if m.__class__.__name__ == 'HumanMessage']
+                if not user_msgs:
+                    logger.warning("No conversation history available to generate a chat name.")
+                    return
+                if len(user_msgs) < 3:
+                    logger.info(f"Too few messages ({len(user_msgs)} found). Skipping chat name generation.")
+                    return
+                # Join all messages for context
+                messages_str = '\n'.join([f"User: {m.content}" if m.__class__.__name__ == 'HumanMessage' else f"Bot: {m.content}" for m in messages])
+            else:
+                # Fallback: treat as string
+                messages_str = messages
+                if not messages_str.strip():
+                    logger.warning("No conversation history available to generate a chat name.")
+                    return
+                message_lines = [line for line in messages_str.split("\n") if line.strip().startswith("User:")]
+                if len(message_lines) < 3:
+                    logger.info(f"Too few messages ({len(message_lines)} found). Skipping chat name generation.")
+                    return
+            prompt = (
+                        "Given the following conversation, generate only a short chat title (3 to 5 words). "
+                        "Do not include quotes, explanations, or any other text—just return the title:\n\n"
+                        f"{messages_str}"
+                    )
+            response = decisionlayer_model.predict(prompt).strip().strip('"')
+            # Truncate chat_name to fit DB column (assume VARCHAR(50), adjust if needed)
+            max_length = 50
+            response = re.sub(r"<think>.*?</think>", "", response, flags=re.DOTALL).strip()
+            chat_name = response[:max_length]
+            logger.info(f"Generated chat name: {chat_name}")
+
+            # Update DB
+            update_query = """
+                UPDATE chat_logs
+                SET chat_name = %s
+                WHERE user_id = %s AND chat_id = %s;
+            """
+            cursor.execute(update_query, (chat_name, user_id, chat_id))
+            conn.commit()
 
 
-
-
+    except Exception as e:
+        logger.exception(f"Error creating chat name: {e}")
+    finally:
+        cursor.close()
+        conn.close()
+        
+        
 def generate_answer_histoy_retrieval(user_query: str, user_id:str, chat_id:str):
     """
     Returns a tuple: (answer_text, image_list)
@@ -942,6 +1033,8 @@ def generate_answer_histoy_retrieval(user_query: str, user_id:str, chat_id:str):
         chat_history = build_memory_from_results(msgs)
         memory_store[key] = chat_history
         logger.info(f"No memory object found. Created and saved for key: {key}")
+        
+    create_chat_name(user_id, chat_id, chat_history)
 
     
         
@@ -987,6 +1080,7 @@ def generate_answer_histoy_retrieval(user_query: str, user_id:str, chat_id:str):
         tool_descriptions = "\n".join([f"[{name}] — {tool_data['description']}" for name, tool_data in global_tools.items()])
 
         # Prompt template with context and tool injection
+        glast_bot_message = get_last_bot_message(chat_history)
         decision_prompt = ChatPromptTemplate.from_messages([
             ("system", """
                 You are the decision-making layer of a corporate assistant chatbot for internal employee support.
@@ -1003,6 +1097,7 @@ def generate_answer_histoy_retrieval(user_query: str, user_id:str, chat_id:str):
 
                 Return ONLY the tag. No explanations.
             """),
+            ("ai", "{glast_bot_message}"),
             ("human", "{question}")
         ])
 
@@ -1012,7 +1107,8 @@ def generate_answer_histoy_retrieval(user_query: str, user_id:str, chat_id:str):
         # Run it in your workflow
         tool_response = decision_chain.invoke({
             "tool_descriptions": tool_descriptions,
-            "question": clean_query
+            "question": clean_query,
+            "glast_bot_message": glast_bot_message if glast_bot_message is not None else ""
         })
 
         Tool_answer = re.sub(r"<think>.*?</think>", "", tool_response.content, flags=re.DOTALL).strip()
