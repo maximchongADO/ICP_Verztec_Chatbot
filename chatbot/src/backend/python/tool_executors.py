@@ -1,3 +1,71 @@
+# Meeting request email sender (modeled after send_hr_escalation_email)
+def send_meeting_request_email(
+    meeting_request_id: str,
+    user_id: str,
+    chat_id: str,
+    meeting_details: dict,
+    user_query: str = None,
+    user_description: str = None,
+    meeting_email: str = None
+) -> bool:
+    """
+    Send an email notification for a meeting request.
+    """
+    try:
+        smtp_server = os.getenv('SMTP_SERVER', 'smtp.gmail.com')
+        smtp_port = int(os.getenv('SMTP_PORT', 587))
+        sender_email = os.getenv('SENDER_EMAIL')
+        sender_password = os.getenv('SENDER_APP_PASSWORD')
+        if not sender_email or not sender_password:
+            logger.error("Missing email configuration: SENDER_EMAIL or SENDER_APP_PASSWORD not set in environment")
+            return False
+        if meeting_email is None:
+            meeting_email = os.getenv('MEETING_CONFIRM_EMAIL', 'meetings@verztec.com')
+        message = MIMEMultipart()
+        message["From"] = sender_email
+        message["To"] = meeting_email
+        message["Subject"] = f"Meeting Request - {meeting_request_id}"
+        email_body = f"""
+MEETING REQUEST INITIATED
+
+Meeting ID: {meeting_request_id}
+Date & Time: {datetime.now().strftime('%B %d, %Y at %I:%M %p')}
+User ID: {user_id}
+Chat ID: {chat_id}
+
+Subject: {meeting_details.get('subject', 'Not specified')}
+Date/Time: {meeting_details.get('date_time', 'Not specified')}
+Duration: {meeting_details.get('duration', 'Not specified')}
+Participants: {', '.join(meeting_details.get('participants', []))}
+Meeting Type: {meeting_details.get('meeting_type', 'Not specified')}
+Location: {meeting_details.get('location', 'Not specified')}
+Priority: {meeting_details.get('priority', 'normal')}
+
+Original User Query: {user_query or ''}
+Additional Description: {user_description or ''}
+
+This meeting request has been initiated and is awaiting user confirmation.
+"""
+        message.attach(MIMEText(email_body, "plain"))
+        try:
+            logger.info(f"Attempting to send meeting email to {meeting_email} using SMTP server {smtp_server}:{smtp_port}")
+            server = smtplib.SMTP(smtp_server, smtp_port)
+            server.starttls()
+            server.login(sender_email, sender_password)
+            server.sendmail(sender_email, meeting_email, message.as_string())
+            server.quit()
+            logger.info(f"Meeting request email sent to {meeting_email} for meeting {meeting_request_id}")
+            return True
+        except Exception as smtp_error:
+            logger.error(f"SMTP error sending meeting email for {meeting_request_id}: {str(smtp_error)}")
+            logger.info(f"Failed to send - Email Content for {meeting_request_id}:")
+            logger.info(f"To: {meeting_email}")
+            logger.info(f"Subject: Meeting Request - {meeting_request_id}")
+            logger.info(f"Body: {email_body}")
+            return False
+    except Exception as e:
+        logger.error(f"Failed to send meeting request email for {meeting_request_id}: {str(e)}")
+        return False
 """
 Tool Execution Functions for Verztec Chatbot
 
@@ -609,6 +677,8 @@ Your wellbeing and concerns are our top priority. HR is equipped to handle sensi
 
 
 def execute_meeting_scheduling_tool(
+        # Send meeting request email using the new function
+       
     user_query: str, 
     user_id: str, 
     chat_id: str,
@@ -647,6 +717,22 @@ def execute_meeting_scheduling_tool(
         logger.info(f"Extracted details - DateTime: {meeting_details.get('date_time', 'Not specified')}")
         logger.info(f"Extracted details - Participants: {meeting_details.get('participants', [])}")
         logger.info(f"Extraction confidence: {meeting_details.get('extraction_confidence', 'unknown')}")
+        
+        
+        
+        email_sent = send_meeting_request_email(
+            meeting_request_id=meeting_request_id,
+            user_id=user_id,
+            chat_id=chat_id,
+            meeting_details=meeting_details,
+            user_query=user_query,
+            user_description=user_description,
+            meeting_email=os.getenv('HR_EMAIL', 'jwwl6424@gmail.com') 
+        )
+        if email_sent:
+            logger.info(f"Meeting request email sent to {os.getenv('MEETING_CONFIRM_EMAIL', 'meetings@verztec.com')} for meeting {meeting_request_id}")
+        else:
+            logger.warning(f"Failed to send meeting request email for meeting {meeting_request_id}")
         
         # Store enhanced meeting details in CSV
         try:
@@ -752,32 +838,22 @@ def execute_meeting_scheduling_tool(
             response_timeline = "Within 4 hours"
         
         # Build the comprehensive response with confirmation options
-        meeting_response = f"""📅 Meeting Request Ready for Review
+        meeting_response = f"""📅 **Your Meeting Request Is Ready!**
 
-I've analyzed your meeting request and extracted the following details. Please review and confirm if everything looks correct:
+Here’s what I’ve gathered from your request:
 {extracted_details_section}
 {additional_details_acknowledgment}
-**Original Request:**
+**Your Original Request:**
 "{user_query[:200]}{'...' if len(user_query) > 200 else ''}"
 
-**📋 Next Steps - Please Choose:**
+---
+**What happens next:**
+• Our team will review your request and send you a confirmation within {response_timeline.lower()}.
+• You’ll receive an email update as soon as your meeting is scheduled.
 
-**✅ CONFIRM MEETING** - If the details above are correct, click the confirm button and I'll:
-• Submit your request to our coordination team (Reference ID: {meeting_request_id})
-• Send calendar invitations to all participants
-• Book the specified location/platform
-• Set up meeting reminders
+If you need to make changes or have questions, just reply here or email **meetings@verztec.com** (Ref: {meeting_request_id}).
 
-**✏️ MODIFY DETAILS** - If you need to change anything, click the modify button or type "modify meeting" followed by what needs to be changed. For example:
-• "modify meeting - change time to 4pm"
-• "modify meeting - add John Doe to participants"
-• "modify meeting - make it a Zoom call instead"
-
-**❌ CANCEL REQUEST** - If you no longer need this meeting, click the cancel button
-
-**⏰ Response Timeline:** Once confirmed, our coordination team will process your request within {response_timeline.lower()} and send you scheduling confirmations.
-
-**Need Help?** Contact our coordination team at meetings@verztec.com (Reference: {meeting_request_id})"""
+Thank you for letting us help coordinate your meeting!"""
 
         return {
             'text': meeting_response,
@@ -833,6 +909,209 @@ I've analyzed your meeting request and extracted the following details. Please r
         }
 
 
+def handle_meeting_confirmation_response_2(
+    user_response: str,
+    meeting_request_id: str,
+    user_id: str,
+    chat_id: str,
+    original_details: Dict[str, Any],
+    store_chat_log_updated_func: Optional[callable] = None
+) -> Dict[str, Any]:
+    """
+    Handle user response to meeting confirmation (confirm, modify, or cancel).
+    
+    Args:
+        user_response (str): User's response to the meeting confirmation
+        meeting_request_id (str): The meeting request ID from the original request
+        user_id (str): User identifier
+        chat_id (str): Chat session identifier
+        original_details (dict): Original extracted meeting details
+        store_chat_log_updated_func (callable, optional): Function to store chat log
+        
+    Returns:
+        dict: Response indicating the action taken
+    """
+    try:
+        response_lower = user_response.lower().strip()
+        
+        # Check for confirmation
+        if any(phrase in response_lower for phrase in ['confirm meeting', 'confirm', 'yes', 'proceed', 'submit']):
+            # Update meeting status to confirmed and submit
+            try:
+                # Update CSV with confirmed status
+                import pandas as pd
+                
+                # Read existing CSV
+                csv_file = "meeting_requests.csv"
+                if os.path.exists(csv_file):
+                    df = pd.read_csv(csv_file)
+                    # Update status for this request
+                    df.loc[df['request_id'] == meeting_request_id, 'status'] = 'CONFIRMED_SUBMITTED'
+                    df.to_csv(csv_file, index=False)
+                
+            except Exception as csv_error:
+                logger.warning(f"Failed to update CSV status: {csv_error}")
+            
+            # Store confirmation in database
+            if store_chat_log_updated_func:
+                try:
+                    confirmation_summary = f"MEETING_CONFIRMED: {meeting_request_id} | Status: SUBMITTED_TO_COORDINATION_TEAM"
+                    store_chat_log_updated_func(
+                        user_message=user_response,
+                        bot_response=confirmation_summary,
+                        query_score=1.0,
+                        relevance_score=0.0,
+                        user_id=user_id,
+                        chat_id=chat_id
+                    )
+                except Exception as db_error:
+                    logger.error(f"Failed to store confirmation in database: {db_error}")
+            
+            logger.info(f"Meeting {meeting_request_id} confirmed and submitted by user {user_id}")
+            
+            response_text = f"""✅ **Your Meeting Is Confirmed!**
+
+Your meeting request (**{meeting_request_id}**) has been sent to our coordination team.
+
+**What’s next:**
+• We’ll review your request and send you a confirmation email soon.
+• Calendar invites will be sent to all participants once scheduled.
+
+**Meeting Summary:**
+• **Subject:** {original_details.get('subject', 'Not specified')}
+• **Date & Time:** {original_details.get('date_time', 'Not specified')}
+• **Participants:** {', '.join(original_details.get('participants', ['Not specified']))}
+
+If you have any questions or need to make changes, just reply here or email **meetings@verztec.com** (Ref: {meeting_request_id}).
+
+Thank you for using our meeting service! 📅"""
+
+            return {
+                'text': response_text,
+                'images': [],
+                'sources': [],
+                'tool_used': True,
+                'tool_identified': 'meeting_confirmed',
+                'tool_confidence': 'confirmed_and_submitted'
+            }
+            
+        # Check for cancellation
+        elif any(phrase in response_lower for phrase in ['cancel meeting', 'cancel', 'nevermind', 'discard']):
+            # Update meeting status to cancelled
+            try:
+                import pandas as pd
+                csv_file = "meeting_requests.csv"
+                if os.path.exists(csv_file):
+                    df = pd.read_csv(csv_file)
+                    df.loc[df['request_id'] == meeting_request_id, 'status'] = 'CANCELLED_BY_USER'
+                    df.to_csv(csv_file, index=False)
+            except Exception as csv_error:
+                logger.warning(f"Failed to update CSV status: {csv_error}")
+            
+            logger.info(f"Meeting {meeting_request_id} cancelled by user {user_id}")
+            
+            response_text = f"""❌ **Meeting Request Cancelled**
+
+Your meeting request (**{meeting_request_id}**) has been cancelled.
+
+No further action will be taken. If you’d like to schedule a new meeting, just let me know!
+
+Is there anything else I can help you with today?"""
+
+            return {
+                'text': response_text,
+                'images': [],
+                'sources': [],
+                'tool_used': True,
+                'tool_identified': 'meeting_cancelled',
+                'tool_confidence': 'cancelled_successfully'
+            }
+            
+        # Check for modification request
+        elif any(phrase in response_lower for phrase in ['modify meeting', 'modify', 'change', 'update']):
+            # Extract what needs to be modified and re-run extraction
+            modification_text = user_response
+            
+            # Remove the command part to get the actual changes
+            for phrase in ['modify meeting', 'modify', 'change', 'update']:
+                if phrase in response_lower:
+                    modification_text = user_response[response_lower.find(phrase) + len(phrase):].strip()
+                    if modification_text.startswith('-'):
+                        modification_text = modification_text[1:].strip()
+                    break
+            
+            logger.info(f"Meeting modification requested for {meeting_request_id}: {modification_text}")
+            
+            response_text = f"""✏️ **You’d Like to Update Your Meeting**
+
+You requested changes to meeting **{meeting_request_id}**.
+
+**Your requested changes:** {modification_text}
+
+To help me update your meeting, please provide the full new details (date, time, participants, etc.).
+For example: “Schedule a meeting tomorrow at 3pm with John and Sarah to discuss budget review in conference room C.”
+
+You can also:
+• **Cancel** this request and start over
+• **Confirm** the original request as-is
+• Or contact meetings@verztec.com for complex changes
+
+What would you like to do next?"""
+
+            return {
+                'text': response_text,
+                'images': [],
+                'sources': [],
+                'tool_used': True,
+                'tool_identified': 'meeting_modification_requested',
+                'tool_confidence': 'awaiting_new_details'
+            }
+            
+        else:
+            # Unclear response - ask for clarification
+            response_text = f"""❓ **Could You Clarify Your Response?**
+
+I wasn’t sure what you’d like to do with meeting request **{meeting_request_id}**.
+
+Please reply with one of these options:
+• **"confirm meeting"** – to submit as shown
+• **"modify meeting"** – and tell me what to change
+• **"cancel meeting"** – to discard this request
+
+For example:
+• “confirm meeting”
+• “modify meeting – change time to 4pm”
+• “cancel meeting”
+
+**Current meeting details:**
+• **Subject:** {original_details.get('subject', 'Not specified')}
+• **Date & Time:** {original_details.get('date_time', 'Not specified')}
+• **Participants:** {', '.join(original_details.get('participants', ['Not specified']))}
+
+What would you like to do?"""
+
+            return {
+                'text': response_text,
+                'images': [],
+                'sources': [],
+                'tool_used': True,
+                'tool_identified': 'meeting_clarification_needed',
+                'tool_confidence': 'awaiting_clear_response'
+            }
+            
+    except Exception as e:
+        logger.error(f"Error handling meeting confirmation response: {str(e)}", exc_info=True)
+        return {
+            'text': f"Sorry, there was an error processing your response to meeting request {meeting_request_id}. Please contact meetings@verztec.com for assistance.",
+            'images': [],
+            'sources': [],
+            'tool_used': False,
+            'tool_identified': 'meeting_confirmation_error',
+            'tool_confidence': f'error - {str(e)}'
+        }
+
+
+# ...existing code...
 def handle_meeting_confirmation_response(
     user_response: str,
     meeting_request_id: str,
@@ -1041,5 +1320,3 @@ What would you like to do?"""
             'tool_confidence': f'error - {str(e)}'
         }
 
-
-# ...existing code...

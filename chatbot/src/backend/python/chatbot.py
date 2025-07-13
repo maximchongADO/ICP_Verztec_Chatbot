@@ -1201,6 +1201,8 @@ Would you like me to proceed with escalating this matter to HR?"""
             elif tool_identified == "schedule_meeting":
                 # Immediately extract meeting details
                 meeting_details = extract_meeting_details(user_query)
+                if not meeting_details or not isinstance(meeting_details, dict):
+                    meeting_details = {}
                 # Format meeting details for confirmation
                 details_lines = []
                 if meeting_details.get('subject'):
