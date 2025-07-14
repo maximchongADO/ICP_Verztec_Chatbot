@@ -35,7 +35,8 @@ const createTablesSQL = {
     query_score FLOAT,
     relevance_score FLOAT,
     user_id VARCHAR(255),
-    chat_id VARCHAR(255)
+    chat_id VARCHAR(255),
+    chat_name VARCHAR(255)
     )`,
     
   extracted_texts: `

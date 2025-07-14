@@ -219,40 +219,43 @@ const getChatHistory = async (req, res) => {
         if (chatId) {
             // Return all messages for this chat_id
             const [rows] = await connection.execute(
-                'SELECT chat_id, user_id, user_message, bot_response, timestamp FROM chat_logs WHERE user_id = ? AND chat_id = ? ORDER BY timestamp ASC',
+                'SELECT chat_id, user_id, chat_name, user_message, bot_response, timestamp FROM chat_logs WHERE user_id = ? AND chat_id = ? ORDER BY timestamp ASC',
                 [userId, chatId]
             );
             await connection.end();
-            // Return messages in the format expected by frontend
+            // Return messages in the format expected by frontend, include chat_name
             const messages = rows.map(row => ({
                 chat_id: row.chat_id,
                 user_id: row.user_id,
+                chat_name: row.chat_name || null,
                 message: row.user_message,
                 sender: row.user_id === userId ? "user" : "bot", // for user messages
                 bot_response: row.bot_response,
                 timestamp: row.timestamp
             }));
-            // Interleave user and bot messages for chat display
+            // Interleave user and bot messages for chat display, include chat_name
             let chatMessages = [];
             rows.forEach(row => {
                 chatMessages.push({
                     message: row.user_message,
                     sender: "user",
-                    timestamp: row.timestamp
+                    timestamp: row.timestamp,
+                    chat_name: row.chat_name || null
                 });
                 if (row.bot_response) {
                     chatMessages.push({
                         message: row.bot_response,
                         sender: "bot",
-                        timestamp: row.timestamp
+                        timestamp: row.timestamp,
+                        chat_name: row.chat_name || null
                     });
                 }
             });
             return res.json(chatMessages);
         } else {
-            // Return all chat sessions for this user
+            // Return all chat sessions for this user, include chat_name
             const [rows] = await connection.execute(
-                'SELECT chat_id, MIN(timestamp) as created_at, MAX(timestamp) as last_message, COUNT(*) as message_count FROM chat_logs WHERE user_id = ? GROUP BY chat_id ORDER BY last_message DESC',
+                'SELECT chat_id, MIN(timestamp) as created_at, MAX(timestamp) as last_message, COUNT(*) as message_count, MAX(chat_name) as chat_name FROM chat_logs WHERE user_id = ? GROUP BY chat_id ORDER BY last_message DESC',
                 [userId]
             );
             await connection.end();
@@ -261,7 +264,8 @@ const getChatHistory = async (req, res) => {
                 date: row.created_at,
                 last_message: row.last_message,
                 message_count: row.message_count,
-                title: `Chat (${row.created_at ? new Date(row.created_at).toLocaleString() : row.chat_id})`
+                chat_name: row.chat_name || null,
+                title: row.chat_name || `Chat (${row.created_at ? new Date(row.created_at).toLocaleString() : row.chat_id})`
             }));
             return res.json(chats);
         }

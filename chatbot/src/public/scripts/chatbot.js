@@ -146,34 +146,43 @@ function renderChatHistorySidebar(chatLogs) {
     const item = document.createElement("div");
     item.className = "chat-history-item";
     item.setAttribute('data-chat-id', log.chat_id);
-    
+
     // Create chat history item structure
     const icon = document.createElement("div");
     icon.className = "chat-history-item-icon";
     icon.innerHTML = `<svg viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/></svg>`;
-    
+
     const textDiv = document.createElement("div");
     textDiv.className = "chat-history-item-text";
-    textDiv.textContent = log.title || `Chat on ${log.date || log.created_at || "Unknown"}`;
-    
-    const timeDiv = document.createElement("div");
-    timeDiv.className = "chat-history-item-time";
+    // Prefer chat_name, then title, then fallback
+    textDiv.textContent =
+      log.chat_name && typeof log.chat_name === "string" && log.chat_name.trim()
+        ? log.chat_name
+        : (log.title || `Chat on ${log.date || log.created_at || "Unknown"}`); // <-- fixed: added missing closing parenthesis
+
+    // Move timestamp under the chat name/title
+    let timeDiv = null;
     if (log.date || log.created_at) {
+      timeDiv = document.createElement("div");
+      timeDiv.className = "chat-history-item-time";
       const date = new Date(log.date || log.created_at);
       timeDiv.textContent = date.toLocaleDateString();
+      textDiv.appendChild(document.createElement("br"));
+      textDiv.appendChild(timeDiv);
     }
-    
+
     const actionsDiv = document.createElement("div");
     actionsDiv.className = "chat-history-item-actions";
     actionsDiv.innerHTML = `
       <button onclick="event.stopPropagation(); deleteChatHistory('${log.chat_id}')" title="Delete">×</button>
     `;
-    
+
     item.appendChild(icon);
     item.appendChild(textDiv);
-    item.appendChild(timeDiv);
+    // Remove the old timeDiv append here (if present)
+    // item.appendChild(timeDiv);
     item.appendChild(actionsDiv);
-    
+
     item.onclick = () => loadChatHistory(log.chat_id);
     list.appendChild(item);
   });
@@ -274,7 +283,7 @@ async function get_frequentmsg() {
     const data = await response.json();
     console.log("Frequent Messages:", data);
 
-    if (Array.isArray(data) && data.length > 0) {
+    if (Array.isArray(data) && data.length > 2) {
       updateSuggestions(data);
     } else {
       updateSuggestions(fallback);
