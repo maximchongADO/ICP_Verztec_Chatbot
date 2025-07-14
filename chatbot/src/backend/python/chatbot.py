@@ -55,7 +55,7 @@ embedding_model = SentenceTransformer('BAAI/bge-large-en-v1.5')
 load_dotenv()
 api_key='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'
 model = "deepseek-r1-distill-llama-70b" 
-deepseek = ChatGroq(api_key=api_key, model=model, temperature = 0.) # type: ignore
+deepseek = ChatGroq(api_key=api_key, model=model, temperature = 0.3) # type: ignore
 decisionlayer_model=ChatGroq(api_key=api_key, 
                             model="qwen/qwen3-32b",
                             temperature=0,                # ⬅ deterministic, no creativity
@@ -136,7 +136,7 @@ except Exception as e:
     logger.error(f"Failed to load spacymodel:  {str(e)}", exc_info=True)
   
 
-def store_chat_log_updated(user_message, bot_response, query_score, relevance_score, chat_id, user_id):
+def store_chat_log_updated(user_message, bot_response, query_score, relevance_score, chat_id, user_id,chat_name=None):
     conn = pymysql.connect(**DB_CONFIG)
     cursor = conn.cursor()
 
@@ -144,10 +144,10 @@ def store_chat_log_updated(user_message, bot_response, query_score, relevance_sc
     feedback = None  # placeholder if no feedback given
 
     insert_query = '''
-        INSERT INTO chat_logs (timestamp, user_message, bot_response, feedback, query_score, relevance_score, user_id, chat_id)
-        VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+        INSERT INTO chat_logs (timestamp, user_message, bot_response, feedback, query_score, relevance_score, user_id, chat_id,chat_name)
+        VALUES (%s, %s, %s, %s, %s, %s, %s, %s,%s)
     '''
-    cursor.execute(insert_query, (timestamp, user_message, bot_response, feedback, query_score, relevance_score, user_id, chat_id))
+    cursor.execute(insert_query, (timestamp, user_message, bot_response, feedback, query_score, relevance_score, user_id, chat_id,chat_name))
     conn.commit()
     logger.info("Stored chat log for session %s %s at %s", user_id, chat_id, timestamp)
 
@@ -913,8 +913,8 @@ def generate_answer(user_query: str, chat_history: ConversationBufferMemory ):
 memory_store = {}
 global_tools = {
     "raise_to_hr": {
-        "description": "Raise the query to HR — for serious complaints, legal issues, or sensitive workplace matters.",
-        "prompt_style": "You are a compassionate and professional HR liaison assistant. When responding to sensitive workplace issues, harassment complaints, or legal matters, provide empathetic support while maintaining professional boundaries. Acknowledge the seriousness of the situation, offer immediate guidance on documentation and next steps, and reassure the user that their concerns will be handled confidentially and appropriately.",
+        "description": "Raise the query to HR — ONLY for serious complaints, legal issues, or sensitive workplace matters. DO NOT use this tool for general HR queries (e.g., leave balance, benefits, policies), questions about entitlements, or non-sensitive issues.",
+        "prompt_style": "ONLY use this tool for workplace issues that are serious, sensitive, involve harassment, discrimination, legal matters, or require confidential escalation. DO NOT use this tool for general HR questions such as leave balance, entitlements, policies, routine HR matters, or informational queries about HR processes.",
         "response_tone": "supportive_professional"
     },
     "schedule_meeting": {
@@ -935,7 +935,7 @@ def get_last_bot_message(chat_history):
             return msg.content
     return None
 
-def create_chat_name(user_id: str, chat_id: str, chat_history: ConversationBufferMemory):
+def create_chat_name(user_id: str, chat_id: str, chat_history: ConversationBufferMemory, query: str):
     """
     Checks DB for chat name. If not found, uses decisionlayer_model to generate one.
     """
@@ -961,6 +961,7 @@ def create_chat_name(user_id: str, chat_id: str, chat_history: ConversationBuffe
         if result and result[0]:
             chat_name = result[0]
             logger.info(f"Existing chat name found: {chat_name}")
+            
         else:
             # Get conversation history
 
@@ -972,11 +973,28 @@ def create_chat_name(user_id: str, chat_id: str, chat_history: ConversationBuffe
                 if not user_msgs:
                     logger.warning("No conversation history available to generate a chat name.")
                     return
+                # Always include the most recent query if not already present
+                if not user_msgs or (query and (not user_msgs or query.strip() != user_msgs[-1].strip())):
+                    user_msgs.append(query)
                 if len(user_msgs) < 3:
                     logger.info(f"Too few messages ({len(user_msgs)} found). Skipping chat name generation.")
                     return
-                # Join all messages for context
-                messages_str = '\n'.join([f"User: {m.content}" if m.__class__.__name__ == 'HumanMessage' else f"Bot: {m.content}" for m in messages])
+                # Remove <image> tags and their content, and also remove the specific system prompt chunk from user messages before joining
+                def clean_user_message(text):
+                    # Remove <image>...</image> blocks (multiline)
+                    #text = re.sub(r'<image>.*?</image>', '', text, flags=re.DOTALL)
+                    # Remove the specific system prompt chunk if it exists
+                    system_prompt_pattern = re.compile(
+                        r"User: You are a HELPFUL AND NICE Verztec helpdesk assistant\. You will only use the provided documents in your response\. If the query is out of scope, say so\. If there are any image tags or screenshots mentioned in the documents, please reference them in your response where appropriate, such as 'See Screenshot 1' or 'Refer to the image above' these images will be made obvious with the <image> tags\.\s*",
+                        re.DOTALL
+                    )
+                    text = system_prompt_pattern.sub('', text)
+                    return text.strip()
+
+                messages_str = '\n'.join([
+                    f"User: {clean_user_message(m)}" if isinstance(m, str) else f"User: {clean_user_message(m.content)}"
+                    for m in user_msgs
+                ])
             else:
                 # Fallback: treat as string
                 messages_str = messages
@@ -984,14 +1002,18 @@ def create_chat_name(user_id: str, chat_id: str, chat_history: ConversationBuffe
                     logger.warning("No conversation history available to generate a chat name.")
                     return
                 message_lines = [line for line in messages_str.split("\n") if line.strip().startswith("User:")]
-                if len(message_lines) < 3:
+                if len(message_lines) < 2:
                     logger.info(f"Too few messages ({len(message_lines)} found). Skipping chat name generation.")
                     return
             prompt = (
-                        "Given the following conversation, generate only a short chat title (3 to 5 words). "
-                        "Do not include quotes, explanations, or any other text—just return the title:\n\n"
-                        f"{messages_str}"
-                    )
+                "Given the following conversation, generate a concise, specific, and meaningful chat title, within 27 CHARACTERS. "
+                "Do NOT include generic words like 'Chat', 'Conversation', or 'Session'. "
+                "Do NOT use quotes, explanations, or any extra text—return ONLY the title. "
+                "The title should summarize the main topic or purpose of the conversation, using clear and relevant keywords.\n\n"
+                f"{messages_str}"
+            )
+            logger.info(f"Generated prompt for chat name: {prompt}")
+        
             response = decisionlayer_model.predict(prompt).strip().strip('"')
             # Truncate chat_name to fit DB column (assume VARCHAR(50), adjust if needed)
             max_length = 50
@@ -1025,16 +1047,18 @@ def generate_answer_histoy_retrieval(user_query: str, user_id:str, chat_id:str):
     logger.info(f"Retrieving memory for key: {key}")
     logger.info(f"User ID: {user_id}, Chat ID: {chat_id}")
 
+    chat_name = None
     if key in memory_store:
         chat_history = memory_store[key]
         logger.info(f"Memory object found at key: {key}")
     else:
-        msgs = retrieve_user_messages_and_scores(user_id, chat_id)
+        msgs, chat_name = retrieve_user_messages_and_scores(user_id, chat_id)
         chat_history = build_memory_from_results(msgs)
         memory_store[key] = chat_history
         logger.info(f"No memory object found. Created and saved for key: {key}")
         
-    create_chat_name(user_id, chat_id, chat_history)
+    create_chat_name(user_id, chat_id, chat_history, user_query)
+    
 
     
         
@@ -1268,7 +1292,7 @@ def generate_answer_histoy_retrieval(user_query: str, user_id:str, chat_id:str):
                 is_task_query = 0  # Force task query for fallback response
                 avg_score = 2  # Force average score for fallback response
                 
-            store_chat_log_updated(user_message=user_query, bot_response=cleaned_fallback, query_score=is_task_query, relevance_score=avg_score, user_id=user_id, chat_id=chat_id)
+            store_chat_log_updated(user_message=user_query, bot_response=cleaned_fallback, query_score=is_task_query, relevance_score=avg_score, user_id=user_id, chat_id=chat_id, chat_name=chat_name)
     
             return {
                 'text': cleaned_fallback,
@@ -1435,7 +1459,7 @@ def generate_answer_histoy_retrieval(user_query: str, user_id:str, chat_id:str):
             #user_query = user_query+"AHHAHAHAHHA"
             
            
-            store_chat_log_updated(user_message=user_query, bot_response=cleaned_answer, query_score=is_task_query, relevance_score=avg_score, user_id=user_id, chat_id=chat_id)##brian u need to update sql for this to work
+            store_chat_log_updated(user_message=user_query, bot_response=cleaned_answer, query_score=is_task_query, relevance_score=avg_score, user_id=user_id, chat_id=chat_id, chat_name=chat_name)##brian u need to update sql for this to work
             logger.info(f"Stored chat log for user {user_id}, chat {chat_id} with query score {is_task_query} and relevance score {avg_score}")
             # also need to update the store_chat_bot method, to incoude user id and chat id
             # After generating the bot's response
@@ -1879,7 +1903,7 @@ def agentic_bot_v1(user_query: str, user_id: str, chat_id: str):
             chat_history = memory_store[key]
             logger.info(f"Memory object found at key: {key}")
         else:
-            msgs = retrieve_user_messages_and_scores(user_id, chat_id)
+            msgs, chat_name = retrieve_user_messages_and_scores(user_id, chat_id)
             chat_history = build_memory_from_results(msgs)
             memory_store[key] = chat_history
             logger.info(f"No memory object found. Created and saved for key: {key}")
