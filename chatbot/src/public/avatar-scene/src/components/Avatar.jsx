@@ -31,30 +31,27 @@ export function Avatar(props) {
   const [audio, setAudio] = useState();
   const [isProcessing, setIsProcessing] = useState(false);
   const [lastProcessedMessageId, setLastProcessedMessageId] = useState(null);
-  const [isSpeaking, setIsSpeaking] = useState(false); // Add speaking state
+  const [isSpeaking, setIsSpeaking] = useState(false);
+  const [currentMessage, setCurrentMessage] = useState(null);
   const group = useRef();
 
   // Handle new message with audio and lip sync
   useEffect(() => {
-    console.log('Avatar processing message:', message?.id, message?.type, !!message?.audio);
+    // Always update current message for text display (even without audio)
+    if (message && message.text) {
+      setCurrentMessage(message);
+    }
     
     // Guard against double processing
     if (!message || isProcessing || message.id === lastProcessedMessageId) {
-      console.log('Skipping message processing:', { 
-        hasMessage: !!message, 
-        isProcessing, 
-        alreadyProcessed: message?.id === lastProcessedMessageId 
-      });
       return;
     }
     
-    // Only process bot messages with audio
+    // Only process bot messages with audio for TTS
     if (message.type !== 'bot' || !message.audio) {
-      console.log('Message not suitable for avatar:', { type: message.type, hasAudio: !!message.audio });
       return;
     }
     
-    console.log('Starting avatar message processing for message:', message.id);
     setIsProcessing(true);
     setLastProcessedMessageId(message.id);
     setLipsync(message.lipsync);
@@ -62,7 +59,6 @@ export function Avatar(props) {
     if (message.audio) {
       // Stop any currently playing audio
       if (audio) {
-        console.log('Stopping previous audio');
         audio.pause();
         audio.currentTime = 0;
         setIsSpeaking(false);
@@ -70,38 +66,25 @@ export function Avatar(props) {
       
       const audioElement = new Audio("data:audio/mp3;base64," + message.audio);
       
-      audioElement.onloadstart = () => {
-        console.log('Audio loading started');
-      };
-      
-      audioElement.oncanplay = () => {
-        console.log('Audio can play');
-      };
-
       audioElement.onplay = () => {
-        console.log('Audio started playing');
         setIsSpeaking(true);
       };
       
       audioElement.onended = () => {
-        console.log('Audio playback ended');
         setIsSpeaking(false);
         setIsProcessing(false);
-        onMessagePlayed();
+        // Don't call onMessagePlayed() here - keep message displayed
       };
       
       audioElement.onerror = (error) => {
-        console.error('Audio playback failed:', error);
         setIsSpeaking(false);
         setIsProcessing(false);
         onMessagePlayed();
       };
       
-      console.log('Starting audio playback');
       audioElement.play().then(() => {
-        console.log('Audio playback started successfully');
+        // Audio started successfully
       }).catch(error => {
-        console.error('Audio play failed:', error);
         setIsSpeaking(false);
         setIsProcessing(false);
         onMessagePlayed();
@@ -112,6 +95,13 @@ export function Avatar(props) {
       setIsProcessing(false);
     }
   }, [message, onMessagePlayed, audio, isProcessing, lastProcessedMessageId]);
+
+  // Clear current message only when a new user message arrives
+  useEffect(() => {
+    if (message && message.type === 'user') {
+      setCurrentMessage(null);
+    }
+  }, [message]);
 
   // Cleanup effect
   useEffect(() => {
@@ -256,10 +246,10 @@ export function Avatar(props) {
         morphTargetDictionary={nodes.Wolf3D_Teeth.morphTargetDictionary}
         morphTargetInfluences={nodes.Wolf3D_Teeth.morphTargetInfluences}
       />
-      {/* Synchronized text display - positioned closer beside avatar */}
-      {message && message.text && (
+      {/* Synchronized text display - use currentMessage instead of message */}
+      {currentMessage && currentMessage.text && (
         <Html
-          position={[1.2, 1.2, 0]} // Moved much closer to avatar
+          position={[1.2, 1.2, 0]}
           style={{
             pointerEvents: 'none',
             userSelect: 'none',
@@ -267,12 +257,12 @@ export function Avatar(props) {
             zIndex: 1000
           }}
         >
-          <div className="speech-bubble">
+          <div className="speech-bubble speech-bubble-wide">
             <div className="speech-bubble-arrow"></div>
             <SynchronizedText
-              text={message.text}
-              audio={message.audio}
-              lipsync={message.lipsync}
+              text={currentMessage.text}
+              audio={currentMessage.audio}
+              lipsync={currentMessage.lipsync}
               isPlaying={isSpeaking}
             />
           </div>
@@ -281,5 +271,6 @@ export function Avatar(props) {
     </group>
   );
 }
+
 useGLTF.preload('/avatar/models/685424ed261493e82da26cc9.glb');
 useGLTF.preload('/avatar/models/animations.glb');

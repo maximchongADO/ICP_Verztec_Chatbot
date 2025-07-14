@@ -48,6 +48,13 @@ body.greenScreen {
   font-size: 14px;
 }
 
+/* Wider speech bubble variant for longer responses */
+.speech-bubble-wide {
+  max-width: 520px;
+  min-width: 380px;
+  padding: 24px 28px;
+}
+
 .speech-bubble-arrow {
   position: absolute;
   left: -14px;
@@ -151,6 +158,49 @@ body.greenScreen {
   letter-spacing: 0.025em;
 }
 
+/* Back button specific styles */
+.back-button {
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.95), rgba(248, 250, 252, 0.95));
+  backdrop-filter: blur(20px);
+  border: 2px solid rgba(212, 178, 76, 0.3);
+  border-radius: 16px;
+  padding: 12px;
+  box-shadow: 
+    0 8px 20px rgba(212, 178, 76, 0.2),
+    0 4px 8px rgba(0, 0, 0, 0.1);
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 48px;
+  min-height: 48px;
+  color: #a08a3c;
+}
+
+.back-button:hover {
+  background: linear-gradient(135deg, rgba(254, 249, 195, 0.95), rgba(255, 255, 255, 0.95));
+  border-color: rgba(212, 178, 76, 0.6);
+  transform: translateY(-2px);
+  box-shadow: 
+    0 12px 30px rgba(212, 178, 76, 0.3),
+    0 6px 12px rgba(0, 0, 0, 0.15);
+}
+
+.back-button:active {
+  transform: translateY(0);
+  transition: all 0.1s ease;
+}
+
+.back-button svg {
+  transition: all 0.3s ease;
+}
+
+.back-button:hover svg {
+  transform: scale(1.1);
+  color: #d4b24c;
+}
+
 /* Animations */
 @keyframes wordFadeIn {
   0% {
@@ -188,13 +238,19 @@ body.greenScreen {
   100% { transform: translateX(100%); }
 }
 
-/* Responsive Design - Closer positioning */
+/* Responsive Design - Closer positioning and wider text boxes */
 @media (max-width: 768px) {
   .speech-bubble {
-    max-width: 280px;
-    min-width: 220px;
+    max-width: 320px;
+    min-width: 260px;
     padding: 16px 20px;
     font-size: 13px;
+  }
+  
+  .speech-bubble-wide {
+    max-width: 380px;
+    min-width: 300px;
+    padding: 20px 24px;
   }
   
   .text-display {
@@ -204,10 +260,24 @@ body.greenScreen {
   .progress-text {
     font-size: 10px;
   }
+  
+  .back-button {
+    min-width: 44px;
+    min-height: 44px;
+    padding: 10px;
+  }
+}
+
+@media (max-width: 480px) {
+  .speech-bubble-wide {
+    max-width: 340px;
+    min-width: 280px;
+  }
 }
 
 /* Enhanced visual effects - Yellow theme */
-.speech-bubble:hover {
+.speech-bubble:hover,
+.speech-bubble-wide:hover {
   transform: translateY(-1px) translateZ(0);
   box-shadow: 
     0 25px 30px -5px rgba(212, 178, 76, 0.25),
@@ -219,15 +289,21 @@ body.greenScreen {
 
 /* Glassmorphism effect enhancement - Yellow theme */
 @supports (backdrop-filter: blur(20px)) {
-  .speech-bubble {
+  .speech-bubble,
+  .speech-bubble-wide {
     background: rgba(255, 255, 255, 0.85);
+    backdrop-filter: blur(20px) saturate(180%);
+  }
+  
+  .back-button {
     backdrop-filter: blur(20px) saturate(180%);
   }
 }
 
 /* Dark mode support - Yellow theme */
 @media (prefers-color-scheme: dark) {
-  .speech-bubble {
+  .speech-bubble,
+  .speech-bubble-wide {
     background: linear-gradient(135deg, rgba(26, 24, 18, 0.95), rgba(36, 32, 20, 0.95));
     border: 2px solid rgba(212, 178, 76, 0.5);
   }
@@ -236,27 +312,19 @@ body.greenScreen {
     border-right-color: rgba(26, 24, 18, 0.95);
   }
   
-  .text-display {
+  .back-button {
+    background: linear-gradient(135deg, rgba(26, 24, 18, 0.95), rgba(36, 32, 20, 0.95));
+    border-color: rgba(212, 178, 76, 0.5);
     color: #ffd700;
   }
   
-  .word.displayed {
-    color: #d4b24c;
+  .back-button:hover {
+    background: linear-gradient(135deg, rgba(36, 32, 20, 0.95), rgba(46, 42, 30, 0.95));
+    border-color: rgba(212, 178, 76, 0.7);
   }
   
-  .word.current {
-    color: #ffd700;
-    background: linear-gradient(135deg, #ffd700, #ffed4a);
-    -webkit-background-clip: text;
-    -webkit-text-fill-color: transparent;
-  }
-  
-  .progress-bar {
-    background: linear-gradient(90deg, #2a2621, #3a322a);
-  }
-  
-  .progress-text {
-    color: #d4b24c;
+  .back-button:hover svg {
+    color: #ffed4a;
   }
 }
 

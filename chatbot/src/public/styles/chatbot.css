@@ -210,7 +210,7 @@ svg,
 /* Sidebar */
 .sidebar {
   width: 100%;
-  max-width: 220px;
+  max-width: 320px;
   border-radius: 4px;
   border: 1px solid var(--chat-input-border, #d0d7e2);
   padding: 2px 5px;
@@ -383,22 +383,22 @@ svg,
   background: rgba(255, 255, 255, 0.8);
   color: #495057;
   border-radius: 16px !important;
-  margin: 0 16px 8px 16px;
+  margin: 0 12px 6px 12px;
   border: 1px solid rgba(0,0,0,0.06);
-  font-weight: 600;
-  font-size: 1rem;
+  font-weight: 500;
+  font-size: 0.85rem;
   box-shadow: 
     0 2px 8px rgba(0,0,0,0.04),
     0 1px 3px rgba(0,0,0,0.02);
   transition: all 0.4s cubic-bezier(0.23, 1, 0.32, 1);
-  padding: 14px 18px;
+  padding: 10px 18px;
   display: flex;
   align-items: center;
   gap: 14px;
   cursor: pointer;
   position: relative;
   overflow: hidden;
-  width: calc(100% - 32px);
+  width: calc(100% - 24px);
   transform: translateX(0);
   backdrop-filter: blur(10px);
 }
@@ -604,21 +604,20 @@ svg,
   flex: 1;
   display: flex;
   flex-direction: column;
-  margin: 0 16px;
+  margin: 0 8px;
   overflow: hidden;
   min-height: 0;
-  background: rgba(255, 255, 255, 0.4);
-  border-radius: 18px;
-  border: 1px solid rgba(0,0,0,0.04);
-  backdrop-filter: blur(10px);
+  background: transparent;
+  border-radius: 0;
+  border: none;
 }
 
 .chat-history-header {
-  padding: 16px 20px 12px 20px;
+  padding: 12px 16px 8px 16px;
   border-bottom: 1px solid rgba(0,0,0,0.06);
   margin-bottom: 8px;
-  background: linear-gradient(135deg, rgba(255,255,255,0.8) 0%, rgba(248,249,250,0.8) 100%);
-  border-radius: 16px 16px 0 0;
+  background: transparent;
+  border-radius: 0;
 }
 
 .chat-history-header h3 {
@@ -1976,12 +1975,12 @@ html[data-theme="dark"] .profile-modal-close:hover {
 }
 
 [data-theme="dark"] .sidebar-chat-history {
-  background: rgba(34, 34, 34, 0.4);
-  border: 1px solid #444444;
+  background: transparent;
+  border: none;
 }
 
 [data-theme="dark"] .chat-history-header {
-  background: linear-gradient(135deg, rgba(34, 34, 34, 0.8) 0%, rgba(17, 17, 17, 0.8) 100%);
+  background: transparent;
   border-bottom: 1px solid #444444;
 }
 

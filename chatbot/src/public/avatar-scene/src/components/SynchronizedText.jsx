@@ -4,6 +4,7 @@ export const SynchronizedText = ({ text, audio, lipsync, isPlaying }) => {
   const [displayedWords, setDisplayedWords] = useState([]);
   const [currentWordIndex, setCurrentWordIndex] = useState(-1);
   const [words, setWords] = useState([]);
+  const [hasFinishedPlaying, setHasFinishedPlaying] = useState(false);
   const audioRef = useRef(null);
   const intervalRef = useRef(null);
   const startTimeRef = useRef(null);
@@ -15,6 +16,7 @@ export const SynchronizedText = ({ text, audio, lipsync, isPlaying }) => {
       setWords(wordArray);
       setDisplayedWords([]);
       setCurrentWordIndex(-1);
+      setHasFinishedPlaying(false);
       console.log('Text initialized:', wordArray.length, 'words');
     }
   }, [text]);
@@ -39,6 +41,7 @@ export const SynchronizedText = ({ text, audio, lipsync, isPlaying }) => {
       // Reset state
       setDisplayedWords([]);
       setCurrentWordIndex(-1);
+      setHasFinishedPlaying(false);
       startTimeRef.current = Date.now();
       
       // Calculate word timings
@@ -62,9 +65,11 @@ export const SynchronizedText = ({ text, audio, lipsync, isPlaying }) => {
             const nextDelay = wordDurations[wordIndex] || 300;
             setTimeout(showNextWord, nextDelay);
           } else {
-            // All words shown, keep last word highlighted briefly
+            // All words shown, mark as finished but keep displayed
             setTimeout(() => {
               setCurrentWordIndex(-1);
+              setHasFinishedPlaying(true);
+              console.log('Text display finished, keeping all words visible');
             }, 500);
           }
         }
@@ -73,9 +78,9 @@ export const SynchronizedText = ({ text, audio, lipsync, isPlaying }) => {
       // Start showing words after a brief delay
       setTimeout(showNextWord, 200);
       
-    } else if (!isPlaying) {
-      // Reset when not playing
-      console.log('Resetting text display');
+    } else if (!isPlaying && !hasFinishedPlaying) {
+      // Only reset if we haven't finished playing yet
+      console.log('Audio stopped before completion, resetting text display');
       setDisplayedWords([]);
       setCurrentWordIndex(-1);
       
@@ -83,6 +88,11 @@ export const SynchronizedText = ({ text, audio, lipsync, isPlaying }) => {
         clearInterval(intervalRef.current);
         intervalRef.current = null;
       }
+    } else if (!isPlaying && hasFinishedPlaying) {
+      // Keep all words displayed after finishing
+      console.log('Keeping all words displayed after TTS completion');
+      setDisplayedWords(words);
+      setCurrentWordIndex(-1);
     }
 
     return () => {
@@ -90,7 +100,16 @@ export const SynchronizedText = ({ text, audio, lipsync, isPlaying }) => {
         clearInterval(intervalRef.current);
       }
     };
-  }, [isPlaying, words, lipsync]);
+  }, [isPlaying, words, lipsync, hasFinishedPlaying]);
+
+  // If we have finished playing or not currently playing, show all words
+  useEffect(() => {
+    if (words.length > 0 && (hasFinishedPlaying || (!isPlaying && displayedWords.length === 0))) {
+      console.log('Displaying all words (finished or not playing)');
+      setDisplayedWords(words);
+      setCurrentWordIndex(-1);
+    }
+  }, [words, hasFinishedPlaying, isPlaying, displayedWords.length]);
 
   // Calculate timing for each word
   const calculateWordTimings = (wordArray, lipSyncData) => {
@@ -134,30 +153,33 @@ export const SynchronizedText = ({ text, audio, lipsync, isPlaying }) => {
         {displayedWords.map((word, index) => (
           <span
             key={`${word}-${index}`}
-            className={`word ${index === displayedWords.length - 1 ? 'current' : 'displayed'}`}
+            className={`word ${
+              index === currentWordIndex ? 'current' : 
+              index < displayedWords.length || hasFinishedPlaying ? 'displayed' : ''
+            }`}
           >
             {word}
             {index < displayedWords.length - 1 ? ' ' : ''}
           </span>
         ))}
-        {/* Show cursor for current word being "typed" */}
-        {isPlaying && displayedWords.length < words.length && (
+        {/* Show cursor only when actively playing and not finished */}
+        {isPlaying && displayedWords.length < words.length && !hasFinishedPlaying && (
           <span className="typing-cursor">|</span>
         )}
       </div>
       
-      {/* Progress indicator */}
+      {/* Progress indicator - show completion when finished */}
       <div className="progress-container">
         <div className="progress-bar">
           <div 
             className="progress-fill"
             style={{
-              width: `${(displayedWords.length / words.length) * 100}%`,
+              width: `${hasFinishedPlaying ? 100 : (displayedWords.length / words.length) * 100}%`,
             }}
           />
         </div>
         <div className="progress-text">
-          {displayedWords.length} / {words.length}
+          {hasFinishedPlaying ? `${words.length} / ${words.length}` : `${displayedWords.length} / ${words.length}`}
         </div>
       </div>
     </div>

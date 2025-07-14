@@ -20,6 +20,30 @@ export const UI = ({ hidden, ...props }) => {
   return (
     <>
       <div className="fixed top-0 left-0 right-0 bottom-0 z-10 flex justify-between p-4 flex-col pointer-events-none">
+        {/* Back button - positioned at bottom left */}
+        <div className="fixed bottom-4 left-4 z-20 pointer-events-auto">
+          <button
+            onClick={() => (window.location.href = "/chatbot.html")}
+            className="bg-white hover:bg-gray-100 text-gray-900 p-4 rounded-md shadow-lg transition-all duration-300 hover:shadow-xl hover:-translate-y-1"
+            title="Back to main chatbot"
+          >
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              fill="none"
+              viewBox="0 0 24 24"
+              strokeWidth={2}
+              stroke="currentColor"
+              className="w-6 h-6"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                d="M10.5 19.5L3 12m0 0l7.5-7.5M3 12h18"
+              />
+            </svg>
+          </button>
+        </div>
+
         <div className="self-start backdrop-blur-md bg-white bg-opacity-50 p-4 rounded-lg">
           <h1 className="font-black text-xl">Verztec AI Chatbot</h1>
           <p>How may I help you?</p>
@@ -35,7 +59,11 @@ export const UI = ({ hidden, ...props }) => {
           <button
             onClick={() => setShowSyncText(!showSyncText)}
             className="pointer-events-auto bg-white hover:bg-gray-100 text-gray-900 p-4 rounded-md"
-            title={showSyncText ? "Hide synchronized text" : "Show synchronized text"}
+            title={
+              showSyncText
+                ? "Hide synchronized text"
+                : "Show synchronized text"
+            }
           >
             {showSyncText ? (
               <svg
