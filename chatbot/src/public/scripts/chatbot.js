@@ -552,52 +552,41 @@ async function callChatbotAPI(message,
 
 // Add function to clear chat history
 async function clearChatHistory() {
+  console.log("clearChatHistory called");
   const user_id = localStorage.getItem("userId") || "defaultUser";
-  // Always use the latest chat_id from localStorage or sessionStorage
   const chat_id = localStorage.getItem("chat_id") || sessionStorage.getItem("chat_id") || "chat123";
+  
+  console.log("Clearing chat - user_id:", user_id, "chat_id:", chat_id);
+  
   try {
-    const response = await fetch("/api/chatbot/history", {
-      method: "POST", // Use POST to allow a body
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${token}`,
-      },
-      body: JSON.stringify({ user_id, chat_id })
-    });
-
-    let result;
-    try {
-      result = await response.json();
-    } catch (jsonErr) {
-      // If not JSON, fallback to text
-      result = await response.text();
-    }
-
-    if (response.ok) {
-      sessionStorage.removeItem("chatHistory");
-      // Clear chat messages from localStorage
-      clearChatFromLocalStorage();
-      // Clear chat messages on screen and show welcome message
-      const chatMessages = document.getElementById("chatMessages");
-      chatMessages.innerHTML = `
-        <div class="welcome-message">
-          <h2>Welcome to AI Assistant</h2>
-          <p>
-            I'm here to help you with any questions or tasks you might have.
-            Feel free to ask me anything!
-          </p>
-          <div id="suggestionsContainer" class="suggestions"></div>
-        </div>
-      `;
-    } else {
-      let errorMsg = 'Unknown error';
-      if (typeof result === 'object' && result !== null && result.message) {
-        errorMsg = result.message;
-      } else if (typeof result === 'string') {
-        errorMsg = result;
-      }
-      alert('Failed to clear chat: ' + errorMsg);
-    }
+    // Clear local storage and session data first
+    sessionStorage.removeItem("chatHistory");
+    clearChatFromLocalStorage();
+    
+    // Clear chat messages on screen and show welcome message
+    const chatMessages = document.getElementById("chatMessages");
+    chatMessages.innerHTML = `
+      <div class="welcome-message">
+        <h2>Welcome to AI Assistant</h2>
+        <p>
+          I'm here to help you with any questions or tasks you might have.
+          Feel free to ask me anything!
+        </p>
+        <div id="suggestionsContainer" class="suggestions"></div>
+      </div>
+    `;
+    
+    // Load suggestions
+    get_frequentmsg();
+    
+    // Start a new chat (which will get a new chat_id from the server)
+    await startNewChat();
+    
+    // Refresh the chat history sidebar to reflect any changes
+    getChatHistorySidebar();
+    
+    console.log("Chat cleared successfully without server deletion");
+    
   } catch (error) {
     console.error("Error clearing chat history:", error);
     alert('Error clearing chat history: ' + error.message);
@@ -1434,13 +1423,19 @@ function isAdminOrManager() {
 function populateProfileSection() {
   const user = getCurrentUser();
   if (!user) return;
-  // Sidebar summary
-  document.getElementById("profileName").textContent = user.username || "User";
-  document.getElementById("profileRole").textContent = user.role || "";
-  // Dropdown
-  document.getElementById("profileDropdownName").textContent = user.username || "";
-  document.getElementById("profileDropdownEmail").textContent = user.email || "";
-  document.getElementById("profileDropdownRole").textContent = user.role || "";
+  
+  // Sidebar summary - check if elements exist before accessing them
+  const profileName = document.getElementById("profileName");
+  const profileRole = document.getElementById("profileRole");
+  const profileDropdownName = document.getElementById("profileDropdownName");
+  const profileDropdownEmail = document.getElementById("profileDropdownEmail");
+  const profileDropdownRole = document.getElementById("profileDropdownRole");
+  
+  if (profileName) profileName.textContent = user.username || "User";
+  if (profileRole) profileRole.textContent = user.role || "";
+  if (profileDropdownName) profileDropdownName.textContent = user.username || "";
+  if (profileDropdownEmail) profileDropdownEmail.textContent = user.email || "";
+  if (profileDropdownRole) profileDropdownRole.textContent = user.role || "";
 }
 function toggleProfileDropdown(event) {
   event.stopPropagation();
@@ -1478,7 +1473,8 @@ document.addEventListener("DOMContentLoaded", function () {
         adminBtn.style.display = "flex";
         // Update button text for managers
         if (window.currentUser.role === 'manager') {
-          adminBtn.querySelector('span').textContent = 'Manage Users';
+          const btnSpan = adminBtn.querySelector('span');
+          if (btnSpan) btnSpan.textContent = 'Manage Users';
         }
       }
     } else if (tries < 20) {
@@ -1491,20 +1487,37 @@ document.addEventListener("DOMContentLoaded", function () {
 
 // Show the confirmation popup for clearing chat
 function showClearChatConfirmPopup() {
+  console.log("showClearChatConfirmPopup called");
   const popup = document.getElementById("clearChatConfirmPopup");
-  if (popup) popup.style.display = "flex";
+  console.log("Popup element found:", popup);
+  console.log("Popup display style before:", popup ? popup.style.display : "element not found");
+  if (popup) {
+    popup.style.display = "flex";
+    console.log("Popup display style after:", popup.style.display);
+    console.log("Popup should now be visible");
+  } else {
+    console.error("ERROR: clearChatConfirmPopup element not found in DOM!");
+    // Let's check what elements with 'popup' in their ID exist
+    const allElements = document.querySelectorAll('[id*="popup"], [id*="Popup"]');
+    console.log("Elements with 'popup' in ID:", Array.from(allElements).map(el => el.id));
+  }
 }
 // Hide the confirmation popup
 function hideClearChatConfirmPopup() {
+  console.log("hideClearChatConfirmPopup called");
   const popup = document.getElementById("clearChatConfirmPopup");
   if (popup) popup.style.display = "none";
 }
 
 // Attach popup logic on DOMContentLoaded
 window.addEventListener("DOMContentLoaded", function () {
+  console.log("DOMContentLoaded - setting up clear chat popup handlers");
   const clearBtn = document.getElementById("confirmClearChatBtn");
   const cancelBtn = document.getElementById("cancelClearChatBtn");
+  console.log("Clear button found:", clearBtn);
+  console.log("Cancel button found:", cancelBtn);
   if (clearBtn) clearBtn.onclick = function() {
+    console.log("Clear chat confirmed by user");
     hideClearChatConfirmPopup();
     clearChatHistory();
   };
@@ -1513,11 +1526,13 @@ window.addEventListener("DOMContentLoaded", function () {
 
 // Replace sidebar clear chat click to show popup
 function triggerClearChat() {
+  console.log("triggerClearChat called");
   showClearChatConfirmPopup();
 }
 
 // Start a new chat: call backend to get a new chat_id, reset UI and session
 async function startNewChat() {
+  console.log("startNewChat called");
   try {
     const token = localStorage.getItem("token");
     const response = await fetch("/api/chatbot/newchat", {
@@ -1637,10 +1652,15 @@ function openProfileModal(event) {
   
   // Populate user info
   const user = getCurrentUser();
-  document.getElementById("modalProfileName").textContent = user?.username || "";
-  document.getElementById("modalProfileId").textContent = user?.id ? `User ID: ${user.id}` : "";
-  document.getElementById("modalProfileEmail").textContent = user?.email || "";
-  document.getElementById("modalProfileRole").textContent = user?.role || "";
+  const modalProfileName = document.getElementById("modalProfileName");
+  const modalProfileId = document.getElementById("modalProfileId");
+  const modalProfileEmail = document.getElementById("modalProfileEmail");
+  const modalProfileRole = document.getElementById("modalProfileRole");
+  
+  if (modalProfileName) modalProfileName.textContent = user?.username || "";
+  if (modalProfileId) modalProfileId.textContent = user?.id ? `User ID: ${user.id}` : "";
+  if (modalProfileEmail) modalProfileEmail.textContent = user?.email || "";
+  if (modalProfileRole) modalProfileRole.textContent = user?.role || "";
   
   // Render analytics
   renderProfileAnalytics();

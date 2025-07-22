@@ -1688,6 +1688,83 @@ svg,
   }
 }
 
+/* Clear Chat Confirmation Popup */
+.popup-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.6);
+  z-index: 9999;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: opacity 0.3s;
+  backdrop-filter: blur(4px);
+}
+
+.popup-dialog {
+  background: var(--background-card);
+  border-radius: 16px;
+  box-shadow: var(--shadow-deep);
+  padding: 24px;
+  width: 400px;
+  max-width: 90vw;
+  animation: fadeIn 0.3s ease-out;
+}
+
+.popup-title {
+  font-size: 1.25rem;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin-bottom: 12px;
+}
+
+.popup-message {
+  color: var(--text-secondary);
+  margin-bottom: 24px;
+  line-height: 1.5;
+}
+
+.popup-actions {
+  display: flex;
+  gap: 12px;
+  justify-content: flex-end;
+}
+
+.popup-btn {
+  padding: 10px 20px;
+  border: none;
+  border-radius: 8px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+  font-size: 0.95rem;
+}
+
+.popup-btn:hover {
+  transform: translateY(-1px);
+}
+
+.popup-btn-danger {
+  background: #dc3545;
+  color: white;
+}
+
+.popup-btn-danger:hover {
+  background: #c82333;
+}
+
+.popup-btn:not(.popup-btn-danger) {
+  background: var(--background-secondary);
+  color: var(--text-primary);
+}
+
+.popup-btn:not(.popup-btn-danger):hover {
+  background: var(--border-color);
+}
+
 .profile-modal-overlay.closing .profile-modal-dialog {
   animation: fadeOut 0.2s ease-out forwards;
 }
@@ -2208,9 +2285,30 @@ html[data-theme="dark"] .profile-modal-close:hover {
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
 }
 
-[data-theme="dark"] #clearChatConfirmPopup .popup-dialog {
-  background-color: #111111;
+[data-theme="dark"] .popup-overlay {
+  background: rgba(0, 0, 0, 0.8);
+}
+
+[data-theme="dark"] .popup-dialog {
+  background-color: #1a1a1a;
   border: 1px solid #333333;
+}
+
+[data-theme="dark"] .popup-title {
+  color: #ffffff;
+}
+
+[data-theme="dark"] .popup-message {
+  color: #cccccc;
+}
+
+[data-theme="dark"] .popup-btn:not(.popup-btn-danger) {
+  background: #333333;
+  color: #ffffff;
+}
+
+[data-theme="dark"] .popup-btn:not(.popup-btn-danger):hover {
+  background: #444444;
 }
 
 /* Suggestions (quick replies) - modern pill style */
