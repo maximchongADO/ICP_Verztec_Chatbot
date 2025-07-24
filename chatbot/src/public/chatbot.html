@@ -504,23 +504,82 @@
       
       // Function to send messages to avatar
       function sendMessageToAvatar(message) {
+        let messageSent = false;
+        
+        // Cancel main chatbot TTS when sending to avatar
+        if (window.googleTTS) {
+          window.googleTTS.cancel();
+          console.log('Cancelled main chatbot TTS for avatar message');
+        }
+        
+        // Priority 1: Send to draggable avatar if it exists
         if (window.draggableAvatar) {
           window.draggableAvatar.sendMessageToAvatar(message);
+          messageSent = true;
+          console.log('Message sent to draggable avatar');
+          return; // Exit early to prevent double sending
+        }
+        
+        // Priority 2: Send to avatar iframe if it exists and draggable avatar is not available
+        const avatarIframe = document.querySelector('iframe[src*="avatar"]');
+        if (!messageSent && avatarIframe && avatarIframe.contentWindow) {
+          avatarIframe.contentWindow.postMessage({
+            type: 'chat_message',
+            payload: message
+          }, window.location.origin);
+          messageSent = true;
+          console.log('Message sent to avatar iframe');
+          return; // Exit early to prevent double sending
+        }
+        
+        // Priority 3: Send to avatar window if opened separately and no other avatar is available
+        if (!messageSent && window.avatarWindow && !window.avatarWindow.closed) {
+          window.avatarWindow.postMessage({
+            type: 'chat_message',
+            payload: message
+          }, window.location.origin);
+          messageSent = true;
+          console.log('Message sent to avatar window');
+        }
+        
+        if (!messageSent) {
+          console.log('No avatar available to receive message');
         }
       }
       
-      // Modify existing sendMessage function to also send to avatar
+      // Function to open avatar window
+      function openAvatarWindow() {
+        // Cancel main chatbot TTS when opening avatar window
+        if (window.googleTTS) {
+          window.googleTTS.cancel();
+          console.log('Cancelled main chatbot TTS when opening avatar window');
+        }
+        
+        if (!window.avatarWindow || window.avatarWindow.closed) {
+          window.avatarWindow = window.open('/avatar-scene/index.html', 'avatarWindow', 'width=800,height=600,scrollbars=no,resizable=yes');
+        } else {
+          window.avatarWindow.focus();
+        }
+      }
+      
+      // Enhanced sendMessage function to also send to avatar
       const originalSendMessage = sendMessage;
       sendMessage = function() {
         const input = document.getElementById("messageInput");
         const message = input.value.trim();
         
+        // Store the message for avatar
+        const userMessage = message;
+        
         // Call original function
         originalSendMessage();
         
-        // Also send to avatar if visible
-        if (message && window.draggableAvatar && window.draggableAvatar.isVisible) {
-          sendMessageToAvatar(message);
+        // Send to avatar after original function completes
+        if (userMessage) {
+          // Small delay to ensure the message is processed
+          setTimeout(() => {
+            sendMessageToAvatar(userMessage);
+          }, 100);
         }
       };
     </script>

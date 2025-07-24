@@ -141,6 +141,12 @@ class DraggableAvatar {
   }
 
   showAvatar() {
+    // Cancel main chatbot TTS when showing avatar
+    if (window.googleTTS) {
+      window.googleTTS.cancel();
+      console.log('Cancelled main chatbot TTS when showing avatar');
+    }
+    
     this.isVisible = true;
     this.avatarContainer.classList.add('visible');
     this.toggleButton.classList.add('active');
@@ -236,6 +242,11 @@ class DraggableAvatar {
         this.showAvatar();
       }
     }
+  }
+  
+  // Method to check if avatar is visible (used by main chatbot)
+  isAvatarVisible() {
+    return this.isVisible;
   }
 }
 
