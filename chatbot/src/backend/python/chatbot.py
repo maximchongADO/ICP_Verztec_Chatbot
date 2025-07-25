@@ -1,9 +1,11 @@
 
-
+from collections import Counter
+import os, re, difflib, logging
 import os
 import re
 import difflib
 import time
+import concurrent.futures
 import logging
 import csv
 import uuid
@@ -54,8 +56,11 @@ logger = logging.getLogger(__name__)
 embedding_model = SentenceTransformer('BAAI/bge-large-en-v1.5')
 load_dotenv()
 api_key='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'
+api_key="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"
+api_key="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"## backend api key
+api_key='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'
 model = "deepseek-r1-distill-llama-70b" 
-deepseek = ChatGroq(api_key=api_key, model=model, temperature = 0.3) # type: ignore
+deepseek = ChatGroq(api_key=api_key, model=model, temperature = 0.4) # type: ignore
 decisionlayer_model=ChatGroq(api_key=api_key, 
                             model="qwen/qwen3-32b",
                             temperature=0,                # ⬅ deterministic, no creativity
@@ -222,6 +227,29 @@ def store_hr_escalation(escalation_id, user_id, chat_id, user_message, issue_sum
     except Exception as e:
         logger.error(f"Error storing HR escalation {escalation_id}: {str(e)}")
         return False
+
+def get_user_info(user_id: str):
+    conn = pymysql.connect(**DB_CONFIG)
+    cursor = conn.cursor()
+    try:
+        # Fetch user info from the users table
+        cursor.execute("SELECT username, role, country, department FROM users WHERE id = %s", (user_id,))
+        result = cursor.fetchone()
+        
+        if result:
+            user_info = {
+                "username": result[0],
+                "role": result[1],
+                "country": result[2],
+                "department": result[3]
+            }
+            return user_info
+        else:
+            logger.warning(f"No user found with ID: {user_id}")
+            return None
+    except pymysql.Error as e:
+        logger.error(f"Error fetching user info for {user_id}: {str(e)}")
+        return None
     
     
     
@@ -390,7 +418,7 @@ def append_sources_with_links(cleaned_response: str, docs: list):
             os.path.join(script_dir, "data", "pptx")
         ]
         
-        logger.info(f"Searching in directories: {data_dirs}")
+        #logger.info(f"Searching in directories: {data_dirs}")
         
         # Get all files from all data directories for fuzzy matching
         all_files = []
@@ -398,7 +426,7 @@ def append_sources_with_links(cleaned_response: str, docs: list):
             if os.path.exists(data_dir):
                 try:
                     files_in_dir = os.listdir(data_dir)
-                    logger.info(f"Found {len(files_in_dir)} files in {data_dir}: {files_in_dir}")
+                    #logger.info(f"Found {len(files_in_dir)} files in {data_dir}: {files_in_dir}")
                     for file in files_in_dir:
                         full_file_path = os.path.join(data_dir, file)
                         if os.path.isfile(full_file_path):
@@ -413,8 +441,8 @@ def append_sources_with_links(cleaned_response: str, docs: list):
             logger.warning("No files found in any data directory")
             return None
             
-        logger.info(f"Total files found: {len(all_files)}")
-        logger.info(f"All files: {[f[0] for f in all_files]}")
+        #logger.info(f"Total files found: {len(all_files)}")
+        #logger.info(f"All files: {[f[0] for f in all_files]}")
         
         # Extract just the filenames for fuzzy matching
         file_names = [file[0] for file in all_files]
@@ -531,6 +559,145 @@ def append_sources_with_links(cleaned_response: str, docs: list):
 
     return cleaned_response, source_files_data
 
+
+
+def append_sources_with_links(cleaned_response: str, docs: list):
+    """
+    Append (or just return) info about the single majority source document in `docs`.
+    Returns: (cleaned_response, source_files_data)
+        - cleaned_response: unchanged in this version (you can append a block if you want)
+        - source_files_data: [{'name': str, 'file_path': str|None, 'is_clickable': bool}]
+    """
+
+    def format_source_name(source_path: str) -> str:
+        filename = os.path.basename(source_path)
+        name, _ = os.path.splitext(filename)
+        return re.sub(r'^\d+\s*', '', name)  # remove leading numbers
+
+    def find_file_in_subdirs(file_name: str) -> str | None:
+        """
+        Look for `file_name` under data/pdf, data/word, data/pptx.
+        Uses exact, substring, fuzzy and word-overlap matching.
+        """
+        logger.info(f"Searching for file: {file_name}")
+
+        script_dir = os.path.dirname(os.path.abspath(__file__))
+        data_dirs = [
+            os.path.join(script_dir, "data", "pdf"),
+            os.path.join(script_dir, "data", "word"),
+            os.path.join(script_dir, "data", "pptx")
+        ]
+
+        all_files = []
+        for data_dir in data_dirs:
+            if not os.path.exists(data_dir):
+                logger.warning(f"Directory does not exist: {data_dir}")
+                continue
+            try:
+                for f in os.listdir(data_dir):
+                    fp = os.path.join(data_dir, f)
+                    if os.path.isfile(fp):
+                        all_files.append((f, data_dir))
+            except OSError as e:
+                logger.warning(f"Error reading directory {data_dir}: {e}")
+
+        if not all_files:
+            logger.warning("No files found in any data directory")
+            return None
+
+        file_names = [f for f, _ in all_files]
+        src_clean = os.path.splitext(os.path.basename(file_name))[0]
+
+        # 1) exact filename
+        for fname, ddir in all_files:
+            if fname.lower() == os.path.basename(file_name).lower():
+                return os.path.join(ddir, fname)
+
+        # 2) substring / prefix
+        for fname, ddir in all_files:
+            fclean = os.path.splitext(fname)[0]
+            if (file_name.lower() in fname.lower() or
+                fname.lower().startswith(file_name.lower()) or
+                src_clean.lower() in fclean.lower() or
+                fclean.lower().startswith(src_clean.lower())):
+                return os.path.join(ddir, fname)
+
+        # 3) fuzzy
+        try:
+            file_names_clean = [os.path.splitext(f)[0] for f in file_names]
+            for cutoff in (0.8, 0.6, 0.4):
+                match = difflib.get_close_matches(
+                    src_clean.lower(),
+                    [f.lower() for f in file_names_clean],
+                    n=1,
+                    cutoff=cutoff
+                )
+                if match:
+                    matched_clean = match[0]
+                    for idx, fclean in enumerate(file_names_clean):
+                        if fclean.lower() == matched_clean:
+                            fname, ddir = all_files[idx]
+                            return os.path.join(ddir, fname)
+        except Exception as e:
+            logger.warning(f"Error in fuzzy matching: {e}")
+
+        # 4) word-overlap
+        src_words = set(src_clean.lower().split())
+        for fname, ddir in all_files:
+            fclean = os.path.splitext(fname)[0].lower()
+            overlap = src_words.intersection(fclean.split())
+            if src_words and len(overlap) >= min(2, max(1, len(src_words)//2)):
+                return os.path.join(ddir, fname)
+
+        logger.warning(f"Source document not found in data directories: {file_name}")
+        logger.info(f"Available files: {[f for f, _ in all_files]}")
+        return None
+
+    # ---------- pick the single majority source ----------
+    raw_sources = []
+    for d in docs:
+        src = d.metadata.get("source")
+        if isinstance(src, str):
+            raw_sources.append(src)
+
+    if not raw_sources:
+        return cleaned_response, []
+
+    # Count occurrences (use basename for stability)
+    normalized = [os.path.basename(s) for s in raw_sources]
+    counts = Counter(normalized)
+    majority_source_raw = max(counts, key=counts.get)  # first max in tie
+    logger.info(f"Majority source selected: {majority_source_raw} (count={counts[majority_source_raw]})")
+
+    # Build only for that source
+    file_path = None
+    is_clickable = False
+
+    # Sometimes retriever already set a file_path
+    for d in docs:
+        if os.path.basename(d.metadata.get("source", "")) == majority_source_raw:
+            maybe_fp = d.metadata.get("file_path")
+            if maybe_fp:
+                file_path = maybe_fp
+                break
+
+    if not file_path:
+        file_path = find_file_in_subdirs(majority_source_raw)
+
+    if file_path and isinstance(file_path, str):
+        is_clickable = os.path.exists(file_path)
+
+    source_files_data = [{
+        "name": format_source_name(majority_source_raw),
+        "file_path": file_path if isinstance(file_path, str) else None,
+        "is_clickable": is_clickable
+    }]
+
+    # Optional: if you still want the pretty block appended
+    # source_block = "\n\n📂 Source Document Used:\n• " + format_source_name(majority_source_raw)
+    # cleaned_response = cleaned_response.strip() + source_block
+
+    return cleaned_response, source_files_data
 retr_direct  = index.as_retriever(search_kwargs={"k": 8})
 retr_bg      = index2.as_retriever(   search_kwargs={"k": 20})
 
@@ -550,7 +717,7 @@ class HybridRetriever(BaseRetriever):
     top_k_bg: int     = 20
     top_k_final: int  = 10
     
-    KEEP_BG_IF_DIRECT_WINS: int = 2   # when direct is stronger
+    KEEP_BG_IF_DIRECT_WINS: int = 1   # when direct is stronger
     KEEP_BG_IF_BG_WINS:     int = 5   # when BG is clearly stronger
 
 
@@ -579,10 +746,12 @@ class HybridRetriever(BaseRetriever):
             # BG is clearly better
             selected_dir = direct_docs[: max(self.MIN_DIRECT, 1)]
             selected_bg  = bg_docs[: self.KEEP_BG_IF_BG_WINS]
+            logger.info(f"Background retrieval is stronger, keeping {len(selected_dir)} direct docs and {len(selected_bg)} background docs.")   
         else:
             # Direct wins (or scores are close)
             selected_dir = direct_docs                       # keep ALL direct
             selected_bg  = bg_docs[: self.KEEP_BG_IF_DIRECT_WINS]
+            logger.info(f"Direct retrieval is stronger, keeping {len(selected_dir)} direct docs and {len(selected_bg)} background docs.")
 
         seen = {id(d) for d in direct_docs}
         return direct_docs + [d for d in selected_bg if id(d) not in seen]
@@ -935,6 +1104,17 @@ def get_last_bot_message(chat_history):
             return msg.content
     return None
 
+def get_last_human_message(chat_history):
+    """
+    Returns the content of the last human message from a ConversationBufferMemory object.
+    """
+    history = chat_history.load_memory_variables({}).get("chat_history", [])
+    # history is a list of HumanMessage and AIMessage objects (if return_messages=True)
+    for msg in reversed(history):
+        if hasattr(msg, 'content') and msg.__class__.__name__ == 'HumanMessage':
+            return msg.content
+    return None
+
 def create_chat_name(user_id: str, chat_id: str, chat_history: ConversationBufferMemory, query: str):
     """
     Checks DB for chat name. If not found, uses decisionlayer_model to generate one.
@@ -976,9 +1156,9 @@ def create_chat_name(user_id: str, chat_id: str, chat_history: ConversationBuffe
                 # Always include the most recent query if not already present
                 if not user_msgs or (query and (not user_msgs or query.strip() != user_msgs[-1].strip())):
                     user_msgs.append(query)
-                if len(user_msgs) < 3:
+                if len(user_msgs) < 1:
                     logger.info(f"Too few messages ({len(user_msgs)} found). Skipping chat name generation.")
-                    return
+                    #return
                 # Remove <image> tags and their content, and also remove the specific system prompt chunk from user messages before joining
                 def clean_user_message(text):
                     # Remove <image>...</image> blocks (multiline)
@@ -999,11 +1179,11 @@ def create_chat_name(user_id: str, chat_id: str, chat_history: ConversationBuffe
                 # Fallback: treat as string
                 messages_str = messages
                 if not messages_str.strip():
-                    logger.warning("No conversation history available to generate a chat name.")
+                   # logger.warning("No conversation history available to generate a chat name.")
                     return
                 message_lines = [line for line in messages_str.split("\n") if line.strip().startswith("User:")]
                 if len(message_lines) < 2:
-                    logger.info(f"Too few messages ({len(message_lines)} found). Skipping chat name generation.")
+                    #logger.info(f"Too few messages ({len(message_lines)} found). Skipping chat name generation.")
                     return
             prompt = (
                 "Given the following conversation, generate a concise, specific, and meaningful chat title, within 27 CHARACTERS. "
@@ -1014,6 +1194,7 @@ def create_chat_name(user_id: str, chat_id: str, chat_history: ConversationBuffe
             )
             logger.info(f"Generated prompt for chat name: {prompt}")
         
+            
             response = decisionlayer_model.predict(prompt).strip().strip('"')
             # Truncate chat_name to fit DB column (assume VARCHAR(50), adjust if needed)
             max_length = 50
@@ -1058,11 +1239,20 @@ def generate_answer_histoy_retrieval(user_query: str, user_id:str, chat_id:str):
         logger.info(f"No memory object found. Created and saved for key: {key}")
         
     create_chat_name(user_id, chat_id, chat_history, user_query)
-    
+    userinfo=get_user_info(user_id)
+    if userinfo:
+        logger.info(f"User info retrieved: {userinfo}")
+        user_name = userinfo.get("username", "User")
+        user_role = userinfo.get("role", "Unknown")
+        user_country = userinfo.get("country", "Unknown")
+        user_department = userinfo.get("department", "Unknown")
+    if not userinfo:
+        logger.warning(f"No user info found for user_id: {user_id}. Using default values.")
+        user_name = "User"
+        user_role = "Unknown"
+        user_country = "Unknown"
+        user_department = "Unknown"
 
-    
-        
-    
     try:
         
         
@@ -1076,7 +1266,7 @@ def generate_answer_histoy_retrieval(user_query: str, user_id:str, chat_id:str):
         
         retriever = index.as_retriever(
             search_type="similarity",
-            search_kwargs={"k": 10}
+            search_kwargs={"k": 15}
         )
         
         
@@ -1086,7 +1276,8 @@ def generate_answer_histoy_retrieval(user_query: str, user_id:str, chat_id:str):
         ## QA chain setup with mrmory 
         qa_chain = ConversationalRetrievalChain.from_llm(
             llm=deepseek_chain,
-            retriever=hybrid_retriever_obj,
+            #retriever=hybrid_retriever_obj,
+            retriever =retriever,
             memory=chat_history,
             return_source_documents=True,
             output_key="answer"
@@ -1108,12 +1299,13 @@ def generate_answer_histoy_retrieval(user_query: str, user_id:str, chat_id:str):
         decision_prompt = ChatPromptTemplate.from_messages([
             ("system", """
                 You are the decision-making layer of a corporate assistant chatbot for internal employee support.
+                The bot may have asked the user if they need to raise a query to HR or schedule a meeting.
                 You have access to the following tools, but must ONLY use one if it is absolutely necessary:
 
                 {tool_descriptions}
 
                 Respond with ONLY one of the following tool tags:
-                - [tool_name] — to activate a tool
+                - [tool_name] — to activate a tools
                 - [Continue] — if no tool is necessary
 
                 Only use a tool if the request is clearly serious, procedural, or high-impact. 
@@ -1170,25 +1362,49 @@ def generate_answer_histoy_retrieval(user_query: str, user_id:str, chat_id:str):
             tool_used = False
             logger.warning(f"Unknown or malformed tool decision: '{Tool_answer}' for user {user_id}, query: {user_query}. Defaulting to no tool.")
             
-        logger.info(f"Final tool decision - identified: {tool_identified}, used: {tool_used}")
+        #logger.info(f"Final tool decision - identified: {tool_identified}, used: {tool_used}")
            
         
        
         # Step 3: Search BOTH FAISS indices for context 
         # for images, as well as for context relevance checks 
-        results = index.similarity_search_with_score(clean_query, k=5)
-        results2 = index2.similarity_search_with_score(clean_query, k=5)  # Search second index too
+        results = index.similarity_search_with_score(clean_query, k=10)
+        #results2 = index2.similarity_search_with_score(clean_query, k=5)  # Search second index too
         
         # Combine results from both indices
-        all_results = results + results2
+        all_results = results 
         
         scores = [score for _, score in results]
         avg_score = float(np.mean(scores)) if scores else 1.0
+        prev_score=0
+        prev_query = get_last_human_message(chat_history)
+        formatted_prev_docs = ""
+                
+        if prev_query:
+            logger.info(f"Previous query: {prev_query}")
+            prev_results = index.similarity_search_with_score(prev_query, k=10)
+            prev_scores = [score for _, score in prev_results]
+            prev_score = float(np.mean(prev_scores)) if prev_scores else 1.0
+            formatted_prev_docs = "\n".join([f"- {doc.page_content}..." for doc, _ in prev_results[:3]])
+
+            # Combine scores: 80% current, 20% previous
+            combined_score = 0.8 * avg_score + 0.2 * prev_score
+        else:
+            combined_score = avg_score
+                    
+        
+        logger.info(f"Average score for current query: {avg_score:.4f}")
+        #avg_score = combined_score
+            
+       
         seen = set()
         unique_docs = []
 
         for doc, _ in all_results:  # Process combined results
             content = doc.page_content
+           # logger.info("=" * 20)
+           # logger.info(f"Processing document content: {content[:50]}...")  # Log first 50 chars for brevity
+           # logger.info(f"Document metadata: {doc.metadata}")  # Log metadata for debugging
             if content not in seen:
                 seen.add(content)
                 unique_docs.append(doc)
@@ -1231,20 +1447,19 @@ def generate_answer_histoy_retrieval(user_query: str, user_id:str, chat_id:str):
 
             # Ensures a flat list of strings
         top_3_img = list(set(top_3_img))  # Remove duplicates
-        logger.info(f"Top 3 images: {top_3_img}")
-
-
-       
+        
         is_task_query = is_query_score(user_query)
+        logger.info(f"Top 3 images: {top_3_img}")
         logger.info(f"Query Score: {is_task_query}")
         logger.info(f"Average Score: {avg_score}")
         
         soft_threshold = 0.7
         SOFT_QUERY_THRESHOLD = 0.5
         STRICT_QUERY_THRESHOLD = 0.2
-        HARD_AVG_SCORE_THRESHOLD = 1.01
+        HARD_AVG_SCORE_THRESHOLD = 0.9
         
         #handle irrelevant query
+       
         logger.info(f"Clean Query at qa chain: {clean_query}")
         if (
             (is_task_query < SOFT_QUERY_THRESHOLD and avg_score >= soft_threshold) or
@@ -1264,9 +1479,21 @@ def generate_answer_histoy_retrieval(user_query: str, user_id:str, chat_id:str):
                 f'The user said: "{clean_query}". '
                 'As a HELPFUL and FRIENDLY VERZTEC helpdesk assistant, respond with a light-hearted or polite reply — '
                 'even if the message is small talk or out of scope (e.g., "how are you", "do you like pizza"). '
+                'You do not need to greet the user, unless they greeted you first. '
                 'Keep it human and warm (e.g., "I’m doing great, thanks for asking!"), then ***gently guide the user back to Verztec-related helpdesk topics***.'
-                'Do not answer any questions that are not related to Verztec helpdesk topics, and do not use any of the provided documents in your response. '
-            )
+                'Do not answer any questions that are not related to Verztec helpdesk topics'
+                )
+            if formatted_prev_docs: 
+                fallback_prompt += (
+                    "To help you stay conversational, here are a few bits of previous Verztec-related context retrieved from earlier:\n"
+                    f"{formatted_prev_docs}\n\n"
+                    "These documents were retrieved to attempt to answer the previous query. YOU MAY USE THEM TO ATTEMPT AN ACCURATE ANSWER\n"
+                    f'The previous query was: "{prev_query}"\n\n'
+                )
+            logger.info("=+" * 20)
+            logger.info(f"Fallback prompt: {fallback_prompt}")
+            #modified_query = "You are a verztec helpdesk assistant. You will only use
+            logger.info("=+" * 20)
 
            
             messages = build_memory_prompt(memory, fallback_prompt)
@@ -1373,14 +1600,20 @@ def generate_answer_histoy_retrieval(user_query: str, user_id:str, chat_id:str):
                 'meeting_details': meeting_details if tool_identified == "schedule_meeting" else None
             }
         else:
-            # Use standard helpdesk prompt for non-tool queries
+            modified_query = clean_query
+           
+            logger.info("Query is within scope.")
             modified_query = (
                 "You are a HELPFUL AND NICE Verztec helpdesk assistant. "
                 "You will only use the provided documents in your response. "
-                "If the query is out of scope, say so. "
-                "If there are any image tags or screenshots mentioned in the documents, please reference them in your response where appropriate, such as 'See Screenshot 1' or 'Refer to the image above' these images will be made obvious with the <image> tags.\n\n"
+                "You will answer in a conversational manner, as if you were a human. Referencing the user as YOU.not as a third person."
+                "If the query is out of scope, politely inform the user that you can only assist with Verztec-related topics, explain why you are unable to answer the given query "
+                "Use a kind and professional tone. Do not fabricate answers. "
+                "If appropriate, suggest the user contact Verztec support for further help.\n\n"
+                f"Here is some information about the user, NAME:{user_name}, ROLE: {user_role}, COUNTRY: {user_country}, DEPARTMENT: {user_department}\n\n"
                 + clean_query
             )
+
 
             qa_start_time = time.time()
             response = qa_chain.invoke({"question": modified_query})
@@ -1389,7 +1622,17 @@ def generate_answer_histoy_retrieval(user_query: str, user_id:str, chat_id:str):
             source_docs = response['source_documents']
             #logger.info(f"Source docs from QA chain: {source_docs}")
             logger.info(f"(QA chain time taken: {qa_elapsed_time:.2f}s)")
-            
+            docs = response["source_documents"]  # list[Document]
+            logger.info("+="*20)
+            for i, d in enumerate(docs):
+                src   = d.metadata.get("source")
+                score = d.metadata.get("score")
+                snip  = d.page_content[:500].replace("\n", " ")
+
+                logger.info("=== Doc %d ===", i)
+                logger.info("source: %s | score: %s", src, score)
+                logger.info("%s ...", snip)
+
             # Clean the chat memory to keep it manageable
             # Limit chat memory to last 4 turns (8 messages)
             
@@ -1408,54 +1651,15 @@ def generate_answer_histoy_retrieval(user_query: str, user_id:str, chat_id:str):
             # Clean the <think> block regardless
             cleaned_answer = think_block_pattern.sub("", raw_answer).strip()
             has_tag = False
-            import concurrent.futures
+           
 
-            # Timeout logic for retry
-            def retry_qa_chain():
-                return qa_chain.invoke({"question": clean_query})['answer']
+            
 
-            i = 1  # Ensure i is defined
-            while has_tag and i == 1:
-                if not has_think_block:
-                    logger.warning("Missing full <think> block — retrying query once...")
-                    try:
-                        retry_start = time.time()
-                        with concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor:
-                            future = executor.submit(retry_qa_chain)
-                            raw_answer_retry = future.result(timeout=30)
-                        retry_elapsed = time.time() - retry_start
-                        logger.info(f"Retry response: {raw_answer_retry} (Retry time taken: {retry_elapsed:.2f}s)")
-                        sleep(1)  # Optional: wait a bit before retrying
-                        cleaned_answer = think_block_pattern.sub("", raw_answer_retry).strip()
-                    except concurrent.futures.TimeoutError:
-                        logger.error("QA chain retry timed out after 30 seconds.")
-                        cleaned_answer = "Sorry, the system took too long to generate a response. Please try again in a moment."
-                        break
-                    except Exception as e:
-                        logger.error(f"Error during QA chain retry: {e}")
-                        cleaned_answer = f"Sorry, an error occurred while generating a response: {e}"
-                        break
-                else:
-                    logger.info("Full <think> block found and removed successfully")
-                block_tag_pattern = re.compile(r"<([a-zA-Z0-9_]+)>.*?</\1>", flags=re.DOTALL)
-
-                # Check if there are any block tags at all
-                has_any_block_tag = bool(block_tag_pattern.search(raw_answer))
-                if has_any_block_tag:
-                    logger.info("Block tags found in response, cleaning them up")
-
-                # Remove all block tags
-                cleaned_answer = block_tag_pattern.sub("", raw_answer).strip()
-                cleaned_answer = re.sub(r"^\s+", "", cleaned_answer)
-                has_any_block_tag = bool(block_tag_pattern.search(raw_answer))
-                if not has_any_block_tag:
-                    has_tag = False
-                i += 1
-            ## one last cleanup to ensure no <think> tags remain
-            # Remove any remaining <think> tagsbetter have NO MOR NO MORE NO MO NO MOMRE 
+            # Remove any remaining <think> tags
             cleaned_answer = re.sub(r"</?think>", "", cleaned_answer).strip()
         
             cleaned_answer = re.sub(r'[\*#]+', '', cleaned_answer).strip()
+            #cleaned_answer= cleaned_answer+"\n\n Would you like me to escalate this query to HR?"
             #user_query = user_query+"AHHAHAHAHHA"
             
            
@@ -1464,7 +1668,7 @@ def generate_answer_histoy_retrieval(user_query: str, user_id:str, chat_id:str):
             # also need to update the store_chat_bot method, to incoude user id and chat id
             # After generating the bot's response
             final_response, source_docs = append_sources_with_links(cleaned_answer, top_docs)
-            print(final_response)
+            #print(final_response)
             
             # Log source documents for debugging
             logger.info(f"Source documents data: {source_docs}")

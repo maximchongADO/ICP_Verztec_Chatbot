@@ -74,7 +74,7 @@ def get_suggestions(query: str = "") -> List[str]:
     # Filter based on your criteria
     filtered_results = [
         result for result in all_results
-        if result['user_message'] and result['query_score'] > 0.79 and result['relevance_score'] < 1.01
+        if result['user_message'] and result['query_score'] > 0.8 and result['relevance_score'] < 0.7
     ]
 
     # Group by normalized form to avoid semantic overlaps
