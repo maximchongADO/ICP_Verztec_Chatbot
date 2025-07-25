@@ -512,38 +512,53 @@
           console.log('Cancelled main chatbot TTS for avatar message');
         }
         
+        // Handle different message types
+        const messageToSend = typeof message === 'string' ? {
+          type: 'chat_message',
+          payload: message
+        } : {
+          type: message.type || 'chat_message',
+          payload: message.text || message.payload || message
+        };
+        
+        // If it's a TTS message with lip sync, format it properly
+        if (message.type === 'tts_with_lipsync') {
+          messageToSend.type = 'chat_message';
+          messageToSend.payload = {
+            text: message.text,
+            audio: message.audio,
+            lipsync: message.lipsync
+          };
+        }
+        
+        console.log('📤 Sending to avatar:', messageToSend);
+        
         // Priority 1: Send to draggable avatar if it exists
         if (window.draggableAvatar) {
-          window.draggableAvatar.sendMessageToAvatar(message);
+          window.draggableAvatar.sendMessageToAvatar(messageToSend.payload);
           messageSent = true;
-          console.log('Message sent to draggable avatar');
-          return; // Exit early to prevent double sending
+          console.log('✅ Message sent to draggable avatar');
+          return;
         }
         
-        // Priority 2: Send to avatar iframe if it exists and draggable avatar is not available
+        // Priority 2: Send to avatar iframe if it exists
         const avatarIframe = document.querySelector('iframe[src*="avatar"]');
         if (!messageSent && avatarIframe && avatarIframe.contentWindow) {
-          avatarIframe.contentWindow.postMessage({
-            type: 'chat_message',
-            payload: message
-          }, window.location.origin);
+          avatarIframe.contentWindow.postMessage(messageToSend, window.location.origin);
           messageSent = true;
-          console.log('Message sent to avatar iframe');
-          return; // Exit early to prevent double sending
+          console.log('✅ Message sent to avatar iframe');
+          return;
         }
         
-        // Priority 3: Send to avatar window if opened separately and no other avatar is available
+        // Priority 3: Send to avatar window if opened separately
         if (!messageSent && window.avatarWindow && !window.avatarWindow.closed) {
-          window.avatarWindow.postMessage({
-            type: 'chat_message',
-            payload: message
-          }, window.location.origin);
+          window.avatarWindow.postMessage(messageToSend, window.location.origin);
           messageSent = true;
-          console.log('Message sent to avatar window');
+          console.log('✅ Message sent to avatar window');
         }
         
         if (!messageSent) {
-          console.log('No avatar available to receive message');
+          console.log('⚠️ No avatar available to receive message');
         }
       }
       
@@ -999,7 +1014,5 @@
 
       /* ...existing theme switch and other styles... */
     </style>
-  </body>
-</html>
   </body>
 </html>

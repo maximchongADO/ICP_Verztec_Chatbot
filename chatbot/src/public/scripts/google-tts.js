@@ -12,21 +12,28 @@ class GoogleTTS {
     if (!text || !text.trim()) return;
 
     // Stop any currently playing audio
-    this.cancel();    const {
+    this.cancel();
+
+    const {
       voice = 'en-GB-Standard-A',  // British English female voice
       languageCode = 'en-GB',      // British English
       volume = 1,
       onend = null,
-      onstart = null
+      onstart = null,
+      generateLipSync = true  // Enable lip sync by default
     } = options;
 
     this.onEndCallback = onend;
-    this.onStartCallback = onstart;    try {
+    this.onStartCallback = onstart;
+
+    try {
       const token = localStorage.getItem("token");
       console.log('TTS Request - Token exists:', !!token);
-      console.log('TTS Request - Token preview:', token ? token.substring(0, 20) + '...' : 'No token');
       
-      const response = await fetch("/api/tts/synthesize", {
+      // Use enhanced TTS endpoint for better lip sync support
+      const endpoint = "/api/tts/synthesize-enhanced";
+      
+      const response = await fetch(endpoint, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -36,12 +43,13 @@ class GoogleTTS {
           text: text,
           voice: voice,
           languageCode: languageCode,
-          generateLipSyncData: true, // Enable lip sync generation
+          generateLipSyncData: generateLipSync,
+          facialExpression: options.facialExpression || 'default',
+          animation: options.animation || 'Talking_1'
         }),
       });
 
       console.log('TTS Response status:', response.status);
-      console.log('TTS Response headers:', [...response.headers.entries()]);
 
       if (!response.ok) {
         const errorText = await response.text();
@@ -57,9 +65,21 @@ class GoogleTTS {
 
       // Store lip sync data for avatar animation
       if (data.lipSyncData) {
-        console.log('Lip sync data received:', data.lipSyncData);
+        console.log('✅ Lip sync data received:', data.lipSyncData);
         this.lastLipSyncData = data.lipSyncData;
         this.lastLipSyncPath = data.lipSyncPath;
+        
+        // Send to avatar if available
+        if (window.sendMessageToAvatar) {
+          window.sendMessageToAvatar({
+            type: 'tts_with_lipsync',
+            text: text,
+            audio: data.audio,
+            lipsync: data.lipSyncData
+          });
+          console.log('✅ Sent TTS with lip sync to avatar');
+          return; // Don't play audio locally if avatar is handling it
+        }
       }
 
       // Create audio from base64
