@@ -309,9 +309,10 @@ function sendMessage() {
           addSourcesToMessage(response.sources);
         }
         
-        if (Array.isArray(response.images) && response.images.length > 0) {
-          sendImages(response.images);
-        }
+        // REMOVE this block to prevent duplicate image rendering:
+        // if (Array.isArray(response.images) && response.images.length > 0) {
+        //   sendImages(response.images);
+        // }
       } else {
         addMessage("Sorry, I received an invalid response. Please try again.", "bot");
       }

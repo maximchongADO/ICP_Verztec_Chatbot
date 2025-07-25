@@ -16,10 +16,11 @@ DB_CONFIG = {
 ## SQL DB needs to be updated to include user and chatid 
 def retrieve_user_messages_and_scores(User_id, chat_id):
     conn = pymysql.connect(**DB_CONFIG)
+    chat_name = None
     try:
         with conn.cursor() as cursor:
             select_query = '''
-                SELECT timestamp, user_message, bot_response, query_score, relevance_score
+                SELECT timestamp, user_message, bot_response, query_score, relevance_score, chat_name
                 FROM chat_logs
                 WHERE user_id = %s AND chat_id = %s
             '''
@@ -28,7 +29,10 @@ def retrieve_user_messages_and_scores(User_id, chat_id):
             for row in results:
                 if isinstance(row['timestamp'], datetime):
                     row['timestamp'] = row['timestamp'].isoformat()
-        return results
+            # Extract chat_name if available
+            if results:
+                chat_name = results[0].get('chat_name')
+        return results, str(chat_name) if chat_name is not None else None
     finally:
         conn.close()
 
