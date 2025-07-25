@@ -1,18 +1,10 @@
-import { useRef, useState } from "react";
+import { useState } from "react";
 import { useChat } from "../hooks/useChat";
 
 export const UI = ({ hidden, ...props }) => {
-  const input = useRef();
-  const { chat, loading, cameraZoomed, setCameraZoomed, message } = useChat();
-  const [showSyncText, setShowSyncText] = useState(true); // Add state for text display toggle
+  const { loading, cameraZoomed, setCameraZoomed, message } = useChat();
+  const [showSyncText, setShowSyncText] = useState(true);
 
-  const sendMessage = () => {
-    const text = input.current.value;
-    if (!loading && !message) {
-      chat(text);
-      input.current.value = "";
-    }
-  };
   if (hidden) {
     return null;
   }
@@ -20,40 +12,15 @@ export const UI = ({ hidden, ...props }) => {
   return (
     <>
       <div className="fixed top-0 left-0 right-0 bottom-0 z-10 flex justify-between p-4 flex-col pointer-events-none">
-        {/* Back button - positioned at bottom left */}
-        <div className="fixed bottom-4 left-4 z-20 pointer-events-auto">
-          <button
-            onClick={() => (window.location.href = "/chatbot.html")}
-            className="bg-white hover:bg-gray-100 text-gray-900 p-4 rounded-md shadow-lg transition-all duration-300 hover:shadow-xl hover:-translate-y-1"
-            title="Back to main chatbot"
-          >
-            <svg
-              xmlns="http://www.w3.org/2000/svg"
-              fill="none"
-              viewBox="0 0 24 24"
-              strokeWidth={2}
-              stroke="currentColor"
-              className="w-6 h-6"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                d="M10.5 19.5L3 12m0 0l7.5-7.5M3 12h18"
-              />
-            </svg>
-          </button>
-        </div>
-
         <div className="self-start backdrop-blur-md bg-white bg-opacity-50 p-4 rounded-lg">
           <h1 className="font-black text-xl">Verztec AI Chatbot</h1>
-          <p>How may I help you?</p>
-          {/* Add synchronized text indicator */}
-          {message && message.text && showSyncText && (
-            <div className="mt-2 text-sm text-gray-600">
-              🎙️ Speaking with synchronized text
+          {loading && (
+            <div className="mt-2 text-sm text-blue-600">
+              🤖 Processing...
             </div>
           )}
         </div>
+
         <div className="w-full flex flex-col items-end justify-center gap-4">
           {/* Add toggle for synchronized text */}
           <button
@@ -102,6 +69,7 @@ export const UI = ({ hidden, ...props }) => {
               </svg>
             )}
           </button>
+
           <button
             onClick={() => setCameraZoomed(!cameraZoomed)}
             className="pointer-events-auto bg-white hover:bg-gray-100 text-gray-900 p-4 rounded-md"
@@ -138,6 +106,7 @@ export const UI = ({ hidden, ...props }) => {
               </svg>
             )}
           </button>
+
           <button
             onClick={() => {
               const body = document.querySelector("body");
@@ -162,27 +131,6 @@ export const UI = ({ hidden, ...props }) => {
                 d="M15.75 10.5l4.72-4.72a.75.75 0 011.28.53v11.38a.75.75 0 01-1.28.53l-4.72-4.72M4.5 18.75h9a2.25 2.25 0 002.25-2.25v-9a2.25 2.25 0 00-2.25-2.25h-9A2.25 2.25 0 002.25 7.5v9a2.25 2.25 0 002.25 2.25z"
               />
             </svg>
-          </button>
-        </div>
-        <div className="flex items-center gap-2 pointer-events-auto max-w-screen-sm w-full mx-auto">
-          <input
-            className="w-full placeholder:text-gray-800 placeholder:italic p-4 rounded-none bg-opacity-50 bg-white backdrop-blur-md"
-            placeholder="Type a message..."
-            ref={input}
-            onKeyDown={(e) => {
-              if (e.key === "Enter") {
-                sendMessage();
-              }
-            }}
-          />
-          <button
-            disabled={loading || message}
-            onClick={sendMessage}
-            className={`bg-white hover:bg-gray-100 text-gray-900 p-4 px-10 font-semibold uppercase rounded-md ${
-              loading || message ? "cursor-not-allowed opacity-30" : ""
-            }`}
-          >
-            Send
           </button>
         </div>
       </div>

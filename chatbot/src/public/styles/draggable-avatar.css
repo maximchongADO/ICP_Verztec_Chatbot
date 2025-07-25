@@ -1,0 +1,232 @@
+/* Draggable Avatar Sidebar Styles */
+.draggable-avatar-container {
+  position: fixed;
+  top: 20px;
+  right: -420px;
+  width: 400px;
+  height: 600px;
+  background: #ffffff;
+  border: 2px solid #d4b24c;
+  border-radius: 18px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.15);
+  z-index: 9999;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  transition: right 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+  backdrop-filter: blur(10px);
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+}
+
+.draggable-avatar-container.visible {
+  right: 20px;
+}
+
+.avatar-drag-handle {
+  background: linear-gradient(135deg, #d4b24c 0%, #b8a030 100%);
+  color: #ffffff;
+  padding: 12px 16px;
+  cursor: move;
+  user-select: none;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 600;
+  border-radius: 16px 16px 0 0;
+  transition: background 0.3s ease;
+}
+
+.avatar-drag-handle:hover {
+  background: linear-gradient(135deg, #b8a030 0%, #a08a3c 100%);
+}
+
+.avatar-drag-handle.dragging {
+  background: linear-gradient(135deg, #a08a3c 0%, #8b7a35 100%);
+  cursor: grabbing;
+}
+
+.drag-icon {
+  font-size: 16px;
+  opacity: 0.8;
+  line-height: 1;
+}
+
+.drag-text {
+  flex: 1;
+  font-size: 14px;
+  letter-spacing: 0.02em;
+}
+
+.avatar-close-btn {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  width: 28px;
+  height: 28px;
+  background: rgba(255, 255, 255, 0.2);
+  border: none;
+  border-radius: 50%;
+  color: #ffffff;
+  font-size: 18px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s ease;
+  z-index: 10;
+}
+
+.avatar-close-btn:hover {
+  background: rgba(255, 255, 255, 0.3);
+  transform: scale(1.1);
+}
+
+.avatar-iframe {
+  flex: 1;
+  width: 100%;
+  border: none;
+  background: #f8f9fa;
+  border-radius: 0 0 16px 16px;
+}
+
+/* Toggle Button */
+.avatar-toggle-btn {
+  position: fixed;
+  top: 50%;
+  right: 20px;
+  transform: translateY(-50%);
+  width: 60px;
+  height: 60px;
+  background: linear-gradient(135deg, #d4b24c 0%, #b8a030 100%);
+  border: none;
+  border-radius: 50%;
+  color: #ffffff;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  font-size: 10px;
+  font-weight: 600;
+  box-shadow: 0 4px 16px rgba(212, 178, 76, 0.3);
+  z-index: 9998;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+}
+
+.avatar-toggle-btn:hover {
+  background: linear-gradient(135deg, #b8a030 0%, #a08a3c 100%);
+  transform: translateY(-50%) scale(1.1);
+  box-shadow: 0 6px 20px rgba(212, 178, 76, 0.4);
+}
+
+.avatar-toggle-btn.active {
+  background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+  box-shadow: 0 4px 16px rgba(16, 185, 129, 0.3);
+}
+
+.avatar-toggle-btn.active:hover {
+  background: linear-gradient(135deg, #059669 0%, #047857 100%);
+  box-shadow: 0 6px 20px rgba(16, 185, 129, 0.4);
+}
+
+.avatar-toggle-btn svg {
+  width: 20px;
+  height: 20px;
+  fill: currentColor;
+}
+
+/* Mobile Responsive */
+@media (max-width: 768px) {
+  .draggable-avatar-container {
+    width: 320px;
+    height: 500px;
+    right: -340px;
+  }
+  
+  .draggable-avatar-container.visible {
+    right: 10px;
+  }
+  
+  .avatar-toggle-btn {
+    width: 50px;
+    height: 50px;
+    right: 15px;
+    font-size: 9px;
+  }
+  
+  .avatar-toggle-btn svg {
+    width: 16px;
+    height: 16px;
+  }
+}
+
+@media (max-width: 480px) {
+  .draggable-avatar-container {
+    width: 280px;
+    height: 400px;
+    right: -300px;
+  }
+  
+  .draggable-avatar-container.visible {
+    right: 5px;
+  }
+  
+  .avatar-toggle-btn {
+    width: 45px;
+    height: 45px;
+    right: 10px;
+    font-size: 8px;
+  }
+}
+
+/* Dark mode support */
+[data-theme="dark"] .draggable-avatar-container {
+  background: #1f2937;
+  border-color: #ffd700;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+}
+
+[data-theme="dark"] .avatar-iframe {
+  background: #111827;
+}
+
+[data-theme="dark"] .avatar-close-btn {
+  background: rgba(0, 0, 0, 0.3);
+}
+
+[data-theme="dark"] .avatar-close-btn:hover {
+  background: rgba(0, 0, 0, 0.5);
+}
+
+/* Animation for smooth transitions */
+@keyframes slideInFromRight {
+  from {
+    transform: translateX(100%);
+    opacity: 0;
+  }
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+
+@keyframes slideOutToRight {
+  from {
+    transform: translateX(0);
+    opacity: 1;
+  }
+  to {
+    transform: translateX(100%);
+    opacity: 0;
+  }
+}
+
+.draggable-avatar-container.entering {
+  animation: slideInFromRight 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.draggable-avatar-container.exiting {
+  animation: slideOutToRight 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+}

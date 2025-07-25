@@ -10,14 +10,48 @@ export const ChatProvider = ({ children }) => {
   const [loading, setLoading] = useState(false);
   const [cameraZoomed, setCameraZoomed] = useState(true);
   const [processedMessageIds, setProcessedMessageIds] = useState(new Set());
+  const [lastProcessedMessage, setLastProcessedMessage] = useState(null);
+  const [lastProcessedTime, setLastProcessedTime] = useState(0);
 
   const token = localStorage.getItem("token");
+
+  // Listen for messages from parent window (main chatbot)
+  useEffect(() => {
+    const handleMessage = async (event) => {
+      // Verify origin for security
+      if (event.origin !== window.location.origin && event.origin !== 'http://localhost:8000') {
+        return;
+      }
+
+      if (event.data && event.data.type === 'chat_message') {
+        const userMessage = event.data.payload;
+        const currentTime = Date.now();
+        
+        // Prevent duplicate messages within 1 second
+        if (lastProcessedMessage === userMessage && (currentTime - lastProcessedTime) < 1000) {
+          console.log('Ignoring duplicate message within 1 second:', userMessage);
+          return;
+        }
+        
+        console.log('Avatar received message from parent:', userMessage);
+        setLastProcessedMessage(userMessage);
+        setLastProcessedTime(currentTime);
+        
+        // Process the message through our chat system
+        await chat(userMessage);
+      }
+    };
+
+    window.addEventListener('message', handleMessage);
+    return () => window.removeEventListener('message', handleMessage);
+  }, [lastProcessedMessage, lastProcessedTime]);
 
   const chat = async (message) => {
     setLoading(true);
     console.log('Chat request starting for:', message);
     
     try {
+      // Get the chatbot response (which should already include audio and lipsync)
       const response = await fetch(`${backendUrl}/chatbot_avatar_test`, {
         method: "POST",
         headers: {
@@ -47,7 +81,12 @@ export const ChatProvider = ({ children }) => {
           };
         });
         
-        console.log('Adding messages to queue:', newMessages.map(m => ({ id: m.id, hasAudio: !!m.audio })));
+        console.log('Adding messages to queue:', newMessages.map(m => ({ 
+          id: m.id, 
+          hasAudio: !!m.audio, 
+          hasLipsync: !!m.lipsync 
+        })));
+        
         setMessages((messages) => [...messages, ...newMessages]);
       }
     } catch (error) {

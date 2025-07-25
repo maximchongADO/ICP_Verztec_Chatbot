@@ -1,3 +1,202 @@
+// ==========================================
+// CHAT PERSISTENCE SYSTEM
+// ==========================================
+
+// Clean up old chat data from localStorage (keep only last 10 chats)
+function cleanupOldChatData() {
+  const chatKeys = [];
+  for (let i = 0; i < localStorage.length; i++) {
+    const key = localStorage.key(i);
+    if (key && key.startsWith('chat_messages_')) {
+      chatKeys.push({
+        key: key,
+        timestamp: parseInt(localStorage.getItem(key + '_timestamp')) || 0
+      });
+    }
+  }
+  
+  // Sort by timestamp (newest first) and keep only the last 10
+  chatKeys.sort((a, b) => b.timestamp - a.timestamp);
+  if (chatKeys.length > 10) {
+    const keysToRemove = chatKeys.slice(10);
+    keysToRemove.forEach(item => {
+      localStorage.removeItem(item.key);
+      localStorage.removeItem(item.key + '_timestamp');
+    });
+  }
+}
+
+// Save current chat messages to localStorage
+function saveChatToLocalStorage() {
+  const chat_id = localStorage.getItem("chat_id") || sessionStorage.getItem("chat_id");
+  if (!chat_id) return;
+  
+  const chatMessages = document.getElementById("chatMessages");
+  if (!chatMessages) return;
+  
+  // Clean up old chat data periodically
+  cleanupOldChatData();
+  
+  const messages = [];
+  const messageElements = chatMessages.querySelectorAll('.message');
+  
+  messageElements.forEach(messageEl => {
+    if (messageEl.classList.contains('welcome-message') || 
+        messageEl.classList.contains('typing-indicator')) {
+      return; // Skip welcome messages and typing indicators
+    }
+    
+    const isUser = messageEl.classList.contains('message-user');
+    const messageContent = messageEl.querySelector('.message-content');
+    const messageImages = messageEl.querySelectorAll('.chat-image, .ai-message-images img');
+    
+    if (messageContent) {
+      // Get the text content, removing copy button text
+      let textContent = messageContent.textContent || '';
+      // Remove copy button text and other UI elements
+      textContent = textContent.replace(/📋.*?Copy/g, '').replace(/✓.*?Helpful/g, '').replace(/👎.*?Not Helpful/g, '').trim();
+      
+      const messageData = {
+        text: textContent,
+        sender: isUser ? 'user' : 'bot',
+        timestamp: Date.now(),
+        images: Array.from(messageImages).map(img => img.src.split('/').pop() || img.src)
+      };
+      
+      // For bot messages, preserve the original HTML content (excluding UI buttons)
+      if (!isUser) {
+        let htmlContent = messageContent.innerHTML;
+        // Remove copy button and feedback buttons
+        htmlContent = htmlContent.replace(/<button[^>]*copy-btn[^>]*>.*?<\/button>/g, '');
+        htmlContent = htmlContent.replace(/<div[^>]*feedback-buttons[^>]*>.*?<\/div>/g, '');
+        messageData.html = htmlContent;
+      }
+      
+      messages.push(messageData);
+    }
+  });
+  
+  // Store messages and timestamp for cleanup
+  localStorage.setItem(`chat_messages_${chat_id}`, JSON.stringify(messages));
+  localStorage.setItem(`chat_messages_${chat_id}_timestamp`, Date.now().toString());
+}
+
+// Load chat messages from localStorage
+function loadChatFromLocalStorage() {
+  const chat_id = localStorage.getItem("chat_id") || sessionStorage.getItem("chat_id");
+  if (!chat_id) {
+    console.log("No chat_id found for loading messages");
+    return false;
+  }
+  
+  const savedMessages = localStorage.getItem(`chat_messages_${chat_id}`);
+  if (!savedMessages) {
+    console.log("No saved messages found for chat_id:", chat_id);
+    return false;
+  }
+  
+  try {
+    const messages = JSON.parse(savedMessages);
+    const chatMessages = document.getElementById("chatMessages");
+    
+    if (!chatMessages) {
+      console.error("Chat messages container not found");
+      return false;
+    }
+    
+    if (messages.length > 0) {
+      console.log(`Loading ${messages.length} saved messages...`);
+      
+      // Clear any existing content (including welcome message)
+      chatMessages.innerHTML = '';
+      
+      // Restore messages
+      messages.forEach((messageData, index) => {
+        try {
+          addMessageFromStorage(messageData);
+        } catch (error) {
+          console.error(`Error loading message ${index}:`, error, messageData);
+        }
+      });
+      
+      // Scroll to bottom
+      setTimeout(() => {
+        chatMessages.scrollTop = chatMessages.scrollHeight;
+      }, 100);
+      
+      return true;
+    } else {
+      console.log("No messages in saved data");
+    }
+  } catch (error) {
+    console.error("Error loading chat from localStorage:", error);
+    // Remove corrupted data
+    localStorage.removeItem(`chat_messages_${chat_id}`);
+    localStorage.removeItem(`chat_messages_${chat_id}_timestamp`);
+  }
+  
+  return false;
+}
+
+// Add a message from storage (specialized version of addMessage)
+function addMessageFromStorage(messageData) {
+  const chatMessages = document.getElementById("chatMessages");
+  const messageDiv = document.createElement("div");
+  
+  if (messageData.sender === "user") {
+    messageDiv.className = "message message-user";
+    messageDiv.innerHTML = `
+      <div class="message-content user-message">${escapeHtml(messageData.text)}</div>
+      <div class="user-message-avatar"></div>
+    `;
+  } else {
+    messageDiv.className = "message message-ai";
+    
+    let imagesHtml = "";
+    if (messageData.images && messageData.images.length > 0) {
+      imagesHtml = `<div class="ai-message-images">` +
+        messageData.images.map(filename => {
+          return `<img src="/data/images/${filename}" alt="${filename}" class="chat-image" />`;
+        }).join("") +
+        `</div>`;
+    }
+    
+    messageDiv.innerHTML = `
+      <div class="ai-message-avatar"></div>
+      <div class="message-content ai-message">
+        ${messageData.html || escapeHtml(messageData.text)}${imagesHtml}
+        <button class="copy-btn" title="Copy response" onclick="copyMessage(this)">📋</button>
+      </div>
+      <div class="feedback-buttons">
+        <button class="feedback-btn positive" onclick="handleFeedback(this, true)">
+          👍 Helpful
+        </button>
+        <button class="feedback-btn negative" onclick="handleFeedback(this, false)">
+          👎 Not Helpful
+        </button>
+      </div>
+    `;
+  }
+  
+  chatMessages.appendChild(messageDiv);
+}
+
+// Clear chat messages from localStorage for current chat
+function clearChatFromLocalStorage() {
+  const chat_id = localStorage.getItem("chat_id") || sessionStorage.getItem("chat_id");
+  if (chat_id) {
+    localStorage.removeItem(`chat_messages_${chat_id}`);
+    localStorage.removeItem(`chat_messages_${chat_id}_timestamp`);
+  }
+}
+
+// Save chat ID to localStorage with timestamp
+function saveChatIdToLocalStorage(chat_id) {
+  localStorage.setItem("chat_id", chat_id);
+  sessionStorage.setItem("chat_id", chat_id);
+  localStorage.setItem("chat_id_timestamp", Date.now().toString());
+}
+
 // Check if user is authenticated
 const token = localStorage.getItem("token");
 if (!token) {
@@ -14,6 +213,27 @@ function handleKeyPress(event) {
 // Add these new variables at the top of the file with other global variables
 let currentSpeechText = null;
 let isCurrentlySpeaking = false;
+
+// Function to check if avatar is active and should handle TTS
+function isAvatarActive() {
+    // Check if draggable avatar exists and is visible
+    if (window.draggableAvatar && window.draggableAvatar.isAvatarVisible()) {
+        return true;
+    }
+    
+    // Check if avatar iframe exists
+    const avatarIframe = document.querySelector('iframe[src*="avatar"]');
+    if (avatarIframe) {
+        return true;
+    }
+    
+    // Check if avatar window is open
+    if (window.avatarWindow && !window.avatarWindow.closed) {
+        return true;
+    }
+    
+    return false;
+}
 
 function stopAvatarAnimation() {
     const avatar = document.getElementById('chatbotAvatar');
@@ -200,6 +420,9 @@ function closeChatHistorySidebar() {
 }
 
 function loadChatHistory(chatId) {
+  // Update current chat_id to the selected chat
+  saveChatIdToLocalStorage(chatId);
+  
   // Load the selected chat's messages and display in main chat area
   const userId = localStorage.getItem("userId") || "defaultUser";
   fetch(`/api/chatbot/history/${encodeURIComponent(chatId)}?user_id=${encodeURIComponent(userId)}`, {
@@ -217,6 +440,9 @@ function loadChatHistory(chatId) {
         chatLogs.forEach(msg => {
           addMessage(msg.message, msg.sender === "user" ? "user" : "bot");
         });
+        
+        // Save the loaded messages to localStorage for persistence
+        saveChatToLocalStorage();
       } else {
         chatMessages.innerHTML = `<div class='welcome-message'><h2>No messages in this chat.</h2></div>`;
       }
@@ -348,54 +574,69 @@ async function callChatbotAPI(message,
 
 // Add function to clear chat history
 async function clearChatHistory() {
+  console.log("clearChatHistory called");
   const user_id = localStorage.getItem("userId") || "defaultUser";
-  // Always use the latest chat_id from localStorage or sessionStorage
   const chat_id = localStorage.getItem("chat_id") || sessionStorage.getItem("chat_id") || "chat123";
+  
+  console.log("Clearing chat - user_id:", user_id, "chat_id:", chat_id);
+  
   try {
-    const response = await fetch("/api/chatbot/history", {
-      method: "POST", // Use POST to allow a body
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${token}`,
-      },
-      body: JSON.stringify({ user_id, chat_id })
-    });
-
-    let result;
-    try {
-      result = await response.json();
-    } catch (jsonErr) {
-      // If not JSON, fallback to text
-      result = await response.text();
-    }
-
-    if (response.ok) {
-      sessionStorage.removeItem("chatHistory");
-      // Clear chat messages on screen and show welcome message
-      const chatMessages = document.getElementById("chatMessages");
-      chatMessages.innerHTML = `
-        <div class="welcome-message">
-          <h2>Welcome to AI Assistant</h2>
-          <p>
-            I'm here to help you with any questions or tasks you might have.
-            Feel free to ask me anything!
-          </p>
-          <div id="suggestionsContainer" class="suggestions"></div>
-        </div>
-      `;
-    } else {
-      let errorMsg = 'Unknown error';
-      if (typeof result === 'object' && result !== null && result.message) {
-        errorMsg = result.message;
-      } else if (typeof result === 'string') {
-        errorMsg = result;
-      }
-      alert('Failed to clear chat: ' + errorMsg);
-    }
+    // Clear local storage and session data first
+    sessionStorage.removeItem("chatHistory");
+    clearChatFromLocalStorage();
+    
+    // Clear chat messages on screen and show welcome message
+    const chatMessages = document.getElementById("chatMessages");
+    chatMessages.innerHTML = `
+      <div class="welcome-message">
+        <h2>Welcome to AI Assistant</h2>
+        <p>
+          I'm here to help you with any questions or tasks you might have.
+          Feel free to ask me anything!
+        </p>
+        <div id="suggestionsContainer" class="suggestions"></div>
+      </div>
+    `;
+    
+    // Load suggestions
+    get_frequentmsg();
+    
+    // Start a new chat (which will get a new chat_id from the server)
+    await startNewChat();
+    
+    // Refresh the chat history sidebar to reflect any changes
+    getChatHistorySidebar();
+    
+    console.log("Chat cleared successfully without server deletion");
+    
   } catch (error) {
     console.error("Error clearing chat history:", error);
     alert('Error clearing chat history: ' + error.message);
   }
+}
+
+// Periodically save chat messages (every 30 seconds)
+setInterval(function() {
+  if (localStorage.getItem("chat_id")) {
+    saveChatToLocalStorage();
+  }
+}, 30000);
+
+// Save chat when page is about to unload
+window.addEventListener("beforeunload", function() {
+  saveChatToLocalStorage();
+});
+
+// Debug function to log persistence status
+function debugPersistence() {
+  const chat_id = localStorage.getItem("chat_id");
+  const saved_messages = localStorage.getItem(`chat_messages_${chat_id}`);
+  console.log("Chat Persistence Debug:", {
+    chat_id: chat_id,
+    has_saved_messages: !!saved_messages,
+    message_count: saved_messages ? JSON.parse(saved_messages).length : 0,
+    localStorage_keys: Object.keys(localStorage).filter(k => k.startsWith('chat_'))
+  });
 }
 
 // Clear welcome message and demo content
@@ -650,6 +891,10 @@ function addMessage(textOrResponse, sender) {
 
   chatMessages.appendChild(messageDiv);
   chatMessages.scrollTop = chatMessages.scrollHeight;
+  
+  // Save chat to localStorage after adding message
+  saveChatToLocalStorage();
+  
   return messageDiv;
 }
 
@@ -1038,6 +1283,12 @@ let currentMouthInterval = null; // Add this at the top level of your file
 async function speakMessage(text) {
     if (!text || !text.trim()) return;
     
+    // Check if avatar is available and active - if so, skip main chatbot TTS
+    if (isAvatarActive()) {
+        console.log('Avatar is active, skipping main chatbot TTS');
+        return;
+    }
+    
     const avatar = document.getElementById('chatbotAvatar');
     const avatarOpen = document.getElementById('avatarOpen');
     
@@ -1200,13 +1451,19 @@ function isAdminOrManager() {
 function populateProfileSection() {
   const user = getCurrentUser();
   if (!user) return;
-  // Sidebar summary
-  document.getElementById("profileName").textContent = user.username || "User";
-  document.getElementById("profileRole").textContent = user.role || "";
-  // Dropdown
-  document.getElementById("profileDropdownName").textContent = user.username || "";
-  document.getElementById("profileDropdownEmail").textContent = user.email || "";
-  document.getElementById("profileDropdownRole").textContent = user.role || "";
+  
+  // Sidebar summary - check if elements exist before accessing them
+  const profileName = document.getElementById("profileName");
+  const profileRole = document.getElementById("profileRole");
+  const profileDropdownName = document.getElementById("profileDropdownName");
+  const profileDropdownEmail = document.getElementById("profileDropdownEmail");
+  const profileDropdownRole = document.getElementById("profileDropdownRole");
+  
+  if (profileName) profileName.textContent = user.username || "User";
+  if (profileRole) profileRole.textContent = user.role || "";
+  if (profileDropdownName) profileDropdownName.textContent = user.username || "";
+  if (profileDropdownEmail) profileDropdownEmail.textContent = user.email || "";
+  if (profileDropdownRole) profileDropdownRole.textContent = user.role || "";
 }
 function toggleProfileDropdown(event) {
   event.stopPropagation();
@@ -1244,7 +1501,8 @@ document.addEventListener("DOMContentLoaded", function () {
         adminBtn.style.display = "flex";
         // Update button text for managers
         if (window.currentUser.role === 'manager') {
-          adminBtn.querySelector('span').textContent = 'Manage Users';
+          const btnSpan = adminBtn.querySelector('span');
+          if (btnSpan) btnSpan.textContent = 'Manage Users';
         }
       }
     } else if (tries < 20) {
@@ -1257,20 +1515,37 @@ document.addEventListener("DOMContentLoaded", function () {
 
 // Show the confirmation popup for clearing chat
 function showClearChatConfirmPopup() {
+  console.log("showClearChatConfirmPopup called");
   const popup = document.getElementById("clearChatConfirmPopup");
-  if (popup) popup.style.display = "flex";
+  console.log("Popup element found:", popup);
+  console.log("Popup display style before:", popup ? popup.style.display : "element not found");
+  if (popup) {
+    popup.style.display = "flex";
+    console.log("Popup display style after:", popup.style.display);
+    console.log("Popup should now be visible");
+  } else {
+    console.error("ERROR: clearChatConfirmPopup element not found in DOM!");
+    // Let's check what elements with 'popup' in their ID exist
+    const allElements = document.querySelectorAll('[id*="popup"], [id*="Popup"]');
+    console.log("Elements with 'popup' in ID:", Array.from(allElements).map(el => el.id));
+  }
 }
 // Hide the confirmation popup
 function hideClearChatConfirmPopup() {
+  console.log("hideClearChatConfirmPopup called");
   const popup = document.getElementById("clearChatConfirmPopup");
   if (popup) popup.style.display = "none";
 }
 
 // Attach popup logic on DOMContentLoaded
 window.addEventListener("DOMContentLoaded", function () {
+  console.log("DOMContentLoaded - setting up clear chat popup handlers");
   const clearBtn = document.getElementById("confirmClearChatBtn");
   const cancelBtn = document.getElementById("cancelClearChatBtn");
+  console.log("Clear button found:", clearBtn);
+  console.log("Cancel button found:", cancelBtn);
   if (clearBtn) clearBtn.onclick = function() {
+    console.log("Clear chat confirmed by user");
     hideClearChatConfirmPopup();
     clearChatHistory();
   };
@@ -1279,11 +1554,13 @@ window.addEventListener("DOMContentLoaded", function () {
 
 // Replace sidebar clear chat click to show popup
 function triggerClearChat() {
+  console.log("triggerClearChat called");
   showClearChatConfirmPopup();
 }
 
 // Start a new chat: call backend to get a new chat_id, reset UI and session
 async function startNewChat() {
+  console.log("startNewChat called");
   try {
     const token = localStorage.getItem("token");
     const response = await fetch("/api/chatbot/newchat", {
@@ -1311,9 +1588,10 @@ async function startNewChat() {
     console.log("/api/chatbot/newchat response:", data);
 
     if (response.ok && data && data.chat_id) {
-      localStorage.setItem("chat_id", data.chat_id);
-      sessionStorage.setItem("chat_id", data.chat_id);
+      saveChatIdToLocalStorage(data.chat_id);
       sessionStorage.removeItem("chatHistory");
+      // Clear previous chat messages from localStorage
+      clearChatFromLocalStorage();
       // Reset chat UI
       const chatMessages = document.getElementById("chatMessages");
       chatMessages.innerHTML = `
@@ -1347,18 +1625,41 @@ async function startNewChat() {
 
 // On page load, start a new chat if not already present (persist chat_id across reloads)
 window.addEventListener("DOMContentLoaded", async function () {
+  console.log("Page loaded, initializing chat persistence...");
+  
+  // Debug current state
+  debugPersistence();
+  
   // Use localStorage for chat_id persistence
   if (!localStorage.getItem("chat_id")) {
+    console.log("No chat_id found, starting new chat...");
     await startNewChat();
   } else {
+    const chat_id = localStorage.getItem("chat_id");
+    console.log("Found existing chat_id:", chat_id);
+    
     // If chat_id exists in localStorage, sync it to sessionStorage for compatibility
-    sessionStorage.setItem("chat_id", localStorage.getItem("chat_id"));
+    sessionStorage.setItem("chat_id", chat_id);
+    
+    // Try to load saved chat messages
+    const messagesLoaded = loadChatFromLocalStorage();
+    if (messagesLoaded) {
+      console.log("Successfully loaded saved messages from localStorage");
+    } else {
+      console.log("No saved messages found, showing welcome message");
+      // If no saved messages, show welcome message and fetch suggestions
+      get_frequentmsg();
+    }
   }
+  
   if (window.innerWidth <= 768) {
     document.getElementById("sidebar").classList.add("collapsed");
   }
-  // Fetch default welcome suggestions
-  get_frequentmsg();
+  
+  // Debug final state
+  setTimeout(() => {
+    debugPersistence();
+  }, 1000);
 });
 
 // Open profile modal
@@ -1379,10 +1680,15 @@ function openProfileModal(event) {
   
   // Populate user info
   const user = getCurrentUser();
-  document.getElementById("modalProfileName").textContent = user?.username || "";
-  document.getElementById("modalProfileId").textContent = user?.id ? `User ID: ${user.id}` : "";
-  document.getElementById("modalProfileEmail").textContent = user?.email || "";
-  document.getElementById("modalProfileRole").textContent = user?.role || "";
+  const modalProfileName = document.getElementById("modalProfileName");
+  const modalProfileId = document.getElementById("modalProfileId");
+  const modalProfileEmail = document.getElementById("modalProfileEmail");
+  const modalProfileRole = document.getElementById("modalProfileRole");
+  
+  if (modalProfileName) modalProfileName.textContent = user?.username || "";
+  if (modalProfileId) modalProfileId.textContent = user?.id ? `User ID: ${user.id}` : "";
+  if (modalProfileEmail) modalProfileEmail.textContent = user?.email || "";
+  if (modalProfileRole) modalProfileRole.textContent = user?.role || "";
   
   // Render analytics
   renderProfileAnalytics();
@@ -1602,4 +1908,332 @@ async function executeConfirmedTool(originalMessage, toolIdentified, toolConfide
     addMessage("Sorry, there was an error executing the action. Please try again.", "bot");
   }
 }
+
+// ==========================================
+// THEME CUSTOMIZATION FUNCTIONALITY
+// ==========================================
+
+// Theme management
+let isThemePanelOpen = false;
+
+// Initialize theme on page load
+document.addEventListener('DOMContentLoaded', function() {
+  initializeTheme();
+  updateThemeUI();
+});
+
+function initializeTheme() {
+  const savedTheme = localStorage.getItem('selectedTheme') || 'light';
+  const customColors = localStorage.getItem('customColors');
+  
+  if (customColors) {
+    const colors = JSON.parse(customColors);
+    applyCustomColors(colors);
+  } else {
+    setTheme(savedTheme);
+  }
+}
+
+function toggleThemePanel() {
+  const panel = document.getElementById('themePanel');
+  const isVisible = panel.style.display === 'block';
+  
+  if (isVisible) {
+    // Animate out
+    panel.style.maxHeight = '0px';
+    setTimeout(() => {
+      panel.style.display = 'none';
+    }, 300);
+    isThemePanelOpen = false;
+  } else {
+    // Animate in
+    panel.style.display = 'block';
+    panel.style.maxHeight = '500px';
+    isThemePanelOpen = true;
+    updateThemeUI();
+  }
+}
+
+function setTheme(themeName) {
+  // Use the universal theme manager to set theme across all pages
+  if (window.ThemeManager && window.ThemeManager.setTheme) {
+    window.ThemeManager.setTheme(themeName);
+  } else {
+    // Fallback for direct theme setting
+    document.documentElement.removeAttribute('data-theme');
+    localStorage.removeItem('customColors');
+    
+    if (themeName !== 'light') {
+      document.documentElement.setAttribute('data-theme', themeName);
+    }
+    
+    localStorage.setItem('selectedTheme', themeName);
+  }
+  
+  // Update UI and show feedback
+  updateThemeUI();
+  showThemeChangeNotification(`${capitalizeFirstLetter(themeName)} theme applied universally to all pages!`);
+  
+  // Trigger storage event so other pages update their themes
+  window.dispatchEvent(new StorageEvent('storage', {
+    key: 'selectedTheme',
+    newValue: themeName,
+    url: window.location.href
+  }));
+}
+
+function updateThemeUI() {
+  const currentTheme = getCurrentTheme();
+  
+  // Update theme option active states
+  document.querySelectorAll('.theme-option').forEach(option => {
+    const themeData = option.getAttribute('data-theme');
+    if (themeData === currentTheme) {
+      option.classList.add('active');
+    } else {
+      option.classList.remove('active');
+    }
+  });
+  
+  // Update custom color inputs
+  updateColorInputs();
+}
+
+function getCurrentTheme() {
+  const dataTheme = document.documentElement.getAttribute('data-theme');
+  return dataTheme || 'light';
+}
+
+function updateCustomColor(colorType, colorValue) {
+  const customColors = JSON.parse(localStorage.getItem('customColors') || '{}');
+  customColors[colorType] = colorValue;
+  
+  // Also update background mode if not set
+  if (!customColors.backgroundMode) {
+    customColors.backgroundMode = document.getElementById('backgroundMode').value;
+  }
+  
+  localStorage.setItem('customColors', JSON.stringify(customColors));
+  
+  // Use universal theme manager for custom colors
+  if (window.ThemeManager && window.ThemeManager.applyCustomColors) {
+    window.ThemeManager.applyCustomColors(customColors);
+  } else {
+    applyCustomColors(customColors);
+  }
+  
+  // Clear theme selection
+  document.querySelectorAll('.theme-option').forEach(option => {
+    option.classList.remove('active');
+  });
+  
+  localStorage.setItem('selectedTheme', 'custom');
+  
+  // Show feedback
+  showThemeChangeNotification(`Custom ${colorType} color applied universally to all pages!`);
+  
+  // Trigger storage event so other pages update
+  window.dispatchEvent(new StorageEvent('storage', {
+    key: 'customColors',
+    newValue: JSON.stringify(customColors),
+    url: window.location.href
+  }));
+}
+
+function updateBackgroundMode(mode) {
+  const customColors = JSON.parse(localStorage.getItem('customColors') || '{}');
+  customColors.backgroundMode = mode;
+  localStorage.setItem('customColors', JSON.stringify(customColors));
+  
+  // Use universal theme manager for custom colors
+  if (window.ThemeManager && window.ThemeManager.applyCustomColors) {
+    window.ThemeManager.applyCustomColors(customColors);
+  } else {
+    applyCustomColors(customColors);
+  }
+  
+  // Show feedback
+  showThemeChangeNotification(`${mode === 'dark' ? 'Dark' : 'Light'} background applied universally to all pages!`);
+  
+  // Trigger storage event so other pages update
+  window.dispatchEvent(new StorageEvent('storage', {
+    key: 'customColors',
+    newValue: JSON.stringify(customColors),
+    url: window.location.href
+  }));
+}
+
+function applyCustomColors(colors) {
+  const root = document.documentElement;
+  
+  // Clear existing theme
+  root.removeAttribute('data-theme');
+  
+  // Apply custom colors
+  if (colors.primary) {
+    root.style.setProperty('--primary-color', colors.primary);
+    root.style.setProperty('--text-primary', colors.primary);
+  }
+  
+  if (colors.accent) {
+    root.style.setProperty('--primary-accent', colors.accent);
+    root.style.setProperty('--text-accent', colors.accent);
+    // Create a darker version for hover state
+    const darkerAccent = adjustBrightness(colors.accent, -20);
+    root.style.setProperty('--primary-accent-hover', darkerAccent);
+  }
+  
+  // Apply background mode
+  if (colors.backgroundMode === 'dark') {
+    root.style.setProperty('--background-main', 'linear-gradient(135deg, #0a0a0a 0%, #1a1a1a 100%)');
+    root.style.setProperty('--background-card', '#1a1a1a');
+    root.style.setProperty('--background-header', '#1a1a1a');
+    root.style.setProperty('--background-footer', '#0a0a0a');
+    root.style.setProperty('--background-btn', '#2c2c2c');
+    root.style.setProperty('--background-btn-hover', '#333');
+    root.style.setProperty('--border-color', '#333');
+    root.style.setProperty('--text-secondary', '#aaa');
+    root.style.setProperty('--text-muted', '#666');
+    root.style.setProperty('--secondary-color', '#1a1a1a');
+  } else {
+    root.style.setProperty('--background-main', 'linear-gradient(135deg, #f6f6f4 0%, #ecebe7 100%)');
+    root.style.setProperty('--background-card', '#f7f6f2');
+    root.style.setProperty('--background-header', '#f7f6f2');
+    root.style.setProperty('--background-footer', '#ecebe7');
+    root.style.setProperty('--background-btn', '#fff');
+    root.style.setProperty('--background-btn-hover', '#f7f6f2');
+    root.style.setProperty('--border-color', '#e5e3dc');
+    root.style.setProperty('--text-secondary', '#666');
+    root.style.setProperty('--text-muted', '#999');
+    root.style.setProperty('--secondary-color', '#ecebe7');
+  }
+}
+
+function updateColorInputs() {
+  const customColors = JSON.parse(localStorage.getItem('customColors') || '{}');
+  
+  if (customColors.primary) {
+    document.getElementById('primaryColor').value = customColors.primary;
+  }
+  if (customColors.accent) {
+    document.getElementById('accentColor').value = customColors.accent;
+  }
+  if (customColors.backgroundMode) {
+    document.getElementById('backgroundMode').value = customColors.backgroundMode;
+  }
+}
+
+function resetToDefault() {
+  // Clear all custom settings
+  localStorage.removeItem('customColors');
+  localStorage.removeItem('selectedTheme');
+  
+  // Reset to default light theme using universal manager
+  if (window.ThemeManager && window.ThemeManager.setTheme) {
+    window.ThemeManager.setTheme('light');
+  } else {
+    setTheme('light');
+  }
+  
+  // Reset input values
+  document.getElementById('primaryColor').value = '#232323';
+  document.getElementById('accentColor').value = '#d4b24c';
+  document.getElementById('backgroundMode').value = 'light';
+  
+  // Clear custom CSS properties
+  const root = document.documentElement;
+  root.style.removeProperty('--primary-color');
+  root.style.removeProperty('--primary-accent');
+  root.style.removeProperty('--primary-accent-hover');
+  root.style.removeProperty('--text-primary');
+  root.style.removeProperty('--text-accent');
+  root.style.removeProperty('--background-main');
+  root.style.removeProperty('--background-card');
+  root.style.removeProperty('--background-header');
+  root.style.removeProperty('--background-footer');
+  root.style.removeProperty('--background-btn');
+  root.style.removeProperty('--background-btn-hover');
+  root.style.removeProperty('--border-color');
+  root.style.removeProperty('--text-secondary');
+  root.style.removeProperty('--text-muted');
+  root.style.removeProperty('--secondary-color');
+  
+  showThemeChangeNotification('Theme reset to default!');
+}
+
+function showThemeChangeNotification(message) {
+  // Create notification element
+  const notification = document.createElement('div');
+  notification.className = 'theme-notification';
+  notification.textContent = message;
+  notification.style.cssText = `
+    position: fixed;
+    top: 20px;
+    right: 20px;
+    background: var(--primary-accent);
+    color: white;
+    padding: 12px 20px;
+    border-radius: 6px;
+    font-size: 0.9em;
+    font-weight: 500;
+    box-shadow: var(--shadow);
+    z-index: 10000;
+    transform: translateX(300px);
+       transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  `;
+  
+  document.body.appendChild(notification);
+  
+  // Animate in
+  setTimeout(() => {
+    notification.style.transform = 'translateX(0)';
+  }, 100);
+  
+  // Remove after delay
+  setTimeout(() => {
+    notification.style.transform = 'translateX(300px)';
+    setTimeout(() => {
+      if (notification.parentNode) {
+        notification.parentNode.removeChild(notification);
+      }
+    }, 300);
+  }, 3000);
+}
+
+function adjustBrightness(hexColor, amount) {
+  // Convert hex to RGB
+  const hex = hexColor.replace('#', '');
+  const r = parseInt(hex.substr(0, 2), 16);
+  const g = parseInt(hex.substr(2, 2), 16);
+  const b = parseInt(hex.substr(4, 2), 16);
+  
+  // Adjust brightness
+  const newR = Math.max(0, Math.min(255, r + amount));
+  const newG = Math.max(0, Math.min(255, g + amount));
+  const newB = Math.max(0, Math.min(255, b + amount));
+  
+  // Convert back to hex
+  return `#${newR.toString(16).padStart(2, '0')}${newG.toString(16).padStart(2, '0')}${newB.toString(16).padStart(2, '0')}`;
+}
+
+function capitalizeFirstLetter(string) {
+   return string.charAt(0).toUpperCase() + string.slice(1);
+}
+
+// Close theme panel when clicking outside
+document.addEventListener('click', function(event) {
+  const themePanel = document.getElementById('themePanel');
+  const themesSection = document.querySelector('.sidebar-themes');
+  
+  if (isThemePanelOpen && themePanel && themesSection) {
+    if (!themesSection.contains(event.target)) {
+      themePanel.style.display = 'none';
+      isThemePanelOpen = false;
+    }
+  }
+});
+
+// ==========================================
+// END THEME CUSTOMIZATION FUNCTIONALITY
+// ==========================================
 

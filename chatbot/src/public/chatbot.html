@@ -6,6 +6,7 @@
     <title>Chat | Verztec AI Chatbot</title>
     <link rel="stylesheet" href="/styles/main.css" />
     <link rel="stylesheet" href="/styles/chatbot.css" />
+    <link rel="stylesheet" href="/styles/draggable-avatar.css" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
@@ -221,6 +222,7 @@
     </div>
 
     <script src="/scripts/chatbot.js"></script>
+    <script src="/scripts/draggable-avatar.js"></script>
     <script>
       // Fetch current user info and expose as window.currentUser
       (async function() {
@@ -478,56 +480,113 @@
           }
         }, 500);
       });
+      
+      // Add avatar event listeners
+      document.addEventListener('avatarEvent', function(event) {
+        const { type, payload } = event.detail;
+        
+        switch (type) {
+          case 'avatar_visible':
+            console.log('Avatar visibility changed:', payload);
+            break;
+          case 'avatar_speaking':
+            console.log('Avatar is speaking:', payload);
+            break;
+          case 'avatar_response':
+            console.log('Avatar response:', payload);
+            // You can add the avatar response to the main chat here
+            if (payload && payload.message) {
+              addMessage(payload.message, "bot");
+            }
+            break;
+        }
+      });
+      
+      // Function to send messages to avatar
+      function sendMessageToAvatar(message) {
+        let messageSent = false;
+        
+        // Cancel main chatbot TTS when sending to avatar
+        if (window.googleTTS) {
+          window.googleTTS.cancel();
+          console.log('Cancelled main chatbot TTS for avatar message');
+        }
+        
+        // Priority 1: Send to draggable avatar if it exists
+        if (window.draggableAvatar) {
+          window.draggableAvatar.sendMessageToAvatar(message);
+          messageSent = true;
+          console.log('Message sent to draggable avatar');
+          return; // Exit early to prevent double sending
+        }
+        
+        // Priority 2: Send to avatar iframe if it exists and draggable avatar is not available
+        const avatarIframe = document.querySelector('iframe[src*="avatar"]');
+        if (!messageSent && avatarIframe && avatarIframe.contentWindow) {
+          avatarIframe.contentWindow.postMessage({
+            type: 'chat_message',
+            payload: message
+          }, window.location.origin);
+          messageSent = true;
+          console.log('Message sent to avatar iframe');
+          return; // Exit early to prevent double sending
+        }
+        
+        // Priority 3: Send to avatar window if opened separately and no other avatar is available
+        if (!messageSent && window.avatarWindow && !window.avatarWindow.closed) {
+          window.avatarWindow.postMessage({
+            type: 'chat_message',
+            payload: message
+          }, window.location.origin);
+          messageSent = true;
+          console.log('Message sent to avatar window');
+        }
+        
+        if (!messageSent) {
+          console.log('No avatar available to receive message');
+        }
+      }
+      
+      // Function to open avatar window
+      function openAvatarWindow() {
+        // Cancel main chatbot TTS when opening avatar window
+        if (window.googleTTS) {
+          window.googleTTS.cancel();
+          console.log('Cancelled main chatbot TTS when opening avatar window');
+        }
+        
+        if (!window.avatarWindow || window.avatarWindow.closed) {
+          window.avatarWindow = window.open('/avatar-scene/index.html', 'avatarWindow', 'width=800,height=600,scrollbars=no,resizable=yes');
+        } else {
+          window.avatarWindow.focus();
+        }
+      }
+      
+      // Enhanced sendMessage function to also send to avatar
+      const originalSendMessage = sendMessage;
+      sendMessage = function() {
+        const input = document.getElementById("messageInput");
+        const message = input.value.trim();
+        
+        // Store the message for avatar
+        const userMessage = message;
+        
+        // Call original function
+        originalSendMessage();
+        
+        // Send to avatar after original function completes
+        if (userMessage) {
+          // Small delay to ensure the message is processed
+          setTimeout(() => {
+            sendMessageToAvatar(userMessage);
+          }, 100);
+        }
+      };
     </script>
     <style>
       /* Theme Switch Styles */
       .theme-switch {
         display: inline-block;
-        width: 48px;
-        height: 26px;
-        position: relative;
-        vertical-align: middle;
-        margin-top: 12px;
-        margin-bottom: 0;
-        margin-left: 0;
-        margin-right: 0;
-        user-select: none;
-      }
-      .theme-switch input {
-        opacity: 0;
-        width: 0;
-        height: 0;
-      }
-      .theme-switch .slider {
-        position: absolute;
-        cursor: pointer;
-        top: 0; left: 0; right: 0; bottom: 0;
-        background: #ecebe7;
-        border-radius: 18px;
-        transition: background 0.3s;
-        box-shadow: 0 1px 4px 0 rgba(212,178,76,0.04);
-      }
-      .theme-switch .slider:before {
-        position: absolute;
-        content: "";
-        height: 22px;
-        width: 22px;
-        left: 2px;
-        bottom: 2px;
-        background: #fff;
-        border-radius: 50%;
-        transition: transform 0.3s, background 0.3s;
-        box-shadow: 0 2px 8px 0 rgba(212,178,76,0.10);
-      }
-      .theme-switch input:checked + .slider {
-        background: #23272e;
-      }
-      .theme-switch input:checked + .slider:before {
-        transform: translateX(22px);
-        background: #ffd700;
-      }
-      /* Add sun/moon icon */
-      .theme-switch .slider:after {
         content: '';
         position: absolute;
         top: 50%;

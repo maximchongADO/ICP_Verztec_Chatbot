@@ -220,3 +220,367 @@ function logout() {
 function returnToChat() {
     window.location.href = "/chatbot.html";
 }
+
+function formatFileSize(bytes) {
+    if (bytes === 0) return '0 Bytes';
+    const k = 1024;
+    const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+}
+
+// FAISS Knowledge Base Functions
+async function loadFAISSData() {
+    const loadingSpinner = document.getElementById('faissLoadingSpinner');
+    const statsDiv = document.getElementById('faissStats');
+    const filesListDiv = document.getElementById('faissFilesList');
+    const errorDiv = document.getElementById('faissError');
+    
+    // Show loading state
+    loadingSpinner.style.display = 'block';
+    statsDiv.style.display = 'none';
+    filesListDiv.style.display = 'none';
+    errorDiv.style.display = 'none';
+    
+    try {
+        const response = await fetch('/api/faiss/extract', {
+            method: 'POST',
+            headers: {
+                'Authorization': `Bearer ${token}`,
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ command: 'list' })
+        });
+        
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        
+        const data = await response.json();
+        
+        if (data.error) {
+            throw new Error(data.error);
+        }
+        
+        // Display statistics
+        displayFAISSStats(data.summary);
+        
+        // Display files
+        displayFAISSFiles(data.files);
+        
+        loadingSpinner.style.display = 'none';
+        statsDiv.style.display = 'block';
+        filesListDiv.style.display = 'block';
+        
+    } catch (error) {
+        console.error('Error loading FAISS data:', error);
+        loadingSpinner.style.display = 'none';
+        errorDiv.style.display = 'block';
+        errorDiv.innerHTML = `
+            <h3>⚠️ Failed to Load Knowledge Base</h3>
+            <p>${error.message}</p>
+            <button class="btn btn-primary" onclick="loadFAISSData()" style="margin-top: 1rem;">
+                🔄 Retry
+            </button>
+        `;
+    }
+}
+
+function displayFAISSStats(summary) {
+    const statsDiv = document.getElementById('faissStats');
+    
+    statsDiv.innerHTML = `
+        <div class="stat-card">
+            <span class="stat-number">${summary.total_files || 0}</span>
+            <span class="stat-label">Total Files</span>
+        </div>
+        <div class="stat-card">
+            <span class="stat-number">${summary.total_chunks || 0}</span>
+            <span class="stat-label">Text Chunks</span>
+        </div>
+        <div class="stat-card">
+            <span class="stat-number">${formatFileSize(summary.total_content_length || 0)}</span>
+            <span class="stat-label">Total Content</span>
+        </div>
+        <div class="stat-card">
+            <span class="stat-number">${summary.extraction_time ? new Date(summary.extraction_time).toLocaleDateString() : 'Unknown'}</span>
+            <span class="stat-label">Last Updated</span>
+        </div>
+    `;
+}
+
+function displayFAISSFiles(files) {
+    const filesListDiv = document.getElementById('faissFilesList');
+    
+    if (!files || files.length === 0) {
+        filesListDiv.innerHTML = `
+            <div class="error-message">
+                <h3>📭 No Files Found</h3>
+                <p>The knowledge base appears to be empty. Upload some documents to get started.</p>
+            </div>
+        `;
+        return;
+    }
+    
+    const filesHTML = files.map(file => `
+        <div class="faiss-file-card">
+            <div class="file-card-header">
+                <div class="file-card-info">
+                    <h3>📄 ${escapeHtml(file.filename)}</h3>
+                    <div class="file-card-meta">
+                        <div class="meta-item">
+                            <span class="file-type-badge">${file.file_type}</span>
+                        </div>
+                        ${file.created_at ? `
+                        <div class="meta-item">
+                            📅 ${new Date(file.created_at).toLocaleDateString()}
+                        </div>
+                        ` : ''}
+                    </div>
+                </div>
+            </div>
+            
+            <div class="chunk-info">
+                <div class="chunk-stat">
+                    <span class="chunk-stat-number">${file.chunk_count}</span>
+                    <span class="chunk-stat-label">Chunks</span>
+                </div>
+                <div class="chunk-stat">
+                    <span class="chunk-stat-number">${formatFileSize(file.total_content_length)}</span>
+                    <span class="chunk-stat-label">Total Size</span>
+                </div>
+                <div class="chunk-stat">
+                    <span class="chunk-stat-number">${formatFileSize(file.avg_chunk_size)}</span>
+                    <span class="chunk-stat-label">Avg Chunk</span>
+                </div>
+            </div>
+            
+            <div class="file-actions-faiss">
+                <button class="btn btn-secondary btn-small" onclick="viewFileChunks('${escapeHtml(file.filename)}')">
+                    👁️ View Chunks
+                </button>
+                <button class="btn btn-secondary btn-small" onclick="searchInFile('${escapeHtml(file.filename)}')">
+                    🔍 Search Content
+                </button>
+                <button class="btn btn-danger btn-small" onclick="deleteFile('${escapeHtml(file.filename)}')">
+                    🗑️ Delete File
+                </button>
+            </div>
+        </div>
+    `).join('');
+    
+    filesListDiv.innerHTML = filesHTML;
+}
+
+function escapeHtml(text) {
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+}
+
+async function viewFileChunks(filename) {
+    try {
+        const response = await fetch('/api/faiss/extract', {
+            method: 'POST',
+            headers: {
+                'Authorization': `Bearer ${token}`,
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ command: 'list' })
+        });
+        
+        const data = await response.json();
+        const file = data.files?.find(f => f.filename === filename);
+        
+        if (!file) {
+            alert('File not found in knowledge base');
+            return;
+        }
+        
+        // Create modal to show chunks
+        const modal = document.createElement('div');
+        modal.className = 'modal-overlay';
+        modal.innerHTML = `
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h3>📄 Chunks in ${escapeHtml(filename)}</h3>
+                    <button class="modal-close" onclick="this.parentElement.parentElement.parentElement.remove()">×</button>
+                </div>
+                <div class="modal-body">
+                    ${file.chunks.map((chunk, index) => `
+                        <div class="chunk-preview">
+                            <div class="chunk-header">
+                                <strong>Chunk ${index + 1}</strong>
+                                <span class="chunk-size">${formatFileSize(chunk.content_length)}</span>
+                            </div>
+                            <div class="chunk-content">${escapeHtml(chunk.content_preview)}</div>
+                            ${chunk.content_length > 200 ? '<div class="chunk-note">Content truncated...</div>' : ''}
+                        </div>
+                    `).join('')}
+                </div>
+            </div>
+        `;
+        
+        document.body.appendChild(modal);
+        
+    } catch (error) {
+        console.error('Error viewing chunks:', error);
+        alert('Failed to load file chunks: ' + error.message);
+    }
+}
+
+async function searchInFile(filename) {
+    const query = prompt(`Search in "${filename}":`);
+    if (!query) return;
+    
+    try {
+        const response = await fetch('/api/faiss/extract', {
+            method: 'POST',
+            headers: {
+                'Authorization': `Bearer ${token}`,
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ 
+                command: 'search', 
+                query: query,
+                limit: 10
+            })
+        });
+        
+        const data = await response.json();
+        
+        if (data.error) {
+            throw new Error(data.error);
+        }
+        
+        // Filter results for this file
+        const fileResults = data.results?.filter(result => 
+            result.source.includes(filename) || result.metadata?.source?.includes(filename)
+        ) || [];
+        
+        // Show search results
+        const modal = document.createElement('div');
+        modal.className = 'modal-overlay';
+        modal.innerHTML = `
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h3>🔍 Search Results in ${escapeHtml(filename)}</h3>
+                    <button class="modal-close" onclick="this.parentElement.parentElement.parentElement.remove()">×</button>
+                </div>
+                <div class="modal-body">
+                    <p><strong>Query:</strong> "${escapeHtml(query)}"</p>
+                    <p><strong>Found:</strong> ${fileResults.length} results</p>
+                    ${fileResults.length > 0 ? fileResults.map((result, index) => `
+                        <div class="search-result">
+                            <div class="result-header">
+                                <strong>Result ${index + 1}</strong>
+                                <span class="similarity-score">Similarity: ${(result.similarity_score * 100).toFixed(1)}%</span>
+                            </div>
+                            <div class="result-content">${escapeHtml(result.content_preview)}</div>
+                        </div>
+                    `).join('') : '<p>No results found in this file.</p>'}
+                </div>
+            </div>
+        `;
+        
+        document.body.appendChild(modal);
+        
+    } catch (error) {
+        console.error('Error searching file:', error);
+        alert('Search failed: ' + error.message);
+    }
+}
+
+// Delete file function
+async function deleteFile(filename) {
+    // Show confirmation dialog
+    const confirmed = await showDeleteConfirmation(filename);
+    if (!confirmed) {
+        return;
+    }
+    
+    try {
+        showStatus('info', `Deleting ${filename}...`);
+        
+        const response = await fetch(`/api/faiss/file/${encodeURIComponent(filename)}`, {
+            method: 'DELETE',
+            headers: {
+                'Authorization': `Bearer ${token}`,
+                'Content-Type': 'application/json'
+            },
+            credentials: 'include'
+        });
+        
+        if (!response.ok) {
+            const errorData = await response.json();
+            throw new Error(errorData.error || 'Failed to delete file');
+        }
+        
+        const result = await response.json();
+        
+        if (result.success) {
+            showStatus('success', `Successfully deleted ${filename} (${result.deletedChunks} chunks removed)`);
+            
+            // Refresh the FAISS data display
+            await loadFAISSData();
+        } else {
+            throw new Error(result.error || 'Delete operation failed');
+        }
+        
+    } catch (error) {
+        console.error('Error deleting file:', error);
+        showStatus('error', `Failed to delete ${filename}: ${error.message}`);
+    }
+}
+
+// Show delete confirmation dialog
+function showDeleteConfirmation(filename) {
+    return new Promise((resolve) => {
+        const modal = document.createElement('div');
+        modal.className = 'modal-overlay';
+        modal.innerHTML = `
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h3>⚠️ Confirm Deletion</h3>
+                    <button class="modal-close" onclick="this.parentElement.parentElement.parentElement.remove(); resolve(false);">×</button>
+                </div>
+                <div class="modal-body">
+                    <p><strong>Are you sure you want to delete "${escapeHtml(filename)}"?</strong></p>
+                    <p>This will remove all chunks of this file from the FAISS knowledge base.</p>
+                    <p><em>This action cannot be undone.</em></p>
+                    
+                    <div class="modal-actions">
+                        <button class="btn btn-secondary" onclick="this.closest('.modal-overlay').remove(); resolve(false);">
+                            Cancel
+                        </button>
+                        <button class="btn btn-danger" onclick="this.closest('.modal-overlay').remove(); resolve(true);">
+                            🗑️ Delete File
+                        </button>
+                    </div>
+                </div>
+            </div>
+        `;
+        
+        // Add resolve function to buttons
+        const cancelBtn = modal.querySelector('.btn-secondary');
+        const deleteBtn = modal.querySelector('.btn-danger');
+        const closeBtn = modal.querySelector('.modal-close');
+        
+        cancelBtn.onclick = () => {
+            modal.remove();
+            resolve(false);
+        };
+        
+        deleteBtn.onclick = () => {
+            modal.remove();
+            resolve(true);
+        };
+        
+        closeBtn.onclick = () => {
+            modal.remove();
+            resolve(false);
+        };
+        
+        document.body.appendChild(modal);
+    });
+}

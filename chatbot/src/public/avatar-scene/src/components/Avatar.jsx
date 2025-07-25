@@ -47,8 +47,8 @@ export function Avatar(props) {
       return;
     }
     
-    // Only process bot messages with audio for TTS
-    if (message.type !== 'bot' || !message.audio) {
+    // Only process bot messages (with or without audio)
+    if (message.type !== 'bot') {
       return;
     }
     
@@ -92,7 +92,12 @@ export function Avatar(props) {
       
       setAudio(audioElement);
     } else {
-      setIsProcessing(false);
+      // For text-only messages, show for a few seconds then proceed
+      console.log('Displaying text-only message:', message.text);
+      setTimeout(() => {
+        setIsProcessing(false);
+        onMessagePlayed();
+      }, 3000); // Display text for 3 seconds
     }
   }, [message, onMessagePlayed, audio, isProcessing, lastProcessedMessageId]);
 
@@ -182,7 +187,7 @@ export function Avatar(props) {
   }, []);
 
   return (
-    <group {...props} dispose={null} ref={group}>
+    <group {...props} dispose={null} ref={group} position={[0, 0, 0]} rotation={[0, 0, 0]}>
       <primitive object={nodes.Hips} />
       <skinnedMesh
         name="Wolf3D_Body"
@@ -246,28 +251,7 @@ export function Avatar(props) {
         morphTargetDictionary={nodes.Wolf3D_Teeth.morphTargetDictionary}
         morphTargetInfluences={nodes.Wolf3D_Teeth.morphTargetInfluences}
       />
-      {/* Synchronized text display - use currentMessage instead of message */}
-      {currentMessage && currentMessage.text && (
-        <Html
-          position={[1.2, 1.2, 0]}
-          style={{
-            pointerEvents: 'none',
-            userSelect: 'none',
-            transform: 'translate(-50%, -50%)',
-            zIndex: 1000
-          }}
-        >
-          <div className="speech-bubble speech-bubble-wide">
-            <div className="speech-bubble-arrow"></div>
-            <SynchronizedText
-              text={currentMessage.text}
-              audio={currentMessage.audio}
-              lipsync={currentMessage.lipsync}
-              isPlaying={isSpeaking}
-            />
-          </div>
-        </Html>
-      )}
+
     </group>
   );
 }
