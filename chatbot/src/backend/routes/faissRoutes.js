@@ -36,6 +36,7 @@ router.post('/extract', async (req, res) => {
         
         let output = '';
         let errorOutput = '';
+        let responseSent = false;
         
         pythonProcess.stdout.on('data', (data) => {
             output += data.toString();
@@ -46,6 +47,9 @@ router.post('/extract', async (req, res) => {
         });
         
         pythonProcess.on('close', (code) => {
+            if (responseSent) return;
+            responseSent = true;
+            
             if (code === 0) {
                 try {
                     const result = JSON.parse(output);
@@ -69,6 +73,9 @@ router.post('/extract', async (req, res) => {
         });
         
         pythonProcess.on('error', (error) => {
+            if (responseSent) return;
+            responseSent = true;
+            
             console.error('Failed to start Python process:', error);
             res.status(500).json({
                 error: 'Failed to start FAISS extraction process',
@@ -77,12 +84,20 @@ router.post('/extract', async (req, res) => {
         });
         
         // Set timeout for the process
-        setTimeout(() => {
+        const timeoutId = setTimeout(() => {
+            if (responseSent) return;
+            responseSent = true;
+            
             pythonProcess.kill();
             res.status(408).json({
                 error: 'FAISS extraction timed out'
             });
         }, 30000); // 30 seconds timeout
+        
+        // Clear timeout if process completes normally
+        pythonProcess.on('close', () => {
+            clearTimeout(timeoutId);
+        });
         
     } catch (error) {
         console.error('Error in FAISS extraction endpoint:', error);
@@ -101,6 +116,7 @@ router.get('/stats', async (req, res) => {
         
         let output = '';
         let errorOutput = '';
+        let responseSent = false;
         
         pythonProcess.stdout.on('data', (data) => {
             output += data.toString();
@@ -111,6 +127,9 @@ router.get('/stats', async (req, res) => {
         });
         
         pythonProcess.on('close', (code) => {
+            if (responseSent) return;
+            responseSent = true;
+            
             if (code === 0) {
                 try {
                     const result = JSON.parse(output);
@@ -127,6 +146,33 @@ router.get('/stats', async (req, res) => {
                     details: errorOutput
                 });
             }
+        });
+        
+        pythonProcess.on('error', (error) => {
+            if (responseSent) return;
+            responseSent = true;
+            
+            console.error('Error in FAISS stats endpoint:', error);
+            res.status(500).json({
+                error: 'Failed to start statistics process',
+                details: error.message
+            });
+        });
+        
+        // Set timeout for the process
+        const timeoutId = setTimeout(() => {
+            if (responseSent) return;
+            responseSent = true;
+            
+            pythonProcess.kill();
+            res.status(408).json({
+                error: 'Statistics request timed out'
+            });
+        }, 30000); // 30 seconds timeout
+        
+        // Clear timeout if process completes normally
+        pythonProcess.on('close', () => {
+            clearTimeout(timeoutId);
         });
         
     } catch (error) {
@@ -154,6 +200,7 @@ router.delete('/file/:filename', async (req, res) => {
         
         let output = '';
         let errorOutput = '';
+        let responseSent = false;
         
         pythonProcess.stdout.on('data', (data) => {
             output += data.toString();
@@ -164,6 +211,9 @@ router.delete('/file/:filename', async (req, res) => {
         });
         
         pythonProcess.on('close', (code) => {
+            if (responseSent) return;
+            responseSent = true;
+            
             if (code === 0) {
                 try {
                     const result = JSON.parse(output);
@@ -199,6 +249,9 @@ router.delete('/file/:filename', async (req, res) => {
         });
         
         pythonProcess.on('error', (error) => {
+            if (responseSent) return;
+            responseSent = true;
+            
             console.error('Failed to start Python deletion process:', error);
             res.status(500).json({
                 error: 'Failed to start file deletion process',
@@ -207,12 +260,20 @@ router.delete('/file/:filename', async (req, res) => {
         });
         
         // Set timeout for the process
-        setTimeout(() => {
+        const timeoutId = setTimeout(() => {
+            if (responseSent) return;
+            responseSent = true;
+            
             pythonProcess.kill();
             res.status(408).json({
                 error: 'File deletion timed out'
             });
         }, 30000); // 30 seconds timeout
+        
+        // Clear timeout if process completes normally
+        pythonProcess.on('close', () => {
+            clearTimeout(timeoutId);
+        });
         
     } catch (error) {
         console.error('Error in FAISS file deletion endpoint:', error);
