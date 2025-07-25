@@ -214,6 +214,27 @@ function handleKeyPress(event) {
 let currentSpeechText = null;
 let isCurrentlySpeaking = false;
 
+// Function to check if avatar is active and should handle TTS
+function isAvatarActive() {
+    // Check if draggable avatar exists and is visible
+    if (window.draggableAvatar && window.draggableAvatar.isAvatarVisible()) {
+        return true;
+    }
+    
+    // Check if avatar iframe exists
+    const avatarIframe = document.querySelector('iframe[src*="avatar"]');
+    if (avatarIframe) {
+        return true;
+    }
+    
+    // Check if avatar window is open
+    if (window.avatarWindow && !window.avatarWindow.closed) {
+        return true;
+    }
+    
+    return false;
+}
+
 function stopAvatarAnimation() {
     const avatar = document.getElementById('chatbotAvatar');
     const avatarOpen = document.getElementById('avatarOpen');
@@ -1260,6 +1281,12 @@ let currentMouthInterval = null; // Add this at the top level of your file
 
 async function speakMessage(text) {
     if (!text || !text.trim()) return;
+    
+    // Check if avatar is available and active - if so, skip main chatbot TTS
+    if (isAvatarActive()) {
+        console.log('Avatar is active, skipping main chatbot TTS');
+        return;
+    }
     
     const avatar = document.getElementById('chatbotAvatar');
     const avatarOpen = document.getElementById('avatarOpen');
