@@ -858,6 +858,255 @@
           margin-top: 0.5rem;
         }
       }
+
+      /* FAISS Knowledge Base Section Styles */
+      .faiss-section {
+        background: var(--background-card);
+        border-radius: 20px;
+        padding: 2rem;
+        margin-top: 2rem;
+        box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+        border: 2px solid rgba(212, 178, 76, 0.1);
+        transition: all 0.3s ease;
+      }
+
+      .faiss-section:hover {
+        border-color: rgba(212, 178, 76, 0.2);
+        box-shadow: 0 12px 40px rgba(212, 178, 76, 0.1);
+      }
+
+      .section-header {
+        text-align: center;
+        margin-bottom: 2rem;
+      }
+
+      .section-header h2 {
+        font-size: 2rem;
+        font-weight: 700;
+        color: var(--text-primary);
+        margin-bottom: 0.5rem;
+        background: linear-gradient(135deg, var(--primary-accent) 0%, var(--text-accent) 100%);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        background-clip: text;
+      }
+
+      .section-header p {
+        color: var(--text-secondary);
+        font-size: 1.1rem;
+        margin-bottom: 1.5rem;
+      }
+
+      .loading-spinner {
+        text-align: center;
+        padding: 3rem;
+      }
+
+      .spinner {
+        width: 50px;
+        height: 50px;
+        border: 4px solid rgba(212, 178, 76, 0.3);
+        border-top: 4px solid #d4b24c;
+        border-radius: 50%;
+        animation: spin 1s linear infinite;
+        margin: 0 auto 1rem;
+      }
+
+      @keyframes spin {
+        0% { transform: rotate(0deg); }
+        100% { transform: rotate(360deg); }
+      }
+
+      .faiss-stats {
+        background: linear-gradient(135deg, rgba(212, 178, 76, 0.1) 0%, rgba(255, 215, 0, 0.05) 100%);
+        border: 2px solid rgba(212, 178, 76, 0.2);
+        border-radius: 16px;
+        padding: 2rem;
+        margin-bottom: 2rem;
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+        gap: 1.5rem;
+      }
+
+      .stat-card {
+        background: var(--background-card);
+        border-radius: 12px;
+        padding: 1.5rem;
+        text-align: center;
+        box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
+        border: 1px solid rgba(212, 178, 76, 0.1);
+        transition: all 0.3s ease;
+      }
+
+      .stat-card:hover {
+        transform: translateY(-4px);
+        box-shadow: 0 8px 32px rgba(212, 178, 76, 0.2);
+        border-color: rgba(212, 178, 76, 0.3);
+      }
+
+      .stat-number {
+        font-size: 2.5rem;
+        font-weight: 800;
+        color: #d4b24c;
+        display: block;
+        margin-bottom: 0.5rem;
+      }
+
+      .stat-label {
+        font-size: 1rem;
+        font-weight: 600;
+        color: var(--text-secondary);
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+      }
+
+      .faiss-files-list {
+        display: grid;
+        gap: 1.5rem;
+      }
+
+      .faiss-file-card {
+        background: var(--background-card);
+        border: 2px solid rgba(212, 178, 76, 0.1);
+        border-radius: 16px;
+        padding: 1.5rem;
+        transition: all 0.3s ease;
+        box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
+      }
+
+      .faiss-file-card:hover {
+        border-color: rgba(212, 178, 76, 0.3);
+        transform: translateY(-2px);
+        box-shadow: 0 8px 32px rgba(212, 178, 76, 0.15);
+      }
+
+      .file-card-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-start;
+        margin-bottom: 1rem;
+      }
+
+      .file-card-info h3 {
+        font-size: 1.25rem;
+        font-weight: 700;
+        color: var(--text-primary);
+        margin-bottom: 0.5rem;
+        word-break: break-word;
+      }
+
+      .file-card-meta {
+        display: flex;
+        gap: 1rem;
+        flex-wrap: wrap;
+        margin-bottom: 0.5rem;
+      }
+
+      .meta-item {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        font-size: 0.9rem;
+        color: var(--text-secondary);
+      }
+
+      .file-type-badge {
+        background: linear-gradient(135deg, #d4b24c 0%, #ffd700 100%);
+        color: #1a1a1a;
+        padding: 4px 12px;
+        border-radius: 12px;
+        font-size: 0.8rem;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+      }
+
+      .chunk-info {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+        gap: 1rem;
+        margin: 1rem 0;
+        padding: 1rem;
+        background: rgba(212, 178, 76, 0.05);
+        border-radius: 12px;
+        border: 1px solid rgba(212, 178, 76, 0.1);
+      }
+
+      .chunk-stat {
+        text-align: center;
+      }
+
+      .chunk-stat-number {
+        font-size: 1.5rem;
+        font-weight: 700;
+        color: #d4b24c;
+        display: block;
+      }
+
+      .chunk-stat-label {
+        font-size: 0.8rem;
+        color: var(--text-secondary);
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+      }
+
+      .file-actions-faiss {
+        display: flex;
+        gap: 0.5rem;
+        margin-top: 1rem;
+      }
+
+      .error-message {
+        background: linear-gradient(135deg, rgba(239, 68, 68, 0.1) 0%, rgba(220, 38, 38, 0.05) 100%);
+        border: 2px solid rgba(239, 68, 68, 0.2);
+        border-radius: 12px;
+        padding: 1.5rem;
+        text-align: center;
+        color: #dc2626;
+      }
+
+      .error-message h3 {
+        margin-bottom: 0.5rem;
+        font-size: 1.25rem;
+        font-weight: 700;
+      }
+
+      .error-message p {
+        margin: 0;
+        opacity: 0.8;
+      }
+
+      /* Dark mode styles for FAISS section */
+      html[data-theme="dark"] .faiss-section {
+        background: #2a2a2a;
+        border-color: rgba(212, 178, 76, 0.2);
+      }
+
+      html[data-theme="dark"] .faiss-stats {
+        background: linear-gradient(135deg, rgba(212, 178, 76, 0.15) 0%, rgba(255, 215, 0, 0.1) 100%);
+        border-color: rgba(212, 178, 76, 0.3);
+      }
+
+      html[data-theme="dark"] .stat-card {
+        background: #1f1f1f;
+        border-color: rgba(212, 178, 76, 0.2);
+      }
+
+      html[data-theme="dark"] .faiss-file-card {
+        background: #1f1f1f;
+        border-color: rgba(212, 178, 76, 0.2);
+      }
+
+      html[data-theme="dark"] .chunk-info {
+        background: rgba(212, 178, 76, 0.1);
+        border-color: rgba(212, 178, 76, 0.2);
+      }
+
+      html[data-theme="dark"] .error-message {
+        background: linear-gradient(135deg, rgba(239, 68, 68, 0.2) 0%, rgba(220, 38, 38, 0.1) 100%);
+        border-color: rgba(239, 68, 68, 0.3);
+        color: #f87171;
+      }
     </style>
 </head>
 <body>
@@ -917,6 +1166,38 @@
 
                 <div class="upload-status" id="uploadStatus">
                     <!-- Upload status messages will appear here -->
+                </div>
+
+                <!-- FAISS Knowledge Base Section -->
+                <div class="faiss-section" id="faissSection">
+                    <div class="section-header">
+                        <h2>📚 Current Knowledge Base</h2>
+                        <p>Documents stored in the FAISS vector database that the chatbot uses for responses</p>
+                        <button class="btn btn-primary" onclick="loadFAISSData()">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
+                                <circle cx="12" cy="12" r="3"/>
+                            </svg>
+                            <span>View Knowledge Base</span>
+                        </button>
+                    </div>
+                    
+                    <div id="faissLoadingSpinner" class="loading-spinner" style="display: none;">
+                        <div class="spinner"></div>
+                        <p>Loading knowledge base data...</p>
+                    </div>
+                    
+                    <div id="faissStats" class="faiss-stats" style="display: none;">
+                        <!-- FAISS statistics will be displayed here -->
+                    </div>
+                    
+                    <div id="faissFilesList" class="faiss-files-list" style="display: none;">
+                        <!-- FAISS files will be displayed here -->
+                    </div>
+                    
+                    <div id="faissError" class="error-message" style="display: none;">
+                        <!-- Error messages will be displayed here -->
+                    </div>
                 </div>
             </div>
 
@@ -1010,124 +1291,157 @@
             checkAdminAccess();
         });
     </script>
-</body>
-</html>
-                'application/vnd.openxmlformats-officedocument.presentationml.presentation'
-            ];
-            
-            if (file.size > maxSize) {
-                showStatus('File too large. Maximum size is 10MB.', 'error');
-                return false;
-            }
-            
-            if (!allowedTypes.includes(file.type)) {
-                showStatus('Unsupported file type. Please upload PDF, DOC, DOCX, TXT, or PPTX files.', 'error');
-                return false;
-            }
-            
-            return true;
+
+    <style>
+        /* Modal styles */
+        .modal-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.7);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 10000;
+            backdrop-filter: blur(4px);
         }
         
-        function uploadFile(file) {
-            const fileItem = createFileItem(file);
-            document.getElementById('uploadList').appendChild(fileItem);
-            
-            // Simulate upload progress
-            simulateUpload(file, fileItem);
+        .modal-content {
+            background: var(--background-card);
+            border-radius: 16px;
+            max-width: 90%;
+            max-height: 90%;
+            width: 800px;
+            overflow: hidden;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+            border: 2px solid rgba(212, 178, 76, 0.2);
         }
         
-        function createFileItem(file) {
-            const item = document.createElement('div');
-            item.className = 'upload-item';
-            item.innerHTML = `
-                <div class="file-info">
-                    <div class="file-icon">
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                            <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/>
-                            <polyline points="14,2 14,8 20,8"/>
-                            <line x1="16" y1="13" x2="8" y2="13"/>
-                            <line x1="16" y1="17" x2="8" y2="17"/>
-                            <polyline points="10,9 9,9 8,9"/>
-                        </svg>
-                    </div>
-                    <div class="file-details">
-                        <h4>${file.name}</h4>
-                        <p>${formatFileSize(file.size)} • ${file.type.split('/')[1].toUpperCase()}</p>
-                        <div class="progress-bar">
-                            <div class="progress-fill"></div>
-                        </div>
-                    </div>
-                </div>
-                <div class="file-actions">
-                    <span class="status-badge status-uploading">Uploading</span>
-                    <button class="btn btn-danger btn-small" onclick="removeFile(this)" style="display: none;">Remove</button>
-                </div>
-            `;
-            return item;
+        .modal-header {
+            background: linear-gradient(135deg, #d4b24c 0%, #ffd700 100%);
+            color: #1a1a1a;
+            padding: 1.5rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
         }
         
-        function simulateUpload(file, fileItem) {
-            const progressFill = fileItem.querySelector('.progress-fill');
-            const statusBadge = fileItem.querySelector('.status-badge');
-            const removeBtn = fileItem.querySelector('.btn-danger');
-            
-            let progress = 0;
-            const interval = setInterval(() => {
-                progress += Math.random() * 20;
-                if (progress >= 100) {
-                    progress = 100;
-                    clearInterval(interval);
-                    
-                    // Simulate random success/failure
-                    const success = Math.random() > 0.1; // 90% success rate
-                    
-                    if (success) {
-                        statusBadge.textContent = 'Uploaded';
-                        statusBadge.className = 'status-badge status-success';
-                        showStatus(`Successfully uploaded ${file.name}`, 'success');
-                    } else {
-                        statusBadge.textContent = 'Failed';
-                        statusBadge.className = 'status-badge status-error';
-                        showStatus(`Failed to upload ${file.name}`, 'error');
-                    }
-                    
-                    removeBtn.style.display = 'inline-flex';
-                }
-                progressFill.style.width = progress + '%';
-            }, 200);
+        .modal-header h3 {
+            margin: 0;
+            font-size: 1.25rem;
+            font-weight: 700;
         }
         
-        function removeFile(button) {
-            const fileItem = button.closest('.upload-item');
-            fileItem.remove();
+        .modal-close {
+            background: none;
+            border: none;
+            font-size: 2rem;
+            cursor: pointer;
+            color: #1a1a1a;
+            width: 40px;
+            height: 40px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            border-radius: 50%;
+            transition: background 0.2s ease;
         }
         
-        function formatFileSize(bytes) {
-            if (bytes === 0) return '0 Bytes';
-            const k = 1024;
-            const sizes = ['Bytes', 'KB', 'MB', 'GB'];
-            const i = Math.floor(Math.log(bytes) / Math.log(k));
-            return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+        .modal-close:hover {
+            background: rgba(0, 0, 0, 0.1);
         }
         
-        function showStatus(message, type) {
-            const statusDiv = document.getElementById('uploadStatus');
-            statusDiv.innerHTML = `
-                <div class="status-badge status-${type}">${type.toUpperCase()}</div>
-                <p style="margin: 0.5rem 0 0 0; color: var(--text-primary);">${message}</p>
-            `;
-            statusDiv.classList.add('show');
-            
-            setTimeout(() => {
-                statusDiv.classList.remove('show');
-            }, 5000);
+        .modal-body {
+            padding: 1.5rem;
+            max-height: 70vh;
+            overflow-y: auto;
         }
         
-        // Initialize on page load
-        document.addEventListener('DOMContentLoaded', function() {
-            checkAdminAccess();
-            initializeFileUpload();
-        });
-    </script>
+        .modal-actions {
+            display: flex;
+            gap: 1rem;
+            justify-content: flex-end;
+            margin-top: 1.5rem;
+            padding-top: 1rem;
+            border-top: 1px solid rgba(212, 178, 76, 0.2);
+        }
+        
+        .chunk-preview, .search-result {
+            background: rgba(212, 178, 76, 0.05);
+            border: 1px solid rgba(212, 178, 76, 0.2);
+            border-radius: 12px;
+            padding: 1rem;
+            margin-bottom: 1rem;
+            transition: all 0.2s ease;
+        }
+        
+        .chunk-preview:hover, .search-result:hover {
+            background: rgba(212, 178, 76, 0.1);
+            border-color: rgba(212, 178, 76, 0.3);
+        }
+        
+        .chunk-header, .result-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 0.75rem;
+            font-weight: 600;
+            color: var(--text-primary);
+        }
+        
+        .chunk-size, .similarity-score {
+            background: #d4b24c;
+            color: #1a1a1a;
+            padding: 4px 10px;
+            border-radius: 8px;
+            font-size: 0.8rem;
+            font-weight: 600;
+            text-shadow: none;
+        }
+        
+        .chunk-content, .result-content {
+            background: var(--background-card);
+            border: 1px solid rgba(212, 178, 76, 0.1);
+            border-radius: 8px;
+            padding: 1rem;
+            font-family: 'Courier New', monospace;
+            font-size: 0.9rem;
+            line-height: 1.5;
+            color: var(--text-primary);
+            white-space: pre-wrap;
+            word-wrap: break-word;
+            max-height: 200px;
+            overflow-y: auto;
+        }
+        
+        .chunk-note {
+            font-style: italic;
+            color: var(--text-secondary);
+            font-size: 0.8rem;
+            margin-top: 0.5rem;
+            text-align: center;
+        }
+
+        /* Dark mode modal styles */
+        html[data-theme="dark"] .modal-content {
+            background: #2a2a2a;
+            border-color: rgba(212, 178, 76, 0.3);
+        }
+
+        html[data-theme="dark"] .chunk-preview,
+        html[data-theme="dark"] .search-result {
+            background: rgba(212, 178, 76, 0.1);
+            border-color: rgba(212, 178, 76, 0.2);
+        }
+
+        html[data-theme="dark"] .chunk-content,
+        html[data-theme="dark"] .result-content {
+            background: #1f1f1f;
+            border-color: rgba(212, 178, 76, 0.2);
+            color: #e5e7eb;
+        }
+    </style>
 </body>
 </html>
