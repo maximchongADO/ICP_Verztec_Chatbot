@@ -857,7 +857,7 @@ function addMessage(textOrResponse, sender) {
   messageDiv.innerHTML = `
     <div class="ai-message-avatar"></div>
     <div class="message-content ai-message">
-      ${escapeHtml(text)}${imagesHtml}
+      ${escapeHtml(text).replace(/\n/g, '<br/>')}${imagesHtml}
       ${confirmationHtml}
       <button class="copy-btn" title="Copy response" onclick="copyMessage(this)">📋</button>
     </div>
