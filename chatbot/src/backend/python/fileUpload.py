@@ -60,7 +60,7 @@ async def process_upload(file: UploadFile = File(...)):
         
         # Get the correct FAISS index path relative to this file
         current_dir = Path(__file__).parent
-        faiss_index_path = current_dir / "faiss_master_index"
+        faiss_index_path = current_dir / "faiss_master_index2"
 
         
         # Process document and update FAISS indexs

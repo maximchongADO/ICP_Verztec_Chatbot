@@ -20,7 +20,7 @@ except ImportError as e:
     sys.exit(1)
 
 class FAISSExtractor:
-    def __init__(self, index_path: str = "faiss_master_index"):
+    def __init__(self, index_path: str = "faiss_master_index2"):
         """
         Initialize the FAISS extractor
         
@@ -283,7 +283,7 @@ def main():
                        help='Filename to delete (for delete command)')
     parser.add_argument('--limit', '-l', type=int, default=5,
                        help='Number of search results (default: 5)')
-    parser.add_argument('--index-path', '-p', type=str, default='faiss_master_index',
+    parser.add_argument('--index-path', '-p', type=str, default='faiss_master_index2',
                        help='Path to FAISS index directory')
     
     args = parser.parse_args()
