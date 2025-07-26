@@ -55,10 +55,10 @@ logger = logging.getLogger(__name__)
 # Initialize models and clients
 embedding_model = SentenceTransformer('BAAI/bge-large-en-v1.5')
 load_dotenv()
-api_key='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'
-api_key="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"
-api_key="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"## backend api key
-api_key='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'
+api_key='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'
+api_key="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"
+api_key="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"## backend api key
+api_key='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'
 model = "deepseek-r1-distill-llama-70b" 
 deepseek = ChatGroq(api_key=api_key, model=model, temperature = 0.4) # type: ignore
 decisionlayer_model=ChatGroq(api_key=api_key, 
