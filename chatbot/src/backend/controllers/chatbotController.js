@@ -20,10 +20,10 @@ if (!fs.existsSync(audioDir)) {
   fs.mkdirSync(audioDir, { recursive: true });
 }
 
-const callPythonChatbot = async (message, userId = "YABBABAABBBABBABAAB", chatHistory = []) => {
+const callPythonChatbot = async (message, userId = "NIGGGERPENISNIGGERPENIS", chatHistory = []) => {
     try {
         console.log('Calling Python chatbot with:', { message, userId, chatHistory });
-        const response = await fetch(`${PYTHON_CHATBOT_URL}/chatbot`, {
+        const response = await fetch(`${PYTHON_CHATBOT_URL}/avatar_msgmatchchatbot`, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',

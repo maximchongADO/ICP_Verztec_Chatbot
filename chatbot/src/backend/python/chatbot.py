@@ -59,6 +59,7 @@ api_key='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'
 api_key="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"
 api_key="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"## backend api key
 api_key='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'
+api_key='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'
 model = "deepseek-r1-distill-llama-70b" 
 deepseek = ChatGroq(api_key=api_key, model=model, temperature = 0.4) # type: ignore
 decisionlayer_model=ChatGroq(api_key=api_key, 

@@ -5,6 +5,14 @@ from fastapi.security import APIKeyHeader
 from pydantic import BaseModel
 from typing import List, Optional
 from datetime import datetime
+import pymysql
+from datetime import datetime, timedelta
+from fastapi.concurrency import run_in_threadpool
+from datetime import datetime
+import time
+import pymysql
+import asyncio
+
 import os
 import uvicorn
 from chatbot import (
@@ -261,6 +269,76 @@ async def tool_confirmation(request: ChatRequest):
             "tool_identified": "none",
             "tool_confidence": "error"
         }
+DB_CONFIG = {
+    'host': 'localhost',
+    'user': 'chatbot_user',
+    'password': 'strong_password',
+    'database': 'chatbot_db',
+    'cursorclass': pymysql.cursors.Cursor,
+    'autocommit': True
+}
+
+def query_matching_response(message: str, after_time: str):
+    conn = pymysql.connect(**DB_CONFIG)
+    cursor = conn.cursor()
+    try:
+        cursor.execute("""
+            SELECT bot_response FROM chat_logs
+            WHERE user_message = %s AND timestamp > %s
+            ORDER BY timestamp DESC
+            LIMIT 1
+        """, (message, after_time))
+        result = cursor.fetchone()
+        return result[0] if result else None
+    finally:
+        cursor.close()
+        conn.close()
+
+@app.post("/avatar_msgmatchchatbot")
+async def avatar_msgmatchchatbot(request: ChatRequest):
+    logger.info(f"Received avatar message match request: {request}")
+    msg = request.message.strip()
+    time_now = datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S')
+
+    timeout_seconds = 60
+    polling_interval = 2  # how often to check, in seconds
+    end_time = datetime.utcnow() + timedelta(seconds=timeout_seconds)
+
+    while datetime.utcnow() < end_time:
+        try:
+            matched_response = await run_in_threadpool(query_matching_response, msg, time_now)
+            if matched_response:
+                return {
+                    "messages": [{
+                        "type": "bot",
+                        "text": matched_response,
+                        "id": f"match_{int(time.time() * 1000)}",
+                        "timestamp": datetime.utcnow().isoformat(),
+                        "audio": None,
+                        "lipsync": None
+                    }],
+                    "success": True,
+                    "error": None
+                }
+        except Exception as e:
+            logger.error(f"Database error during polling: {e}")
+            raise HTTPException(status_code=500, detail="Database polling error.")
+
+        await asyncio.sleep(polling_interval)
+
+    # Timeout occurred
+    return {
+        "messages": [{
+            "type": "bot",
+            "text": "An error occurred while processing your request. Please try again later.",
+            "id": f"error_{int(time.time() * 1000)}",
+            "timestamp": datetime.utcnow().isoformat(),
+            "audio": None,
+            "lipsync": None
+        }],
+        "success": False,
+        "error": "No matching record found within timeout."
+    }
 @app.post("/chatbot")
 async def chat_endpoint(request: ChatRequest):
     logger.info(f"Received chat request: {request}")
