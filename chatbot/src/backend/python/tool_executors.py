@@ -499,7 +499,15 @@ def execute_confirmed_tool(
                 user_query, 
                 user_id, 
                 chat_id,
-                user_description,  # Now pass the additional user input
+                store_chat_log_updated
+            )
+        elif tool_identified == "vacation_check":
+            # Import the dependency function when needed
+            from chatbot import store_chat_log_updated
+            return execute_vacation_check_tool(
+                user_query, 
+                user_id, 
+                chat_id,  # Now pass the additional user input
                 store_chat_log_updated
             )
             
@@ -1345,3 +1353,68 @@ What would you like to do?"""
             'tool_confidence': f'error - {str(e)}'
         }
 
+from pathlib import Path
+
+def get_vacation_days(user_id: str, filename: str = r"C:/Users/Jacobs laptop/ICP_Verztec_Chatbot-2/chatbot/src/backend/python/leave.csv") -> int:
+    """
+    Reads leave.csv and returns the number of vacation days for the given user_id.
+    Assumes columns: user_id, vacation_days
+    """
+    try:
+        logger.info(f"Fetching vacation days for user_id: {user_id} from {filename}")
+        path = Path(filename)
+        if not path.exists():
+            logger.info(f"File does not exist: {filename}")
+            return 0
+
+        with path.open(mode='r', encoding='utf-8-sig') as csvfile:
+            logger.info(f"Reading vacation days from {filename}")
+            reader = csv.DictReader(csvfile)
+            for row in reader:
+                if row.get('user_id') == str(user_id):  # Ensure string match
+                    return int(row.get('vacation_days', 0))
+        return 0  # User not found
+    except Exception as e:
+        logger.error(f"Error reading {filename}: {e}")
+        return 0
+
+def execute_vacation_check_tool(user_query, user_id, chat_id, store_chat_log_updated_func):
+    """
+    Responds to a vacation check query using consistent tool return format.
+    """
+    vacation_days = get_vacation_days(user_id)
+    response_text = f"You have {vacation_days} days of vacation remaining."
+
+    # Logging in same structure as meeting scheduling tool
+    if store_chat_log_updated_func:
+        try:
+            vacation_summary = f"VACATION_CHECK_EXECUTED | Days Remaining: {vacation_days}"
+
+            store_chat_log_updated_func(
+                user_message=user_query, 
+                bot_response=vacation_summary, 
+                query_score=0.0, 
+                relevance_score=2.0, 
+                user_id=user_id, 
+                chat_id=chat_id
+            )
+        except Exception as db_error:
+            logger.error(f"Failed to store vacation check log in database: {db_error}")
+
+    return {
+        'text': response_text,
+        'images': [],
+        'sources': [],
+        'tool_used': True,
+        'tool_identified': 'vacation_check',
+        'tool_confidence': 'executed_successfully',
+        'extracted_details': {
+            'user_id': user_id,
+            'vacation_days': vacation_days,
+            'query': user_query
+        },
+        'vacation_summary': {
+            'days_remaining': vacation_days,
+            'last_updated': 'N/A'
+        }
+    }

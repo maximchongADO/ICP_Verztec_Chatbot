@@ -218,20 +218,24 @@ let isCurrentlySpeaking = false;
 function isAvatarActive() {
     // Check if draggable avatar exists and is visible
     if (window.draggableAvatar && window.draggableAvatar.isAvatarVisible()) {
+        console.log('🎭 Draggable avatar is active');
         return true;
     }
     
     // Check if avatar iframe exists
     const avatarIframe = document.querySelector('iframe[src*="avatar"]');
     if (avatarIframe) {
+        console.log('🎭 Avatar iframe is active');
         return true;
     }
     
     // Check if avatar window is open
     if (window.avatarWindow && !window.avatarWindow.closed) {
+        console.log('🎭 Avatar window is active');
         return true;
     }
     
+    console.log('🎭 No avatar is active');
     return false;
 }
 
@@ -1283,26 +1287,65 @@ let currentMouthInterval = null; // Add this at the top level of your file
 async function speakMessage(text) {
     if (!text || !text.trim()) return;
     
-    // Check if avatar is available and active - if so, skip main chatbot TTS
-    if (isAvatarActive()) {
-        console.log('Avatar is active, skipping main chatbot TTS');
-        return;
+    console.log('🗣️ Speaking message:', text.substring(0, 50) + '...');
+    
+    // Check if avatar is available and active
+    const avatarActive = isAvatarActive();
+    console.log('🎭 Avatar active:', avatarActive);
+    
+    if (avatarActive) {
+        console.log('🎭 Avatar is active, sending message with TTS and lip sync');
+        // Send to avatar with enhanced TTS request
+        try {
+            const token = localStorage.getItem("token");
+            const response = await fetch("/api/tts/synthesize-enhanced", {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                    Authorization: `Bearer ${token}`,
+                },
+                body: JSON.stringify({
+                    text: text,
+                    voice: 'en-GB-Standard-A',
+                    languageCode: 'en-GB',
+                    generateLipSyncData: true,
+                    facialExpression: 'default',
+                    animation: 'Talking_1'
+                }),
+            });
+
+            if (response.ok) {
+                const data = await response.json();
+                if (data.success) {
+                    console.log('✅ TTS generated, sending to avatar');
+                    sendMessageToAvatar({
+                        type: 'tts_with_lipsync',
+                        text: text,
+                        audio: data.audio,
+                        lipsync: data.lipSyncData
+                    });
+                    return; // Don't play locally
+                }
+            }
+        } catch (error) {
+            console.error('❌ Failed to generate TTS for avatar:', error);
+        }
     }
     
+    // Fallback to local TTS if avatar is not available or TTS failed
+    console.log('🔊 Playing TTS locally');
     const avatar = document.getElementById('chatbotAvatar');
-    const avatarOpen = document.getElementById('avatarOpen');
-    
-    // Store the current text being spoken
-    currentSpeechText = text;
     
     try {
         if (avatar) avatar.classList.add('speaking');
-        isCurrentlySpeaking = true;        // Use Google Cloud TTS instead of ResponsiveVoice
+        isCurrentlySpeaking = true;
+        
         if (window.googleTTS) {
           await window.googleTTS.speak(text, {
-            voice: 'en-GB-Standard-A',      // British English female voice
+            voice: 'en-GB-Standard-A',
             languageCode: 'en-GB',
             volume: isMuted ? 0 : 1,
+            generateLipSync: false, // Don't need lip sync for local playback
             onend: () => {
               currentSpeechText = null;
               isCurrentlySpeaking = false;
@@ -1340,52 +1383,13 @@ function handleFeedback(button, isPositive) {
 
     const feedbackGroup = button.closest('.feedback-buttons');
     if (!feedbackGroup) return;
-
-    feedbackGroup.querySelectorAll('.feedback-btn').forEach(btn => {
-        btn.classList.remove('selected');
-    });
-
-    button.classList.add('selected');
-
-    // Get bot response text
-    const bot_response = messageContainer.querySelector('.message-content').textContent.trim();
-
-    // Get the previous user message (search backwards for .message-user)
-    let user_message = '';
-    let prev = messageContainer.previousElementSibling;
-    while (prev) {
-        if (prev.classList.contains('message-user')) {
-            user_message = prev.querySelector('.message-content').textContent.trim();
-            break;
-        }
-        prev = prev.previousElementSibling;
-    }
-
-    fetch('/api/chatbot/feedback', {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${token}`
-        },
-        body: JSON.stringify({
-            feedback: isPositive ? 'helpful' : 'not helpful'
-        })
-    }).catch(error => console.error('Error sending feedback:', error));
-
-    feedbackGroup.querySelectorAll('.feedback-btn').forEach(btn => {
-        btn.disabled = true;
-    });
-}
-
-// Render user message
-function appendUserMessage(userMessage) {
-  const userMessageDiv = document.createElement('div');
-  userMessageDiv.className = 'message message-user';
-  userMessageDiv.innerHTML = `
-    <div class="message-content user-message">${escapeHtml(userMessage)}</div>
-    <div class="user-message-avatar"></div>
-  `;
-  chatMessages.appendChild(userMessageDiv);
+    const userMessageDiv = document.createElement('div');
+    userMessageDiv.className = 'message message-user';
+    userMessageDiv.innerHTML = `
+        <div class="user-message-avatar"></div>
+        <div class="message-content user-message">${escapeHtml(userMessage)}</div>
+    `;
+    chatMessages.appendChild(userMessageDiv);
 }
 
 // Render AI message with copy button
