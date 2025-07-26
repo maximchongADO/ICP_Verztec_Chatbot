@@ -872,7 +872,32 @@ function addMessage(textOrResponse, sender) {
 }
 
   if (sender === "bot" && text && !tool_used) {
-    setTimeout(() => speakMessage(text), 100);
+    // Check if avatar is available and active
+    const avatarActive = isAvatarActive();
+    console.log('🤖 Bot message detected, avatar active:', avatarActive);
+    console.log('🤖 Message text:', text.substring(0, 50) + '...');
+    
+    if (avatarActive) {
+      // Send bot response text to avatar for TTS generation
+      console.log('🎭 Sending bot response text to avatar for TTS');
+      setTimeout(() => {
+        if (typeof sendMessageToAvatar === 'function') {
+          console.log('🎭 Sending text to avatar for TTS generation');
+          
+          // Send only the text - let avatar handle TTS generation
+          sendMessageToAvatar({
+            type: 'bot_response_for_tts',
+            payload: { text: text }
+          });
+        } else {
+          console.error('❌ sendMessageToAvatar function not found');
+        }
+      }, 100);
+    } else {
+      // Fallback to local TTS if no avatar is active
+      console.log('🔊 Using local TTS (no avatar active)');
+      setTimeout(() => speakMessage(text), 100);
+    }
 
     // Disable all previous feedback buttons
     const allFeedbackGroups = chatMessages.querySelectorAll('.feedback-buttons');
