@@ -20,7 +20,7 @@ except ImportError as e:
     sys.exit(1)
 
 class FAISSExtractor:
-    def __init__(self, index_path: str = "faiss_master_index"):
+    def __init__(self, index_path: str = "faiss_master_index2"):
         """
         Initialize the FAISS extractor
         
@@ -44,6 +44,7 @@ class FAISSExtractor:
         """Load the existing FAISS index"""
         try:
             if os.path.exists(self.index_path):
+                print(f"Loading FAISS index from {self.index_path}", file=sys.stderr)
                 self.vectorstore = FAISS.load_local(
                     self.index_path,
                     self.embedding_model,
@@ -52,13 +53,21 @@ class FAISSExtractor:
                 print(f"FAISS index loaded successfully from {self.index_path}", file=sys.stderr)
             else:
                 print(f"FAISS index not found at {self.index_path}", file=sys.stderr)
+                # Output error as JSON for frontend
+                error_output = {"error": f"FAISS index not found at {self.index_path}"}
+                print(json.dumps(error_output))
+                sys.exit(1)
         except Exception as e:
             print(f"Failed to load FAISS index: {e}", file=sys.stderr)
-            self.vectorstore = None
+            # Output error as JSON for frontend
+            error_output = {"error": f"Failed to load FAISS index: {str(e)}"}
+            print(json.dumps(error_output))
+            sys.exit(1)
 
     def get_all_documents(self) -> List[Dict[str, Any]]:
         """Extract all documents from the FAISS index"""
         if not self.vectorstore:
+            print(json.dumps({"error": "FAISS vectorstore not initialized"}))
             return []
         
         try:
@@ -80,6 +89,7 @@ class FAISSExtractor:
             
         except Exception as e:
             print(f"Error extracting documents: {e}", file=sys.stderr)
+            print(json.dumps({"error": f"Error extracting documents: {str(e)}"}))
             return []
 
     def group_documents_by_source(self, documents: List[Dict[str, Any]]) -> Dict[str, Any]:
@@ -273,18 +283,21 @@ def main():
                        help='Filename to delete (for delete command)')
     parser.add_argument('--limit', '-l', type=int, default=5,
                        help='Number of search results (default: 5)')
-    parser.add_argument('--index-path', '-p', type=str, default='faiss_master_index',
+    parser.add_argument('--index-path', '-p', type=str, default='faiss_master_index2',
                        help='Path to FAISS index directory')
     
     args = parser.parse_args()
     
-    # Initialize extractor
-    extractor = FAISSExtractor(args.index_path)
-    
     try:
+        # Initialize extractor
+        extractor = FAISSExtractor(args.index_path)
+        
         if args.command == 'list':
             # Get all documents grouped by source file
             documents = extractor.get_all_documents()
+            if documents is None or len(documents) == 0:
+                print(json.dumps({"error": "No documents found or failed to extract documents"}))
+                return
             grouped_data = extractor.group_documents_by_source(documents)
             print(json.dumps(grouped_data, indent=2))
             
@@ -317,7 +330,9 @@ def main():
             print(json.dumps(result, indent=2))
             
     except Exception as e:
-        print(json.dumps({"error": str(e)}))
+        error_msg = f"Unexpected error in main: {str(e)}"
+        print(f"Error: {error_msg}", file=sys.stderr)
+        print(json.dumps({"error": error_msg}))
 
 if __name__ == "__main__":
     main()

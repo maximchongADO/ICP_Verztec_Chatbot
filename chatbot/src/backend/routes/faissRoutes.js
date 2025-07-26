@@ -14,7 +14,7 @@ router.post('/extract', async (req, res) => {
             });
         }
         
-        const pythonScriptPath = path.join(__dirname, '../python/faiss_extractor.py');
+        const pythonScriptPath = path.join(__dirname, '../python/faiss_extractor_optimized.py');
         
         // Build command arguments
         const args = [pythonScriptPath, command];
@@ -83,16 +83,18 @@ router.post('/extract', async (req, res) => {
             });
         });
         
-        // Set timeout for the process
+        // Set timeout for the process - increased for first-time model loading
+        const timeoutDuration = command === 'list' ? 120000 : 60000; // 2 minutes for list, 1 minute for others
         const timeoutId = setTimeout(() => {
             if (responseSent) return;
             responseSent = true;
             
             pythonProcess.kill();
             res.status(408).json({
-                error: 'FAISS extraction timed out'
+                error: 'FAISS extraction timed out',
+                suggestion: 'Try the warmup endpoint first: POST /api/faiss/warmup'
             });
-        }, 30000); // 30 seconds timeout
+        }, timeoutDuration);
         
         // Clear timeout if process completes normally
         pythonProcess.on('close', () => {
@@ -108,10 +110,87 @@ router.post('/extract', async (req, res) => {
     }
 });
 
+// Warmup endpoint to pre-load the embedding model
+router.post('/warmup', async (req, res) => {
+    try {
+        const pythonScriptPath = path.join(__dirname, '../python/faiss_extractor_optimized.py');
+        const pythonProcess = spawn('python', [pythonScriptPath, 'warmup']);
+        
+        let output = '';
+        let errorOutput = '';
+        let responseSent = false;
+        
+        pythonProcess.stdout.on('data', (data) => {
+            output += data.toString();
+        });
+        
+        pythonProcess.stderr.on('data', (data) => {
+            errorOutput += data.toString();
+        });
+        
+        pythonProcess.on('close', (code) => {
+            if (responseSent) return;
+            responseSent = true;
+            
+            if (code === 0) {
+                try {
+                    const result = JSON.parse(output);
+                    res.json(result);
+                } catch (parseError) {
+                    res.status(500).json({
+                        error: 'Failed to parse warmup results',
+                        details: parseError.message
+                    });
+                }
+            } else {
+                res.status(500).json({
+                    error: 'Failed to warm up FAISS model',
+                    details: errorOutput
+                });
+            }
+        });
+        
+        pythonProcess.on('error', (error) => {
+            if (responseSent) return;
+            responseSent = true;
+            
+            console.error('Error in FAISS warmup endpoint:', error);
+            res.status(500).json({
+                error: 'Failed to start warmup process',
+                details: error.message
+            });
+        });
+        
+        // Set timeout for warmup (allow more time for first load)
+        const timeoutId = setTimeout(() => {
+            if (responseSent) return;
+            responseSent = true;
+            
+            pythonProcess.kill();
+            res.status(408).json({
+                error: 'Warmup request timed out',
+                message: 'This is normal for the first load. Try again.'
+            });
+        }, 150000); // 2.5 minutes timeout for warmup
+        
+        // Clear timeout if process completes normally
+        pythonProcess.on('close', () => {
+            clearTimeout(timeoutId);
+        });
+        
+    } catch (error) {
+        console.error('Error in FAISS warmup endpoint:', error);
+        res.status(500).json({
+            error: 'Internal server error',
+            details: error.message
+        });
+    }
+});
+
 // Get FAISS statistics endpoint
 router.get('/stats', async (req, res) => {
     try {
-        const pythonScriptPath = path.join(__dirname, '../python/faiss_extractor.py');
+        const pythonScriptPath = path.join(__dirname, '../python/faiss_extractor_optimized.py');
         const pythonProcess = spawn('python', [pythonScriptPath, 'stats']);
         
         let output = '';
@@ -166,9 +245,10 @@ router.get('/stats', async (req, res) => {
             
             pythonProcess.kill();
             res.status(408).json({
-                error: 'Statistics request timed out'
+                error: 'Statistics request timed out',
+                suggestion: 'Try the warmup endpoint first: POST /api/faiss/warmup'
             });
-        }, 30000); // 30 seconds timeout
+        }, 120000); // 2 minutes timeout for stats (first time may need model loading)
         
         // Clear timeout if process completes normally
         pythonProcess.on('close', () => {
@@ -268,7 +348,7 @@ router.delete('/file/:filename', async (req, res) => {
             res.status(408).json({
                 error: 'File deletion timed out'
             });
-        }, 30000); // 30 seconds timeout
+        }, 60000); // 60 seconds timeout (increased from 30)
         
         // Clear timeout if process completes normally
         pythonProcess.on('close', () => {

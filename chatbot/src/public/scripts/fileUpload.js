@@ -236,13 +236,45 @@ async function loadFAISSData() {
     const filesListDiv = document.getElementById('faissFilesList');
     const errorDiv = document.getElementById('faissError');
     
-    // Show loading state
+    // Show loading state with better messaging
     loadingSpinner.style.display = 'block';
     statsDiv.style.display = 'none';
     filesListDiv.style.display = 'none';
     errorDiv.style.display = 'none';
     
+    // Update loading message
+    const loadingMessage = document.querySelector('#faissLoadingSpinner p');
+    if (loadingMessage) {
+        loadingMessage.textContent = 'Loading knowledge base... This may take up to 2 minutes for the first load.';
+    }
+    
     try {
+        // First, try to warm up the model (this helps with subsequent calls)
+        try {
+            if (loadingMessage) {
+                loadingMessage.textContent = 'Warming up AI model... (1/2)';
+            }
+            
+            const warmupResponse = await fetch('/api/faiss/warmup', {
+                method: 'POST',
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'Content-Type': 'application/json'
+                }
+            });
+            
+            if (warmupResponse.ok) {
+                console.log('Model warmed up successfully');
+            }
+        } catch (warmupError) {
+            console.warn('Warmup failed, continuing with regular load:', warmupError);
+        }
+        
+        // Now load the actual data
+        if (loadingMessage) {
+            loadingMessage.textContent = 'Loading knowledge base data... (2/2)';
+        }
+        
         const response = await fetch('/api/faiss/extract', {
             method: 'POST',
             headers: {
@@ -276,9 +308,22 @@ async function loadFAISSData() {
         console.error('Error loading FAISS data:', error);
         loadingSpinner.style.display = 'none';
         errorDiv.style.display = 'block';
+        
+        let errorMessage = error.message;
+        let suggestion = '';
+        
+        if (error.message.includes('timed out')) {
+            suggestion = `
+                <p><strong>This usually happens on the first load.</strong></p>
+                <p>The AI model needs to be downloaded and loaded, which can take 1-2 minutes.</p>
+                <p>Please try again - subsequent loads will be much faster.</p>
+            `;
+        }
+        
         errorDiv.innerHTML = `
             <h3>⚠️ Failed to Load Knowledge Base</h3>
-            <p>${error.message}</p>
+            <p><strong>Error:</strong> ${errorMessage}</p>
+            ${suggestion}
             <button class="btn btn-primary" onclick="loadFAISSData()" style="margin-top: 1rem;">
                 🔄 Retry
             </button>
