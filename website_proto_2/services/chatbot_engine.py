@@ -8,7 +8,7 @@ from langchain.chains import RetrievalQA
 
 # Load environment variables and API key
 load_dotenv()
-api_key = "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"
+api_key = "gsk_TvI4gHvJBkJt7UhxJXFVWGdyb3FYA    vfuMV6bQ39otCImqs4P1VO4"
 model = "deepseek-r1-distill-llama-70b"
 
 # Initialize Groq LLM with LangChain
