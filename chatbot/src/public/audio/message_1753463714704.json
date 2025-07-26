@@ -1,0 +1,39 @@
+{
+  "metadata": {
+    "soundFile": "C:\\Users\\maxim\\OneDrive\\Desktop\\ICP_Verztec_Chatbot-1\\chatbot\\src\\public\\audio\\message_1753463714704.wav",
+    "duration": 4.75
+  },
+  "mouthCues": [
+    { "start": 0.00, "end": 0.09, "value": "X" },
+    { "start": 0.09, "end": 0.15, "value": "B" },
+    { "start": 0.15, "end": 0.65, "value": "C" },
+    { "start": 0.65, "end": 0.70, "value": "B" },
+    { "start": 0.70, "end": 0.75, "value": "C" },
+    { "start": 0.75, "end": 1.17, "value": "B" },
+    { "start": 1.17, "end": 1.24, "value": "C" },
+    { "start": 1.24, "end": 1.45, "value": "B" },
+    { "start": 1.45, "end": 1.61, "value": "X" },
+    { "start": 1.61, "end": 1.80, "value": "B" },
+    { "start": 1.80, "end": 1.94, "value": "G" },
+    { "start": 1.94, "end": 2.08, "value": "C" },
+    { "start": 2.08, "end": 2.15, "value": "E" },
+    { "start": 2.15, "end": 2.50, "value": "B" },
+    { "start": 2.50, "end": 2.73, "value": "X" },
+    { "start": 2.73, "end": 2.78, "value": "B" },
+    { "start": 2.78, "end": 2.90, "value": "C" },
+    { "start": 2.90, "end": 2.97, "value": "B" },
+    { "start": 2.97, "end": 3.05, "value": "A" },
+    { "start": 3.05, "end": 3.12, "value": "C" },
+    { "start": 3.12, "end": 3.53, "value": "B" },
+    { "start": 3.53, "end": 3.60, "value": "F" },
+    { "start": 3.60, "end": 3.68, "value": "A" },
+    { "start": 3.68, "end": 3.85, "value": "C" },
+    { "start": 3.85, "end": 3.92, "value": "B" },
+    { "start": 3.92, "end": 4.06, "value": "C" },
+    { "start": 4.06, "end": 4.13, "value": "B" },
+    { "start": 4.13, "end": 4.21, "value": "A" },
+    { "start": 4.21, "end": 4.37, "value": "C" },
+    { "start": 4.37, "end": 4.51, "value": "B" },
+    { "start": 4.51, "end": 4.75, "value": "X" }
+  ]
+}

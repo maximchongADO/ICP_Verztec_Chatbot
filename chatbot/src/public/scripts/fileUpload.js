@@ -544,8 +544,25 @@ async function deleteFile(filename) {
         return;
     }
     
+    // Find and disable the delete button for this file
+    const deleteButtons = document.querySelectorAll('button[onclick*="deleteFile"]');
+    let targetButton = null;
+    deleteButtons.forEach(btn => {
+        if (btn.onclick.toString().includes(filename)) {
+            targetButton = btn;
+            btn.disabled = true;
+            btn.innerHTML = '⏳ Deleting...';
+            btn.className = 'btn btn-secondary btn-small';
+        }
+    });
+    
+    // Create a more detailed loading indicator
+    const loadingModal = createLoadingModal('Deleting file...', 
+        `Removing "${filename}" from the knowledge base. This may take a few moments.`);
+    document.body.appendChild(loadingModal);
+    
     try {
-        showStatus('info', `Deleting ${filename}...`);
+        showStatus('info', `🗑️ Deleting ${filename}...`);
         
         const response = await fetch(`/api/faiss/file/${encodeURIComponent(filename)}`, {
             method: 'DELETE',
@@ -556,6 +573,9 @@ async function deleteFile(filename) {
             credentials: 'include'
         });
         
+        // Remove loading modal
+        loadingModal.remove();
+        
         if (!response.ok) {
             const errorData = await response.json();
             throw new Error(errorData.error || 'Failed to delete file');
@@ -564,7 +584,18 @@ async function deleteFile(filename) {
         const result = await response.json();
         
         if (result.success) {
-            showStatus('success', `Successfully deleted ${filename} (${result.deletedChunks} chunks removed)`);
+            // Show detailed success message
+            const chunksText = result.deletedChunks === 1 ? 'chunk' : 'chunks';
+            
+            showStatus('success', `✅ File "${filename}" deleted successfully! (${result.deletedChunks} ${chunksText} removed)`);
+            
+            // Show detailed success modal
+            showSuccessModal('File Deleted Successfully', [
+                `File "${filename}" has been completely removed from the knowledge base.`,
+                `• ${result.deletedChunks} text ${chunksText} deleted`,
+                `• Knowledge base automatically updated`,
+                `• Changes are effective immediately`
+            ]);
             
             // Refresh the FAISS data display
             await loadFAISSData();
@@ -573,8 +604,28 @@ async function deleteFile(filename) {
         }
         
     } catch (error) {
+        // Remove loading modal if still present
+        if (document.body.contains(loadingModal)) {
+            loadingModal.remove();
+        }
+        
+        // Restore the delete button
+        if (targetButton) {
+            targetButton.disabled = false;
+            targetButton.innerHTML = '🗑️ Delete File';
+            targetButton.className = 'btn btn-danger btn-small';
+        }
+        
         console.error('Error deleting file:', error);
-        showStatus('error', `Failed to delete ${filename}: ${error.message}`);
+        
+        const errorMessage = error.message || 'Unknown error occurred';
+        showStatus('error', `❌ Failed to delete ${filename}: ${errorMessage}`);
+        
+        // Show error modal with retry option
+        showErrorModal('Deletion Failed', 
+            `Failed to delete "${filename}": ${errorMessage}`,
+            () => deleteFile(filename) // Retry function
+        );
     }
 }
 
@@ -591,8 +642,13 @@ function showDeleteConfirmation(filename) {
                 </div>
                 <div class="modal-body">
                     <p><strong>Are you sure you want to delete "${escapeHtml(filename)}"?</strong></p>
-                    <p>This will remove all chunks of this file from the FAISS knowledge base.</p>
-                    <p><em>This action cannot be undone.</em></p>
+                    <p>This will permanently remove:</p>
+                    <ul style="margin-left: 1rem; color: var(--text-secondary);">
+                        <li>All text chunks from this file in the knowledge base</li>
+                        <li>Any search results related to this document</li>
+                        <li>The file's contribution to chatbot responses</li>
+                    </ul>
+                    <p style="color: var(--error); font-weight: 500;"><em>⚠️ This action cannot be undone.</em></p>
                     
                     <div class="modal-actions">
                         <button class="btn btn-secondary" onclick="this.closest('.modal-overlay').remove(); resolve(false);">
@@ -628,4 +684,92 @@ function showDeleteConfirmation(filename) {
         
         document.body.appendChild(modal);
     });
+}
+
+// Create loading modal for delete operations
+function createLoadingModal(title, message) {
+    const modal = document.createElement('div');
+    modal.className = 'modal-overlay';
+    modal.innerHTML = `
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>⏳ ${escapeHtml(title)}</h3>
+            </div>
+            <div class="modal-body">
+                <div class="loading-spinner"></div>
+                <p>${escapeHtml(message)}</p>
+                <p><em>Please wait...</em></p>
+            </div>
+        </div>
+    `;
+    return modal;
+}
+
+// Show success modal with detailed information
+function showSuccessModal(title, messages) {
+    const modal = document.createElement('div');
+    modal.className = 'modal-overlay';
+    
+    const messageList = messages.map(msg => `<p>${escapeHtml(msg)}</p>`).join('');
+    
+    modal.innerHTML = `
+        <div class="modal-content success-modal">
+            <div class="modal-header">
+                <h3>✅ ${escapeHtml(title)}</h3>
+                <button class="modal-close" onclick="this.closest('.modal-overlay').remove();">×</button>
+            </div>
+            <div class="modal-body">
+                ${messageList}
+                <div class="modal-actions">
+                    <button class="btn btn-primary" onclick="this.closest('.modal-overlay').remove();">
+                        OK
+                    </button>
+                </div>
+            </div>
+        </div>
+    `;
+    
+    document.body.appendChild(modal);
+    
+    // Auto-remove after 8 seconds
+    setTimeout(() => {
+        if (document.body.contains(modal)) {
+            modal.remove();
+        }
+    }, 8000);
+}
+
+// Show error modal with retry option
+function showErrorModal(title, message, retryFunction) {
+    const modal = document.createElement('div');
+    modal.className = 'modal-overlay';
+    modal.innerHTML = `
+        <div class="modal-content error-modal">
+            <div class="modal-header">
+                <h3>❌ ${escapeHtml(title)}</h3>
+                <button class="modal-close" onclick="this.closest('.modal-overlay').remove();">×</button>
+            </div>
+            <div class="modal-body">
+                <p>${escapeHtml(message)}</p>
+                <div class="modal-actions">
+                    <button class="btn btn-secondary" onclick="this.closest('.modal-overlay').remove();">
+                        Cancel
+                    </button>
+                    <button class="btn btn-primary retry-btn">
+                        🔄 Retry
+                    </button>
+                </div>
+            </div>
+        </div>
+    `;
+    
+    const retryBtn = modal.querySelector('.retry-btn');
+    retryBtn.onclick = () => {
+        modal.remove();
+        if (retryFunction) {
+            retryFunction();
+        }
+    };
+    
+    document.body.appendChild(modal);
 }

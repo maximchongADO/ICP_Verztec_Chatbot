@@ -1090,7 +1090,12 @@ global_tools = {
         "description": "Set up a meeting — for coordination involving multiple stakeholders or recurring issues.",
         "prompt_style": "You are an efficient scheduling and coordination assistant. When handling meeting requests, focus on practical logistics, available time slots, and clear next steps. Be organized and detail-oriented in your responses, asking for necessary information like preferred dates, attendees, and meeting purpose.",
         "response_tone": "organized_efficient"
-    }
+    },
+    "vacation_check": {
+        "description": "Check vacation balance — for inquiries about remaining leave days, entitlements",
+        "prompt_style": "You are a helpful assistant focused on vacation and leave inquiries. When responding to vacation balance questions, provide clear information about remaining leave days, entitlements, and any relevant policies. Be concise and direct in your responses, ensuring the user understands their current vacation status.",
+        "response_tone": "concise_direct"
+    }   
 }
 # Utility: Get last bot message from ConversationBufferMemory
 def get_last_bot_message(chat_history):
@@ -1218,7 +1223,23 @@ def create_chat_name(user_id: str, chat_id: str, chat_history: ConversationBuffe
         cursor.close()
         conn.close()
         
-        
+def get_vacation_days(user_id: str, filename: str = r"chatbot\src\backend\python\leave.csv") -> int:
+    """
+    Reads leave.csv and returns the number of vacation days for the given user_id.
+    Assumes columns: user_id, vacation_days
+    """
+    try:
+        with open(filename, mode='r', encoding='utf-8') as csvfile:
+            reader = csv.DictReader(csvfile)
+            for row in reader:
+                if row.get('user_id') == user_id:
+                    return int(row.get('vacation_days', 0))
+        return 0  # User not found
+    except Exception as e:
+        print(f"Error reading {filename}: {e}")
+        return 0  
+    
+    
 def generate_answer_histoy_retrieval(user_query: str, user_id:str, chat_id:str):
     """
     Returns a tuple: (answer_text, image_list)
@@ -1264,10 +1285,13 @@ def generate_answer_histoy_retrieval(user_query: str, user_id:str, chat_id:str):
         # Chain the Groq model with the parser
         deepseek_chain = deepseek | parser
         
+        
+        
         retriever = index.as_retriever(
             search_type="similarity",
             search_kwargs={"k": 15}
         )
+        
         
         
         
@@ -1355,6 +1379,10 @@ def generate_answer_histoy_retrieval(user_query: str, user_id:str, chat_id:str):
             tool_identified = "schedule_meeting"
             tool_used = True
             logger.info(f"Meeting scheduling tool identified for user {user_id}, query: {user_query}")
+        elif "vacation_check" in tool_answer_lower or "[vacation_check]" in tool_answer_lower:
+            tool_identified = "vacation_check"
+            tool_used = True
+            logger.info(f"Vacation check tool identified for user {user_id}, query: {user_query}")
             
         # Handle unknown or malformed responses
         else:
@@ -1462,9 +1490,11 @@ def generate_answer_histoy_retrieval(user_query: str, user_id:str, chat_id:str):
        
         logger.info(f"Clean Query at qa chain: {clean_query}")
         if (
-            (is_task_query < SOFT_QUERY_THRESHOLD and avg_score >= soft_threshold) or
-            avg_score >= HARD_AVG_SCORE_THRESHOLD or
-            is_task_query < STRICT_QUERY_THRESHOLD
+            not tool_used and (
+                (is_task_query < SOFT_QUERY_THRESHOLD and avg_score >= soft_threshold) or
+                avg_score >= HARD_AVG_SCORE_THRESHOLD or
+                is_task_query < STRICT_QUERY_THRESHOLD
+            )
         ):
             if is_task_query < SOFT_QUERY_THRESHOLD and avg_score >= soft_threshold:
                 logger.info("[BYPASS_REASON] Tag: low_task_high_score — Query intent is kinda weak and query is slighlty irrelevant.")
@@ -1482,6 +1512,7 @@ def generate_answer_histoy_retrieval(user_query: str, user_id:str, chat_id:str):
                 'You do not need to greet the user, unless they greeted you first. '
                 'Keep it human and warm (e.g., "I’m doing great, thanks for asking!"), then ***gently guide the user back to Verztec-related helpdesk topics***.'
                 'Do not answer any questions that are not related to Verztec helpdesk topics'
+                f"Here is some information about the user, NAME:{user_name}, ROLE: {user_role}, COUNTRY: {user_country}, DEPARTMENT: {user_department}\n\n"
                 )
             if formatted_prev_docs: 
                 fallback_prompt += (
@@ -1582,6 +1613,8 @@ def generate_answer_histoy_retrieval(user_query: str, user_id:str, chat_id:str):
                     "Would you like to confirm and schedule this meeting?\n"
                     "(Please click 'Confirm' to proceed or 'Cancel' to abort.)"
                 )
+            elif tool_identified == "vacation_check":
+                confirmation_response = f"""I've identified that your request is related to checking your vacation balance. Would you like me to proceed with checking your vacation balance?"""
             else:
                 confirmation_response = f"""I've identified that your request requires the {tool_identified} tool. This will help ensure your request is handled through the appropriate channels with the right level of attention.
 
