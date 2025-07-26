@@ -26,8 +26,8 @@ def get_bot_reply(query):
     # Go two levels up from this file: services/ → website_proto_2/ → project-root/
     root_dir = Path(__file__).resolve().parent.parent.parent
 
-    # Path to the faiss_index3 folder outside website_proto_2
-    index_dir = root_dir / "faiss_index3"
+    # Path to the faiss_master_index folder in chatbot/src/backend/python/
+    index_dir = root_dir / "chatbot" / "src" / "backend" / "python" / "faiss_master_index"
 
     # Load FAISS vector store
     vector_store = FAISS.load_local(str(index_dir), embedding_model2, allow_dangerous_deserialization=True)
