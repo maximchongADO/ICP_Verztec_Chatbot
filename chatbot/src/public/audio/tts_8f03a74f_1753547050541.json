@@ -1,0 +1,21 @@
+{
+  "metadata": {
+    "soundFile": "C:\\Users\\maxim\\OneDrive\\Desktop\\ICP_Verztec_Chatbot-1\\chatbot\\src\\public\\audio\\tts_8f03a74f_1753547050541.wav",
+    "duration": 2.16
+  },
+  "mouthCues": [
+    { "start": 0.00, "end": 0.08, "value": "X" },
+    { "start": 0.08, "end": 0.56, "value": "C" },
+    { "start": 0.56, "end": 0.68, "value": "X" },
+    { "start": 0.68, "end": 0.73, "value": "B" },
+    { "start": 0.73, "end": 0.84, "value": "C" },
+    { "start": 0.84, "end": 0.91, "value": "B" },
+    { "start": 0.91, "end": 0.99, "value": "A" },
+    { "start": 0.99, "end": 1.05, "value": "C" },
+    { "start": 1.05, "end": 1.53, "value": "B" },
+    { "start": 1.53, "end": 1.61, "value": "A" },
+    { "start": 1.61, "end": 1.77, "value": "C" },
+    { "start": 1.77, "end": 1.91, "value": "B" },
+    { "start": 1.91, "end": 2.16, "value": "X" }
+  ]
+}
