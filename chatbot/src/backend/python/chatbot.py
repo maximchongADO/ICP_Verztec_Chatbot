@@ -55,7 +55,7 @@ logger = logging.getLogger(__name__)
 # Initialize models and clients
 embedding_model = SentenceTransformer('BAAI/bge-large-en-v1.5')
 load_dotenv()
-api_key='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'
+api_key='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'
 # i love api keyyy
 model = "deepseek-r1-distill-llama-70b" 
 deepseek = ChatGroq(api_key=api_key, model=model, temperature = 0.4) # type: ignore
@@ -157,6 +157,44 @@ def store_chat_log_updated(user_message, bot_response, query_score, relevance_sc
 
     cursor.close()
     conn.close()
+    
+def store_chat_log_updated(user_message, bot_response, query_score, relevance_score,
+                           chat_id, user_id, chat_name=None):
+    conn = pymysql.connect(**DB_CONFIG)
+    try:
+        with conn.cursor() as cursor:
+            # If caller didn’t supply a name (or it’s blank), try to reuse the earliest one
+            if not chat_name or not chat_name.strip():
+                select_query = """
+                    SELECT chat_name
+                    FROM chat_logs
+                    WHERE user_id = %s AND chat_id = %s
+                    ORDER BY timestamp ASC
+                    LIMIT 1;
+                """
+                cursor.execute(select_query, (user_id, chat_id))
+                row = cursor.fetchone()
+                if row and row[0] and row[0].strip():
+                    chat_name = row[0].strip()
+
+            insert_query = """
+                INSERT INTO chat_logs
+                    (timestamp, user_message, bot_response, feedback,
+                     query_score, relevance_score, user_id, chat_id, chat_name)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+            """
+            timestamp = datetime.utcnow()
+            feedback = None
+
+            cursor.execute(insert_query, (
+                timestamp, user_message, bot_response, feedback,
+                query_score, relevance_score, user_id, chat_id, chat_name
+            ))
+        conn.commit()
+        logger.info("Stored chat log for session %s %s at %s", user_id, chat_id, timestamp)
+        return chat_name  # handy if caller wants to know what was used
+    finally:
+        conn.close()
 
 
 def store_hr_escalation(escalation_id, user_id, chat_id, user_message, issue_summary, status="PENDING", priority="NORMAL", user_description=None):
@@ -1186,7 +1224,7 @@ def create_chat_name(user_id: str, chat_id: str, chat_history: ConversationBuffe
             SELECT chat_name
             FROM chat_logs
             WHERE user_id = %s AND chat_id = %s
-            ORDER BY timestamp DESC
+            ORDER BY timestamp ASC -- earliest first, tie-break on PK
             LIMIT 1;
         """
         cursor.execute(select_query, (user_id, chat_id))
