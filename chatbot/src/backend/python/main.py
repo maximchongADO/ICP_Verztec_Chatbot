@@ -15,6 +15,7 @@ import asyncio
 
 import os
 import uvicorn
+import uuid
 from chatbot import (
     generate_answer,
     generate_answer_histoy_retrieval,
@@ -24,7 +25,7 @@ from chatbot import (
     global_tools
 )
 from tool_executors import execute_confirmed_tool
-from memory_retrieval import (retrieve_user_messages_and_scores,get_all_chats_with_messages_for_user)
+from memory_retrieval import (retrieve_user_messages_and_scores,get_all_chats_with_messages_for_user, delete_messages_by_user_and_chat)
 from Freq_queries import (get_suggestions)
 from fileUpload import process_upload
 from fastapi.staticfiles import StaticFiles
@@ -110,6 +111,83 @@ async def history_retreival(request: Request):
     results = retrieve_user_messages_and_scores(user_id, chat_id)
     results.reverse()  # Optional: oldest to newest
     return JSONResponse(content=results)
+
+@app.get("/api/chatbot/history")
+async def get_chatbot_history(user_id: str):
+    """
+    Frontend-compatible endpoint for retrieving all chat sessions for a user.
+    This endpoint matches the frontend's expected URL pattern.
+    """
+    try:
+        results = get_all_chats_with_messages_for_user(user_id)
+        results.reverse()  # Optional: oldest to newest
+        return JSONResponse(content=results)
+    except Exception as e:
+        logger.error(f"Error retrieving chats for user {user_id}: {str(e)}")
+        raise HTTPException(status_code=500, detail="Failed to retrieve chat history")
+
+@app.get("/api/chatbot/history/{chat_id}")
+async def get_specific_chatbot_history(chat_id: str, user_id: str):
+    """
+    Frontend-compatible endpoint for retrieving a specific chat's messages.
+    This endpoint matches the frontend's expected URL pattern.
+    """
+    try:
+        if not user_id or not chat_id:
+            raise HTTPException(status_code=400, detail="Missing user_id or chat_id")
+        
+        results = retrieve_user_messages_and_scores(user_id, chat_id)
+        results.reverse()  # Optional: oldest to newest
+        return JSONResponse(content=results)
+    except Exception as e:
+        logger.error(f"Error retrieving chat {chat_id} for user {user_id}: {str(e)}")
+        raise HTTPException(status_code=500, detail="Failed to retrieve chat messages")
+
+@app.delete("/api/chatbot/history/{chat_id}")
+async def delete_chatbot_history(chat_id: str, user_id: str):
+    """
+    Frontend-compatible endpoint for deleting a specific chat.
+    This endpoint matches the frontend's expected URL pattern.
+    """
+    try:
+        if not user_id or not chat_id:
+            raise HTTPException(status_code=400, detail="Missing user_id or chat_id")
+        
+        logger.info(f"Deleting chat {chat_id} for user {user_id}")
+        
+        # Use the existing function from memory_retrieval.py
+        delete_messages_by_user_and_chat(user_id, chat_id)
+        
+        logger.info(f"Successfully deleted chat {chat_id} for user {user_id}")
+        return {"success": True, "message": f"Chat {chat_id} deleted successfully"}
+        
+    except Exception as e:
+        logger.error(f"Error deleting chat {chat_id} for user {user_id}: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Failed to delete chat: {str(e)}")
+
+@app.post("/api/chatbot/newchat")
+async def create_new_chat(request: Request):
+    """
+    Frontend-compatible endpoint for creating a new chat session.
+    This endpoint matches the frontend's expected URL pattern.
+    """
+    try:
+        body = await request.json()
+        user_id = body.get("user_id", "defaultUser")
+        
+        import uuid
+        new_chat_id = str(uuid.uuid4())
+        
+        logger.info(f"Created new chat {new_chat_id} for user {user_id}")
+        return JSONResponse(content={
+            "success": True, 
+            "chat_id": new_chat_id,
+            "message": "New chat session created"
+        })
+        
+    except Exception as e:
+        logger.error(f"Error creating new chat: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Failed to create new chat: {str(e)}")
 
 @app.get("/chat_history")
 async def get_all_chats(user_id: str):
@@ -451,6 +529,27 @@ async def clear_chat_history():
     except Exception as e:
         logger.error(f"Error clearing chat history: {str(e)}")
         raise HTTPException(status_code=500, detail="Failed to clear chat history")
+
+@app.delete("/history/{chat_id}")
+async def delete_specific_chat(chat_id: str, user_id: str):
+    """
+    Delete a specific chat by chat_id and user_id from the database.
+    """
+    try:
+        if not user_id or not chat_id:
+            raise HTTPException(status_code=400, detail="Missing user_id or chat_id")
+        
+        logger.info(f"Deleting chat {chat_id} for user {user_id}")
+        
+        # Use the existing function from memory_retrieval.py
+        delete_messages_by_user_and_chat(user_id, chat_id)
+        
+        logger.info(f"Successfully deleted chat {chat_id} for user {user_id}")
+        return {"success": True, "message": f"Chat {chat_id} deleted successfully"}
+        
+    except Exception as e:
+        logger.error(f"Error deleting chat {chat_id} for user {user_id}: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Failed to delete chat: {str(e)}")
 
 @app.post("/internal/upload")
 async def upload_file(

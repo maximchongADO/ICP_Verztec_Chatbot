@@ -279,8 +279,8 @@ const getChatHistory = async (req, res) => {
 const clearChatHistory = async (req, res) => {
     req.session.chatHistory = [];
     try {
-        const userId = req.user?.userId;
-        const chatId = req.body.chat_id || req.session.chat_id;
+        const userId = req.user?.userId || req.user?.id || req.user?.sub || req.query.user_id || "defaultUser";
+        const chatId = req.params.chat_id || req.body.chat_id || req.session.chat_id;
         console.log('ClearChatHistory called with:', { userId, chatId });
         if (!userId || !chatId) {
             console.error('Missing userId or chatId:', { userId, chatId });
@@ -373,10 +373,52 @@ const newChat = async (req, res) => {
     }
 };
 
+// Delete specific chat by chat_id
+const deleteChatById = async (req, res) => {
+    try {
+        const userId = req.user?.userId || req.user?.id || req.user?.sub || req.query.user_id || "defaultUser";
+        const chatId = req.params.chat_id;
+        
+        console.log('deleteChatById called with:', { userId, chatId });
+        
+        if (!userId || !chatId) {
+            console.error('Missing userId or chatId:', { userId, chatId });
+            return res.status(400).json({
+                success: false,
+                message: 'userId and chatId are required to delete chat',
+                userId,
+                chatId
+            });
+        }
+        
+        const connection = await mysql.createConnection(dbConfig);
+        const [result] = await connection.execute(
+            'DELETE FROM chat_logs WHERE user_id = ? AND chat_id = ?',
+            [userId, chatId]
+        );
+        console.log('Rows affected by delete:', result.affectedRows);
+        await connection.end();
+        
+        res.json({
+            success: true,
+            message: 'Chat deleted successfully',
+            deleted: result.affectedRows
+        });
+    } catch (error) {
+        console.error('Error deleting chat:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Error deleting chat',
+            error: error.message
+        });
+    }
+};
+
 module.exports = {
     processMessage,
     getChatHistory,
     clearChatHistory,
+    deleteChatById,
     handleFeedback,
     newChat,
     processAvatarMessage

@@ -2,14 +2,13 @@ import { createContext, useContext, useEffect, useState, useCallback } from "rea
 
 const ChatContext = createContext();
 
-const backendUrl = "http://localhost:8000"; // Node.js server for TTS
+const backendUrl = "http://localhost:3000"; // Node.js server for TTS
 
 export const ChatProvider = ({ children }) => {
   const [messages, setMessages] = useState([]);
   const [message, setMessage] = useState();
   const [loading, setLoading] = useState(false);
   const [cameraZoomed, setCameraZoomed] = useState(true);
-  const [processedMessageIds, setProcessedMessageIds] = useState(new Set());
   const [processingTexts, setProcessingTexts] = useState(new Set()); // Track texts being processed
 
   // Function to generate TTS with lipsync from text
@@ -139,8 +138,7 @@ export const ChatProvider = ({ children }) => {
   const onMessagePlayed = () => {
     const currentMessage = messages[0];
     if (currentMessage) {
-      console.log('🎵 Message played, marking as processed:', currentMessage.id);
-      setProcessedMessageIds(prev => new Set([...prev, currentMessage.id]));
+      console.log('🎵 Message played, removing from queue:', currentMessage.id);
     }
     setMessages((messages) => messages.slice(1));
   };
@@ -148,17 +146,13 @@ export const ChatProvider = ({ children }) => {
   useEffect(() => {
     if (messages.length > 0) {
       const nextMessage = messages[0];
-      if (!processedMessageIds.has(nextMessage.id)) {
-        console.log('🎵 Setting next message for processing:', nextMessage.id);
-        setMessage(nextMessage);
-      } else {
-        console.log('🎵 Message already processed, skipping:', nextMessage.id);
-        setMessage(null);
-      }
+      console.log('🎵 Setting next message for processing:', nextMessage.id);
+      setMessage(nextMessage);
     } else {
+      console.log('🎵 No messages in queue, clearing current message');
       setMessage(null);
     }
-  }, [messages, processedMessageIds]);
+  }, [messages]);
 
   return (
     <ChatContext.Provider

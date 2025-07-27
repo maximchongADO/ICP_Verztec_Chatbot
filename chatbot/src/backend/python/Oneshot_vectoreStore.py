@@ -367,5 +367,5 @@ if __name__ == "__main__":
     unified_document_pipeline_multi(
         file_paths=file_paths,
         embedding_model=embedding_model,
-        faiss_index_path="faiss_master_index2"
+        faiss_index_path="faiss_master_index3"
     )

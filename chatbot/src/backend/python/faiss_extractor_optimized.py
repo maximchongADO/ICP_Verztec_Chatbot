@@ -46,7 +46,7 @@ def get_embedding_model():
         raise
 
 class OptimizedFAISSExtractor:
-    def __init__(self, index_path: str = "faiss_master_index2"):
+    def __init__(self, index_path: str = "faiss_master_index3"):
         """
         Initialize the FAISS extractor with cached embedding model
         
@@ -267,7 +267,7 @@ def main():
                        help='Search query (for search command)')
     parser.add_argument('--limit', '-l', type=int, default=5,
                        help='Number of search results (default: 5)')
-    parser.add_argument('--index-path', '-p', type=str, default='faiss_master_index2',
+    parser.add_argument('--index-path', '-p', type=str, default='faiss_master_index3',
                        help='Path to FAISS index directory')
     
     args = parser.parse_args()
