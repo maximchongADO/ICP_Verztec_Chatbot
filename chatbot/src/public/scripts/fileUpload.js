@@ -8,6 +8,88 @@ const dropZone = document.getElementById('dropZone');
 const fileInput = document.getElementById('fileInput');
 const uploadList = document.getElementById('uploadList');
 const uploadStatus = document.getElementById('uploadStatus');
+const countrySelect = document.getElementById('countrySelect');
+const departmentSelect = document.getElementById('departmentSelect');
+const configInfo = document.getElementById('configInfo');
+const configInfoText = document.getElementById('configInfoText');
+const uploadWarning = document.getElementById('uploadWarning');
+
+// Initialize country/department selection handlers
+document.addEventListener('DOMContentLoaded', function() {
+    if (countrySelect && departmentSelect) {
+        countrySelect.addEventListener('change', updateConfigInfo);
+        departmentSelect.addEventListener('change', updateConfigInfo);
+        
+        // Load available countries and departments from backend
+        loadUploadConfiguration();
+    }
+});
+
+function updateConfigInfo() {
+    const country = countrySelect.value;
+    const department = departmentSelect.value;
+    
+    if (country && department) {
+        configInfo.style.display = 'block';
+        uploadWarning.style.display = 'none';
+        
+        const countryFlag = country === 'china' ? '🇨🇳' : country === 'singapore' ? '🇸🇬' : '';
+        const departmentIcon = department === 'hr' ? '👥' : department === 'it' ? '💻' : '';
+        
+        configInfoText.innerHTML = `Documents will be stored in: <strong>${countryFlag} ${country.toUpperCase()}/${departmentIcon} ${department.toUpperCase()}</strong> knowledge base`;
+    } else {
+        configInfo.style.display = 'none';
+        uploadWarning.style.display = 'none';
+    }
+}
+
+async function loadUploadConfiguration() {
+    try {
+        const response = await fetch('/api/fileUpload/config', {
+            headers: {
+                'Authorization': `Bearer ${token}`,
+                'Content-Type': 'application/json'
+            }
+        });
+        
+        if (response.ok) {
+            const config = await response.json();
+            updateSelectOptions(config);
+        }
+    } catch (error) {
+        console.warn('Could not load upload configuration:', error);
+        // Continue with default options
+    }
+}
+
+function updateSelectOptions(config) {
+    if (config.supported_countries && countrySelect) {
+        // Clear existing options except the first one
+        countrySelect.innerHTML = '<option value="">Select Country</option>';
+        
+        config.supported_countries.forEach(country => {
+            const option = document.createElement('option');
+            option.value = country;
+            const flag = country === 'china' ? '🇨🇳' : country === 'singapore' ? '🇸🇬' : '';
+            option.textContent = `${flag} ${country.charAt(0).toUpperCase() + country.slice(1)}`;
+            countrySelect.appendChild(option);
+        });
+    }
+    
+    if (config.supported_departments && departmentSelect) {
+        // Clear existing options except the first one
+        departmentSelect.innerHTML = '<option value="">Select Department</option>';
+        
+        config.supported_departments.forEach(dept => {
+            const option = document.createElement('option');
+            option.value = dept;
+            const icon = dept === 'hr' ? '👥' : dept === 'it' ? '💻' : '';
+            const displayName = dept === 'hr' ? 'Human Resources' : dept === 'it' ? 'Information Technology' : dept;
+            option.textContent = `${icon} ${displayName}`;
+            departmentSelect.appendChild(option);
+        });
+    }
+}
 
 // Check admin access and disable UI for non-admins
 (function() {
@@ -110,22 +192,40 @@ function handleFileSelect(e) {
 }
 
 function handleFiles(files) {
-    [...files].forEach(uploadFile);
+    // Check if country and department are selected
+    const country = countrySelect ? countrySelect.value : '';
+    const department = departmentSelect ? departmentSelect.value : '';
+    
+    if (!country || !department) {
+        if (uploadWarning) {
+            uploadWarning.style.display = 'flex';
+        }
+        showStatus('error', 'Please select both country and department before uploading files');
+        return;
+    }
+    
+    if (uploadWarning) {
+        uploadWarning.style.display = 'none';
+    }
+    
+    [...files].forEach(file => uploadFile(file, country, department));
 }
 
-async function uploadFile(file) {
+async function uploadFile(file, country, department) {
     // Validate file before upload
     if (!validateFile(file)) {
         return;
     }
 
-    const fileItem = createFileItem(file);
+    const fileItem = createFileItem(file, country, department);
     if (uploadList) {
         uploadList.appendChild(fileItem);
     }
 
     const formData = new FormData();
     formData.append('file', file);
+    formData.append('country', country);
+    formData.append('department', department);
 
     try {
         const response = await fetch('/api/fileUpload/upload', {
@@ -145,8 +245,8 @@ async function uploadFile(file) {
         }
 
         const result = await response.json();
-        updateFileStatus(fileItem, 'success', 'File processed successfully');
-        showStatus('success', result.message || 'File uploaded successfully');
+        updateFileStatus(fileItem, 'success', `File processed successfully for ${country.toUpperCase()}/${department.toUpperCase()}`);
+        showStatus('success', result.message || `File uploaded successfully to ${country.toUpperCase()}/${department.toUpperCase()} knowledge base`);
 
     } catch (error) {
         console.error('Upload error:', error);
@@ -178,12 +278,17 @@ function validateFile(file) {
     return true;
 }
 
-function createFileItem(file) {
+function createFileItem(file, country, department) {
     const fileItem = document.createElement('div');
     fileItem.className = 'file-item';
+    
+    const countryFlag = country === 'china' ? '🇨🇳' : country === 'singapore' ? '🇸🇬' : '';
+    const departmentIcon = department === 'hr' ? '👥' : department === 'it' ? '💻' : '';
+    
     fileItem.innerHTML = `
         <div class="file-info">
             <div class="file-name">${file.name}</div>
+            <div class="file-destination">${countryFlag} ${country.toUpperCase()} / ${departmentIcon} ${department.toUpperCase()}</div>
             <div class="file-status status-pending">Uploading...</div>
         </div>
     `;

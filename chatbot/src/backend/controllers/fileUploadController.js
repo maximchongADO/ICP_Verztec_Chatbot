@@ -19,6 +19,17 @@ const uploadFile = async (req, res) => {
             });
         }
 
+        // Get country and department from form data
+        const country = req.body.country;
+        const department = req.body.department;
+        
+        if (!country || !department) {
+            return res.status(400).json({
+                success: false,
+                message: 'Country and department are required'
+            });
+        }
+
         // Create form data for FastAPI
         const formData = new FormData();
         const stream = Readable.from(req.file.buffer);
@@ -26,8 +37,10 @@ const uploadFile = async (req, res) => {
             filename: req.file.originalname,
             contentType: req.file.mimetype
         });
+        formData.append('country', country);
+        formData.append('department', department);
 
-        console.log('Sending file to FastAPI:', req.file.originalname);
+        console.log(`Sending file to FastAPI: ${req.file.originalname} for ${country}/${department}`);
 
         const response = await axios.post(
             'http://localhost:3000/internal/upload',
@@ -48,13 +61,19 @@ const uploadFile = async (req, res) => {
         const fileRecord = await FileUpload.createFileRecord({
             filename: req.file.originalname,
             cleanedContent: response.data.cleaned_content || '',  // Ensure not null
-            uploadedBy: req.user.id || null  // Ensure not undefined
+            uploadedBy: req.user.id || null,  // Ensure not undefined
+            country: country,
+            department: department,
+            faissIndexPath: response.data.faiss_index_path || null
         });
 
         return res.status(200).json({
             success: true,
-            message: 'File processed and stored successfully',
-            fileId: fileRecord.fileId
+            message: `File processed and stored successfully in ${country.toUpperCase()}/${department.toUpperCase()} knowledge base`,
+            fileId: fileRecord.fileId,
+            country: country,
+            department: department,
+            faissIndexPath: response.data.faiss_index_path
         });
 
     } catch (error) {
@@ -119,8 +138,69 @@ const deleteFile = async (req, res) => {
     }
 };
 
+const getUploadConfig = async (req, res) => {
+    try {
+        // Get configuration from FastAPI
+        const response = await axios.get(
+            'http://localhost:3000/internal/upload/config',
+            {
+                headers: {
+                    'Authorization': `Bearer ${process.env.INTERNAL_API_KEY || 'default-key'}`
+                }
+            }
+        );
+
+        if (response.data.success) {
+            return res.status(200).json(response.data);
+        } else {
+            // Fallback to default configuration
+            return res.status(200).json({
+                success: true,
+                supported_countries: ['china', 'singapore'],
+                supported_departments: ['hr', 'it'],
+                supported_file_types: ['.pdf', '.doc', '.docx', '.txt', '.pptx'],
+                total_combinations: 4
+            });
+        }
+    } catch (error) {
+        console.warn('Could not get config from FastAPI, using defaults:', error.message);
+        // Return default configuration
+        return res.status(200).json({
+            success: true,
+            supported_countries: ['china', 'singapore'],
+            supported_departments: ['hr', 'it'],
+            supported_file_types: ['.pdf', '.doc', '.docx', '.txt', '.pptx'],
+            total_combinations: 4
+        });
+    }
+};
+
+const getAvailableIndices = async (req, res) => {
+    try {
+        const response = await axios.get(
+            'http://localhost:3000/internal/upload/indices',
+            {
+                headers: {
+                    'Authorization': `Bearer ${process.env.INTERNAL_API_KEY || 'default-key'}`
+                }
+            }
+        );
+
+        return res.status(200).json(response.data);
+    } catch (error) {
+        console.error('Error getting available indices:', error);
+        return res.status(500).json({
+            success: false,
+            message: 'Failed to get available indices',
+            error: error.message
+        });
+    }
+};
+
 module.exports = {
     uploadFile,
     getFile,
-    deleteFile
+    deleteFile,
+    getUploadConfig,
+    getAvailableIndices
 };

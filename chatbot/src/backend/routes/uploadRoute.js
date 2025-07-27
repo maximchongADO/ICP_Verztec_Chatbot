@@ -29,10 +29,29 @@ const fileUploadRoute = (app) => {
       // Debug logging
       console.log("Request User:", req.user);
       console.log("File received:", req.file ? "Yes" : "No");
+      console.log("Country:", req.body.country);
+      console.log("Department:", req.body.department);
       next();
     },
     fileUploadController.uploadFile
   );
+  
+  app.get(
+    "/api/fileUpload/config",
+    cors(corsOptions),
+    authenticateToken,
+    requireAdmin,
+    fileUploadController.getUploadConfig
+  );
+  
+  app.get(
+    "/api/fileUpload/indices",
+    cors(corsOptions),
+    authenticateToken,
+    requireAdmin,
+    fileUploadController.getAvailableIndices
+  );
+  
   app.get(
     "/api/fileUpload/getFile/:id",
     authenticateToken,
