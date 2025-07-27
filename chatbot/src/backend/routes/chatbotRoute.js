@@ -30,6 +30,12 @@ const chatbotRoute = (app) => {
     authenticateToken,
     chatbotController.clearChatHistory
   );
+  // Add DELETE endpoint for specific chat_id
+  app.delete(
+    "/api/chatbot/history/:chat_id",
+    authenticateToken,
+    chatbotController.deleteChatById
+  );
   // Add new feedback endpoint
   app.post(
     "/api/chatbot/feedback",
