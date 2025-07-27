@@ -54,6 +54,139 @@
         margin: 0;
       }
 
+      /* Upload Configuration Styles */
+      .upload-config {
+        background: var(--background-card);
+        border: 2px solid rgba(212, 178, 76, 0.2);
+        border-radius: 16px;
+        padding: 2rem;
+        margin-bottom: 2rem;
+        box-shadow: var(--shadow);
+        transition: var(--transition);
+      }
+
+      .upload-config h3 {
+        font-size: 1.5rem;
+        font-weight: 700;
+        color: var(--text-primary);
+        margin-bottom: 0.5rem;
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+      }
+
+      .upload-config p {
+        color: var(--text-secondary);
+        margin-bottom: 1.5rem;
+        font-size: 1rem;
+      }
+
+      .config-row {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 1.5rem;
+        margin-bottom: 1rem;
+      }
+
+      .config-group {
+        display: flex;
+        flex-direction: column;
+        gap: 0.5rem;
+      }
+
+      .config-label {
+        font-weight: 600;
+        color: var(--text-primary);
+        font-size: 0.95rem;
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+      }
+
+      .config-label svg {
+        width: 18px;
+        height: 18px;
+        color: var(--primary-accent);
+      }
+
+      .config-select {
+        padding: 0.75rem 1rem;
+        border: 2px solid rgba(212, 178, 76, 0.2);
+        border-radius: 8px;
+        background: var(--background-main);
+        color: var(--text-primary);
+        font-size: 1rem;
+        font-family: inherit;
+        transition: all 0.2s ease;
+        cursor: pointer;
+      }
+
+      .config-select:focus {
+        outline: none;
+        border-color: var(--primary-accent);
+        box-shadow: 0 0 0 3px rgba(212, 178, 76, 0.1);
+      }
+
+      .config-select:hover {
+        border-color: rgba(212, 178, 76, 0.4);
+      }
+
+      .config-info {
+        background: rgba(212, 178, 76, 0.1);
+        border: 1px solid rgba(212, 178, 76, 0.3);
+        border-radius: 8px;
+        padding: 1rem;
+        margin-top: 1rem;
+        transition: all 0.3s ease;
+      }
+
+      .info-content {
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+        color: var(--text-primary);
+        font-weight: 500;
+      }
+
+      .info-content svg {
+        width: 20px;
+        height: 20px;
+        color: var(--primary-accent);
+        flex-shrink: 0;
+      }
+
+      .upload-warning {
+        background: rgba(239, 68, 68, 0.1);
+        border: 1px solid rgba(239, 68, 68, 0.3);
+        border-radius: 8px;
+        padding: 1rem;
+        margin-top: 1rem;
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+        color: #ef4444;
+        font-weight: 500;
+      }
+
+      .upload-warning svg {
+        width: 20px;
+        height: 20px;
+        flex-shrink: 0;
+      }
+
+      /* Responsive design for config form */
+      @media (max-width: 768px) {
+        .config-row {
+          grid-template-columns: 1fr;
+          gap: 1rem;
+        }
+        
+        .upload-config {
+          padding: 1.5rem;
+          margin-bottom: 1.5rem;
+        }
+      }
+
       .upload-header {
         background: var(--background-header);
         box-shadow: var(--shadow);
@@ -261,6 +394,34 @@
         font-size: 0.875rem;
         color: var(--text-secondary);
         margin: 0;
+      }
+
+      .file-destination {
+        font-size: 0.8rem;
+        color: var(--primary-accent);
+        font-weight: 500;
+        margin-top: 0.25rem;
+        padding: 0.25rem 0.5rem;
+        background: rgba(212, 178, 76, 0.1);
+        border-radius: 4px;
+        display: inline-block;
+      }
+
+      /* Dark mode styles for file destination */
+      html[data-theme="dark"] .upload-config {
+        background: #2a2a2a;
+        border-color: rgba(212, 178, 76, 0.3);
+      }
+
+      html[data-theme="dark"] .config-select {
+        background: #1f1f1f;
+        border-color: rgba(212, 178, 76, 0.3);
+        color: #e5e7eb;
+      }
+
+      html[data-theme="dark"] .config-info {
+        background: rgba(212, 178, 76, 0.15);
+        border-color: rgba(212, 178, 76, 0.4);
       }
 
       .file-actions {
@@ -1142,6 +1303,56 @@
 
             <!-- Upload interface for admins -->
             <div id="uploadInterface">
+                <!-- Country and Department Selection -->
+                <div class="upload-config" id="uploadConfig">
+                    <h3>📍 Document Classification</h3>
+                    <p>Select the country and department for this document to organize it in the knowledge base</p>
+                    
+                    <div class="config-row">
+                        <div class="config-group">
+                            <label for="countrySelect" class="config-label">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/>
+                                    <circle cx="12" cy="10" r="3"/>
+                                </svg>
+                                Country
+                            </label>
+                            <select id="countrySelect" class="config-select" required>
+                                <option value="">Select Country</option>
+                                <option value="china">🇨🇳 China</option>
+                                <option value="singapore">🇸🇬 Singapore</option>
+                            </select>
+                        </div>
+                        
+                        <div class="config-group">
+                            <label for="departmentSelect" class="config-label">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/>
+                                    <circle cx="9" cy="7" r="4"/>
+                                    <path d="M23 21v-2a4 4 0 00-3-3.87"/>
+                                    <path d="M16 3.13a4 4 0 010 7.75"/>
+                                </svg>
+                                Department
+                            </label>
+                            <select id="departmentSelect" class="config-select" required>
+                                <option value="">Select Department</option>
+                                <option value="hr">👥 Human Resources</option>
+                                <option value="it">💻 Information Technology</option>
+                            </select>
+                        </div>
+                    </div>
+                    
+                    <div class="config-info" id="configInfo" style="display: none;">
+                        <div class="info-content">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <circle cx="12" cy="12" r="10"/>
+                                <path d="M12 6v6l4 2"/>
+                            </svg>
+                            <span id="configInfoText">Documents will be stored in: </span>
+                        </div>
+                    </div>
+                </div>
+
                 <div class="upload-area" id="dropZone">
                     <input type="file" id="fileInput" multiple accept=".pdf,.doc,.docx,.txt,.pptx" hidden>
                     <div class="upload-icon">
@@ -1158,6 +1369,15 @@
                         <span>Browse Files</span>
                     </button>
                     <p class="supported-text">Supported formats: PDF, DOC, DOCX, TXT, PPTX (max 10MB per file)</p>
+                    
+                    <div class="upload-warning" id="uploadWarning" style="display: none;">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/>
+                            <line x1="12" y1="9" x2="12" y2="13"/>
+                            <line x1="12" y1="17" x2="12.01" y2="17"/>
+                        </svg>
+                        <span>Please select both country and department before uploading files</span>
+                    </div>
                 </div>
 
                 <div class="upload-list" id="uploadList">

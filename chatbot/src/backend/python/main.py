@@ -1,4 +1,4 @@
-from fastapi import FastAPI, HTTPException, Request, File, UploadFile, Security, Header
+from fastapi import FastAPI, HTTPException, Request, File, UploadFile, Security, Header, Form
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from fastapi.security import APIKeyHeader
@@ -27,7 +27,7 @@ from chatbot import (
 from tool_executors import execute_confirmed_tool
 from memory_retrieval import (retrieve_user_messages_and_scores,get_all_chats_with_messages_for_user, delete_messages_by_user_and_chat)
 from Freq_queries import (get_suggestions)
-from fileUpload import process_upload
+from fileUpload import process_upload, get_system_config
 from fastapi.staticfiles import StaticFiles
 app = FastAPI()
 app.mount("/images", StaticFiles(directory="data/images"), name="images")
@@ -554,12 +554,21 @@ async def delete_specific_chat(chat_id: str, user_id: str):
 @app.post("/internal/upload")
 async def upload_file(
     file: UploadFile = File(...),
+    country: str = Form(...),
+    department: str = Form(...),
     authorization: str = Header(None)
 ):
-    """Internal endpoint to handle file uploads"""
+    """Internal endpoint to handle file uploads with country and department"""
     if not authorization or not authorization.startswith('Bearer '):
         raise HTTPException(status_code=403, detail="Invalid authorization")
-    return await process_upload(file)
+    return await process_upload(file, country, department)
+
+@app.get("/internal/upload/config")
+async def get_upload_config(authorization: str = Header(None)):
+    """Internal endpoint to get upload system configuration"""
+    if not authorization or not authorization.startswith('Bearer '):
+        raise HTTPException(status_code=403, detail="Invalid authorization")
+    return await get_system_config()
 
 @app.post("/meeting_confirmation")
 async def meeting_confirmation(request: MeetingConfirmationRequest):
