@@ -42,8 +42,14 @@ export function Avatar(props) {
       setCurrentMessage(message);
     }
     
-    // Guard against double processing
-    if (!message || isProcessing || message.id === lastProcessedMessageId) {
+    // Guard against processing while already processing
+    if (!message || isProcessing) {
+      return;
+    }
+    
+    // Skip if it's the same message ID we just processed
+    if (message.id === lastProcessedMessageId) {
+      console.log('🚫 Skipping duplicate message:', message.id);
       return;
     }
     
@@ -52,6 +58,7 @@ export function Avatar(props) {
       return;
     }
     
+    console.log('🎭 Avatar processing new message:', message.id, message.text?.substring(0, 50) + '...');
     setIsProcessing(true);
     setLastProcessedMessageId(message.id);
     setLipsync(message.lipsync);
@@ -73,7 +80,8 @@ export function Avatar(props) {
       audioElement.onended = () => {
         setIsSpeaking(false);
         setIsProcessing(false);
-        // Don't call onMessagePlayed() here - keep message displayed
+        console.log('🎵 Audio finished, calling onMessagePlayed to advance queue');
+        onMessagePlayed(); // MUST call this to advance to next message
       };
       
       audioElement.onerror = (error) => {

@@ -208,10 +208,9 @@ class DraggableAvatar {
 
   sendMessageToAvatar(message) {
     if (this.avatarIframe && this.avatarIframe.contentWindow) {
-      this.avatarIframe.contentWindow.postMessage({
-        type: 'chat_message',
-        payload: message
-      }, window.location.origin);
+      // Pass the message directly without wrapping it in another object
+      // The message should already have the correct type (bot_response_for_tts)
+      this.avatarIframe.contentWindow.postMessage(message, window.location.origin);
     }
   }
 
@@ -253,4 +252,13 @@ class DraggableAvatar {
 // Initialize when DOM is ready
 document.addEventListener('DOMContentLoaded', () => {
   window.draggableAvatar = new DraggableAvatar();
+  
+  // Make sendMessageToAvatar globally available
+  window.sendMessageToAvatar = (message) => {
+    if (window.draggableAvatar) {
+      window.draggableAvatar.sendMessageToAvatar(message);
+    } else {
+      console.error('❌ Draggable avatar not initialized');
+    }
+  };
 });
