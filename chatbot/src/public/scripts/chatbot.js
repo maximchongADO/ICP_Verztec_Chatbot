@@ -398,9 +398,20 @@ function renderChatHistorySidebar(chatLogs) {
 
     const actionsDiv = document.createElement("div");
     actionsDiv.className = "chat-history-item-actions";
-    actionsDiv.innerHTML = `
-      <button onclick="event.stopPropagation(); deleteChatHistory('${log.chat_id}')" title="Delete">×</button>
-    `;
+    
+    const deleteBtn = document.createElement("button");
+    deleteBtn.innerHTML = "×";
+    deleteBtn.title = "Delete this chat";
+    deleteBtn.style.cssText = "background: none; border: none; color: #d4b24c; cursor: pointer; padding: 6px 8px; border-radius: 6px; font-size: 12px; font-weight: 500; z-index: 1000; position: relative;";
+    
+    deleteBtn.onclick = function(event) {
+      console.log("Delete button clicked for chat:", log.chat_id);
+      event.stopPropagation();
+      event.preventDefault();
+      deleteChatHistory(log.chat_id);
+    };
+    
+    actionsDiv.appendChild(deleteBtn);
 
     item.appendChild(icon);
     item.appendChild(textDiv);
@@ -467,7 +478,27 @@ function loadChatHistory(chatId) {
 }
 
 function deleteChatHistory(chatId) {
-  if (!confirm("Are you sure you want to delete this chat?")) return;
+  console.log("deleteChatHistory called with chatId:", chatId);
+  
+  // Store the chatId for use in the confirmation handlers
+  window.pendingDeleteChatId = chatId;
+  
+  // Show the custom confirmation popup
+  const popup = document.getElementById('deleteChatConfirmPopup');
+  if (popup) {
+    popup.style.display = 'flex';
+  } else {
+    console.error("Delete confirmation popup not found, falling back to browser confirm");
+    // Fallback to browser confirm if popup doesn't exist
+    const confirmDelete = window.confirm("Are you sure you want to delete this chat? This action cannot be undone.");
+    if (confirmDelete) {
+      performDeleteChat(chatId);
+    }
+  }
+}
+
+function performDeleteChat(chatId) {
+  console.log("Proceeding with delete for chatId:", chatId);
   
   const userId = localStorage.getItem("userId") || "defaultUser";
   fetch(`/api/chatbot/history/${encodeURIComponent(chatId)}?user_id=${encodeURIComponent(userId)}`, {
@@ -477,15 +508,19 @@ function deleteChatHistory(chatId) {
     }
   })
     .then(res => {
+      console.log("Delete response status:", res.status);
       if (res.ok) {
+        // Show success message (optional)
+        console.log("Chat deleted successfully!");
         // Refresh the chat history list
         getChatHistorySidebar();
       } else {
-        throw new Error('Failed to delete chat');
+        throw new Error(`Failed to delete chat: ${res.status}`);
       }
     })
-    .catch(() => {
-      alert("Failed to delete chat history.");
+    .catch((error) => {
+      console.error("Delete error:", error);
+      alert("Failed to delete chat history: " + error.message);
     });
 }
 
@@ -1588,6 +1623,12 @@ function hideClearChatConfirmPopup() {
   if (popup) popup.style.display = "none";
 }
 
+function hideDeleteChatConfirmPopup() {
+  console.log("hideDeleteChatConfirmPopup called");
+  const popup = document.getElementById("deleteChatConfirmPopup");
+  if (popup) popup.style.display = "none";
+}
+
 // Attach popup logic on DOMContentLoaded
 window.addEventListener("DOMContentLoaded", function () {
   console.log("DOMContentLoaded - setting up clear chat popup handlers");
@@ -1601,6 +1642,26 @@ window.addEventListener("DOMContentLoaded", function () {
     clearChatHistory();
   };
   if (cancelBtn) cancelBtn.onclick = hideClearChatConfirmPopup;
+
+  // Set up delete chat popup handlers
+  console.log("Setting up delete chat popup handlers");
+  const deleteBtn = document.getElementById("confirmDeleteChatBtn");
+  const cancelDeleteBtn = document.getElementById("cancelDeleteChatBtn");
+  console.log("Delete button found:", deleteBtn);
+  console.log("Cancel delete button found:", cancelDeleteBtn);
+  if (deleteBtn) deleteBtn.onclick = function() {
+    console.log("Delete chat confirmed by user");
+    hideDeleteChatConfirmPopup();
+    if (window.pendingDeleteChatId) {
+      performDeleteChat(window.pendingDeleteChatId);
+      window.pendingDeleteChatId = null;
+    }
+  };
+  if (cancelDeleteBtn) cancelDeleteBtn.onclick = function() {
+    console.log("Delete chat cancelled by user");
+    hideDeleteChatConfirmPopup();
+    window.pendingDeleteChatId = null;
+  };
 });
 
 // Replace sidebar clear chat click to show popup
