@@ -2,7 +2,7 @@ import { createContext, useContext, useEffect, useState, useCallback } from "rea
 
 const ChatContext = createContext();
 
-const backendUrl = "http://localhost:3000"; // Node.js server for TTS
+const backendUrl = "http://localhost:8000"; // Node.js server for TTS
 
 export const ChatProvider = ({ children }) => {
   const [messages, setMessages] = useState([]);

@@ -1,0 +1,1 @@
+Test Document for Enhanced Upload System This is a test document to verify the country/department-specific FAISS upload functionality. Content includes: - Country: Singapore - Department: HR - Document Type: Policy - Test Date: 2025-07-27 This document should be processed and stored in the Singapore/HR FAISS index when uploaded through the enhanced system.

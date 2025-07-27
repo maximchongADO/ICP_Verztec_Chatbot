@@ -55,10 +55,8 @@ logger = logging.getLogger(__name__)
 # Initialize models and clients
 embedding_model = SentenceTransformer('BAAI/bge-large-en-v1.5')
 load_dotenv()
-api_key='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'
-api_key="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"
-api_key="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"## backend api key
-api_key='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'
+api_key='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'
+# i love api keyyy
 model = "deepseek-r1-distill-llama-70b" 
 deepseek = ChatGroq(api_key=api_key, model=model, temperature = 0.4) # type: ignore
 decisionlayer_model=ChatGroq(api_key=api_key, 
@@ -70,6 +68,7 @@ decisionlayer_model=ChatGroq(api_key=api_key,
                                 "presence_penalty": 0
                                 }
                             ) 
+cleaning_model = ChatGroq(api_key=api_key,  model="meta-llama/llama-4-scout-17b-16e-instruct", temperature=0.0) # type: ignore
 
 
 # Initialize memory
@@ -158,6 +157,44 @@ def store_chat_log_updated(user_message, bot_response, query_score, relevance_sc
 
     cursor.close()
     conn.close()
+    
+def store_chat_log_updated(user_message, bot_response, query_score, relevance_score,
+                           chat_id, user_id, chat_name=None):
+    conn = pymysql.connect(**DB_CONFIG)
+    try:
+        with conn.cursor() as cursor:
+            # If caller didn’t supply a name (or it’s blank), try to reuse the earliest one
+            if not chat_name or not chat_name.strip():
+                select_query = """
+                    SELECT chat_name
+                    FROM chat_logs
+                    WHERE user_id = %s AND chat_id = %s
+                    ORDER BY timestamp ASC
+                    LIMIT 1;
+                """
+                cursor.execute(select_query, (user_id, chat_id))
+                row = cursor.fetchone()
+                if row and row[0] and row[0].strip():
+                    chat_name = row[0].strip()
+
+            insert_query = """
+                INSERT INTO chat_logs
+                    (timestamp, user_message, bot_response, feedback,
+                     query_score, relevance_score, user_id, chat_id, chat_name)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+            """
+            timestamp = datetime.utcnow()
+            feedback = None
+
+            cursor.execute(insert_query, (
+                timestamp, user_message, bot_response, feedback,
+                query_score, relevance_score, user_id, chat_id, chat_name
+            ))
+        conn.commit()
+        logger.info("Stored chat log for session %s %s at %s", user_id, chat_id, timestamp)
+        return chat_name  # handy if caller wants to know what was used
+    finally:
+        conn.close()
 
 
 def store_hr_escalation(escalation_id, user_id, chat_id, user_message, issue_summary, status="PENDING", priority="NORMAL", user_description=None):
@@ -1652,6 +1689,56 @@ def get_last_human_message(chat_history):
             return msg.content
     return None
 
+def get_last_human_message(chat_id, user_id):
+    """
+    Returns the content of the last human message from a sql database.
+    """
+    conn = pymysql.connect(**DB_CONFIG)
+    cursor = conn.cursor()
+
+    select_query = '''
+        SELECT user_message
+        FROM chat_logs
+        WHERE chat_id = %s AND user_id = %s
+        ORDER BY timestamp DESC
+        LIMIT 1
+    '''
+    cursor.execute(select_query, (chat_id, user_id))
+    result = cursor.fetchone()
+
+    cursor.close()
+    conn.close()
+
+    if result:
+        return result[0]
+    return None
+   
+
+def get_last_bot_message(chat_id, user_id):
+    """
+    Returns the content of the last bot message from a sql database.
+    """
+    conn = pymysql.connect(**DB_CONFIG)
+    cursor = conn.cursor()
+
+    select_query = '''
+        SELECT bot_response
+        FROM chat_logs
+        WHERE chat_id = %s AND user_id = %s
+        ORDER BY timestamp DESC
+        LIMIT 1
+    '''
+    cursor.execute(select_query, (chat_id, user_id))
+    result = cursor.fetchone()
+
+    cursor.close()
+    conn.close()
+
+    if result:
+        return result[0]
+    return None
+   
+
 def create_chat_name(user_id: str, chat_id: str, chat_history: ConversationBufferMemory, query: str):
     """
     Checks DB for chat name. If not found, uses decisionlayer_model to generate one.
@@ -1669,11 +1756,12 @@ def create_chat_name(user_id: str, chat_id: str, chat_history: ConversationBuffe
             SELECT chat_name
             FROM chat_logs
             WHERE user_id = %s AND chat_id = %s
-            ORDER BY timestamp DESC
+            ORDER BY timestamp ASC -- earliest first, tie-break on PK
             LIMIT 1;
         """
         cursor.execute(select_query, (user_id, chat_id))
         result = cursor.fetchone()
+
 
         if result and result[0]:
             chat_name = result[0]
@@ -1681,6 +1769,7 @@ def create_chat_name(user_id: str, chat_id: str, chat_history: ConversationBuffe
             
         else:
             # Get conversation history
+            logger.info("No existing chat name found, generating a new one.")
 
             messages = chat_history.load_memory_variables({}).get("chat_history", "")
             # Handle both list (return_messages=True) and string cases
@@ -1818,14 +1907,16 @@ def generate_answer_histoy_retrieval(user_query: str, user_id:str, chat_id:str):
         deepseek_chain = deepseek | parser
         
         
-        
-        retriever = index.as_retriever(
+        from langchain.prompts import PromptTemplate
+        from langchain.retrievers import ContextualCompressionRetriever
+        from langchain.retrievers.document_compressors import LLMChainFilter
+        base = index.as_retriever(
             search_type="similarity",
             search_kwargs={"k": 15}
         )
-        
-        
-        
+   
+
+        avg_score = get_avg_score(index, embedding_model, user_query)    
         
         
         
@@ -1833,7 +1924,7 @@ def generate_answer_histoy_retrieval(user_query: str, user_id:str, chat_id:str):
         qa_chain = ConversationalRetrievalChain.from_llm(
             llm=deepseek_chain,
             #retriever=hybrid_retriever_obj,
-            retriever =retriever,
+            retriever =base,
             memory=chat_history,
             return_source_documents=True,
             output_key="answer"
@@ -1851,7 +1942,7 @@ def generate_answer_histoy_retrieval(user_query: str, user_id:str, chat_id:str):
         tool_descriptions = "\n".join([f"[{name}] — {tool_data['description']}" for name, tool_data in global_tools.items()])
 
         # Prompt template with context and tool injection
-        glast_bot_message = get_last_bot_message(chat_history)
+        glast_bot_message = get_last_bot_message(chat_id,user_id )
         decision_prompt = ChatPromptTemplate.from_messages([
             ("system", """
                 You are the decision-making layer of a corporate assistant chatbot for internal employee support.
@@ -1937,7 +2028,7 @@ def generate_answer_histoy_retrieval(user_query: str, user_id:str, chat_id:str):
         scores = [score for _, score in results]
         avg_score = float(np.mean(scores)) if scores else 1.0
         prev_score=0
-        prev_query = get_last_human_message(chat_history)
+        prev_query = get_last_human_message(chat_id, user_id)
         formatted_prev_docs = ""
                 
         if prev_query:
@@ -2101,6 +2192,7 @@ def generate_answer_histoy_retrieval(user_query: str, user_id:str, chat_id:str):
                     f"{formatted_prev_docs}\n\n"
                     "These documents were retrieved to attempt to answer the previous query. YOU MAY USE THEM TO ATTEMPT AN ACCURATE ANSWER\n"
                     f'The previous query was: "{prev_query}"\n\n'
+                    f'The response to the previous query was you may use this for context: "{glast_bot_message}"\n\n'
                 )
             logger.info("=+" * 20)
             logger.info(f"Fallback prompt: {fallback_prompt}")
@@ -2261,14 +2353,18 @@ def generate_answer_histoy_retrieval(user_query: str, user_id:str, chat_id:str):
 
             # Define regex pattern to match full <think>...</think> block
             think_block_pattern = re.compile(r"<think>.*?</think>", flags=re.DOTALL)
+            single_think_block_pattern = re.compile(r"</think>", flags=re.DOTALL)
+            
            
             
 
             # Check if full <think> block exists
             has_think_block = bool(think_block_pattern.search(raw_answer))
+        
 
             # Clean the <think> block regardless
             cleaned_answer = think_block_pattern.sub("", raw_answer).strip()
+            cleaned_answer = single_think_block_pattern.sub("", cleaned_answer).strip()
             has_tag = False
            
 

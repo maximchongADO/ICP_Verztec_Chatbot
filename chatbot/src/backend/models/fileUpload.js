@@ -12,17 +12,27 @@ class FileUpload {
         }
     }
 
-    static async createFileRecord({ filename, cleanedContent, uploadedBy }) {
+    static async createFileRecord({ filename, cleanedContent, uploadedBy, country, department, faissIndexPath }) {
         const sql = `
             INSERT INTO cleaned_texts (
                 filename, 
                 cleaned_content, 
                 uploaded_by, 
+                country,
+                department,
+                faiss_index_path,
                 created_at
-            ) VALUES (?, ?, ?, NOW())`;
+            ) VALUES (?, ?, ?, ?, ?, ?, NOW())`;
         
         try {
-            console.log('Creating file record:', { filename, contentLength: cleanedContent?.length, uploadedBy });
+            console.log('Creating file record:', { 
+                filename, 
+                contentLength: cleanedContent?.length, 
+                uploadedBy, 
+                country, 
+                department,
+                faissIndexPath 
+            });
             
             // Ensure we have required values
             if (!filename || !cleanedContent) {
@@ -32,7 +42,10 @@ class FileUpload {
             const result = await this.query(sql, [
                 filename,
                 cleanedContent,
-                uploadedBy || null  // Convert undefined to null
+                uploadedBy || null,  // Convert undefined to null
+                country || null,
+                department || null,
+                faissIndexPath || null
             ]);
 
             return { success: true, fileId: result.insertId };

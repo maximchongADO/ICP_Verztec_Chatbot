@@ -499,6 +499,7 @@ def execute_confirmed_tool(
                 user_query, 
                 user_id, 
                 chat_id,
+                user_description,
                 store_chat_log_updated
             )
         elif tool_identified == "vacation_check":
