@@ -55,14 +55,8 @@ logger = logging.getLogger(__name__)
 # Initialize models and clients
 embedding_model = SentenceTransformer('BAAI/bge-large-en-v1.5')
 load_dotenv()
-api_key='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'
-api_key="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"
-api_key="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"## backend api key
-api_key='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'
-api_key='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'# i love api key
-api_key='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' # i love api key
-api_key='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' # i love api keyyy
-api_key='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'
+api_key='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'
+# i love api keyyy
 model = "deepseek-r1-distill-llama-70b" 
 deepseek = ChatGroq(api_key=api_key, model=model, temperature = 0.4) # type: ignore
 decisionlayer_model=ChatGroq(api_key=api_key, 
