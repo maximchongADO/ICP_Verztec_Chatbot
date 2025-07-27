@@ -107,7 +107,7 @@ export const ChatProvider = ({ children }) => {
 
     // Handle bot response that needs TTS generation
     if (event.data?.type === 'bot_response_for_tts') {
-      const { text } = event.data.payload || event.data;
+      const { text, timestamp, isNewMessage } = event.data.payload || event.data;
       console.log('🎤 Avatar received bot response for TTS:', text?.substring(0, 50) + '...');
       
       if (!text) {
@@ -115,6 +115,18 @@ export const ChatProvider = ({ children }) => {
         return;
       }
 
+      // Only generate TTS for new messages, not historical ones
+      const now = Date.now();
+      const messageTime = timestamp || now;
+      const timeDiff = now - messageTime;
+      
+      // If message is older than 5 seconds or explicitly marked as old, skip TTS
+      if (timeDiff > 5000 || isNewMessage === false) {
+        console.log('🚫 Skipping TTS for old message (age:', timeDiff, 'ms)');
+        return;
+      }
+
+      console.log('✅ Processing fresh message for TTS (age:', timeDiff, 'ms)');
       // Generate TTS + lipsync for the provided text
       await generateTTSWithLipsync(text);
       return;

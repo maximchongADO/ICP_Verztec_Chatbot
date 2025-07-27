@@ -442,7 +442,7 @@ function loadChatHistory(chatId) {
       chatMessages.innerHTML = "";
       if (Array.isArray(chatLogs) && chatLogs.length > 0) {
         chatLogs.forEach(msg => {
-          addMessage(msg.message, msg.sender === "user" ? "user" : "bot");
+          addMessage(msg.message, msg.sender === "user" ? "user" : "bot", true); // true = isHistorical
         });
         
         // Save the loaded messages to localStorage for persistence
@@ -779,7 +779,7 @@ function sendImages(images) {
 }
 
 
-function addMessage(textOrResponse, sender) {
+function addMessage(textOrResponse, sender, isHistorical = false) {
   let text = textOrResponse;
   let images = [];
   let tool_used = false;
@@ -893,7 +893,7 @@ function addMessage(textOrResponse, sender) {
     </div>`;
 }
 
-  if (sender === "bot" && text && !tool_used) {
+  if (sender === "bot" && text && !tool_used && !isHistorical) {
     // Check if avatar is available and active
     const avatarActive = isAvatarActive();
     console.log('🤖 Bot message detected, avatar active:', avatarActive);
@@ -909,7 +909,11 @@ function addMessage(textOrResponse, sender) {
           // Send only the text - let avatar handle TTS generation
           sendMessageToAvatar({
             type: 'bot_response_for_tts',
-            payload: { text: text }
+            payload: { 
+              text: text,
+              isNewMessage: true,
+              timestamp: Date.now()
+            }
           });
         } else {
           console.error('❌ sendMessageToAvatar function not found');
