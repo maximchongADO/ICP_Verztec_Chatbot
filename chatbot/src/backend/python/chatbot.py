@@ -62,6 +62,7 @@ api_key='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'
 api_key='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'# i love api key
 api_key='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' # i love api key
 api_key='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' # i love api keyyy
+api_key='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'
 model = "deepseek-r1-distill-llama-70b" 
 deepseek = ChatGroq(api_key=api_key, model=model, temperature = 0.4) # type: ignore
 decisionlayer_model=ChatGroq(api_key=api_key, 
@@ -1191,7 +1192,7 @@ def create_chat_name(user_id: str, chat_id: str, chat_history: ConversationBuffe
             SELECT chat_name
             FROM chat_logs
             WHERE user_id = %s AND chat_id = %s
-            ORDER BY timestamp DESC
+            ORDER BY timestamp ASC -- earliest first, tie-break on PK
             LIMIT 1;
         """
         cursor.execute(select_query, (user_id, chat_id))
