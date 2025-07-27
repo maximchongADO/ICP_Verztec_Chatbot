@@ -585,7 +585,29 @@ async function clearChatHistory() {
   console.log("Clearing chat - user_id:", user_id, "chat_id:", chat_id);
   
   try {
-    // Clear local storage and session data first
+    // First, try to delete the current chat from the database
+    if (chat_id && chat_id !== "chat123") { // Don't try to delete default/fallback chat_id
+      try {
+        console.log("Deleting current chat from database:", chat_id);
+        const response = await fetch(`/api/chatbot/history/${encodeURIComponent(chat_id)}?user_id=${encodeURIComponent(user_id)}`, {
+          method: "DELETE",
+          headers: {
+            Authorization: `Bearer ${localStorage.getItem("token")}`
+          }
+        });
+        
+        if (response.ok) {
+          console.log("Successfully deleted chat from database");
+        } else {
+          console.warn(`Failed to delete chat from database: ${response.status} (continuing anyway)`);
+        }
+      } catch (dbError) {
+        console.warn("Failed to delete chat from database (continuing anyway):", dbError);
+        // Continue with local cleanup even if database deletion fails
+      }
+    }
+    
+    // Clear local storage and session data
     sessionStorage.removeItem("chatHistory");
     clearChatFromLocalStorage();
     
@@ -611,7 +633,7 @@ async function clearChatHistory() {
     // Refresh the chat history sidebar to reflect any changes
     getChatHistorySidebar();
     
-    console.log("Chat cleared successfully without server deletion");
+    console.log("Chat cleared successfully and deleted from database");
     
   } catch (error) {
     console.error("Error clearing chat history:", error);
