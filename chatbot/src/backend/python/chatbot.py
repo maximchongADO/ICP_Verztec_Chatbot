@@ -55,10 +55,10 @@ logger = logging.getLogger(__name__)
 # Initialize models and clients
 embedding_model = SentenceTransformer('BAAI/bge-large-en-v1.5')
 load_dotenv()
-api_key='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'
-api_key="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"
-api_key="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"## backend api key
-api_key='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'
+api_key='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'
+api_key="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"
+api_key="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"## backend api key
+api_key='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'
 model = "deepseek-r1-distill-llama-70b" 
 deepseek = ChatGroq(api_key=api_key, model=model, temperature = 0.4) # type: ignore
 decisionlayer_model=ChatGroq(api_key=api_key, 
@@ -92,7 +92,7 @@ DB_CONFIG = {
 # Load FAISS index
 try:
     script_dir = os.path.dirname(os.path.abspath(__file__))
-    faiss_index_path = os.path.join(script_dir, "faiss_master_index2")
+    faiss_index_path = os.path.join(script_dir, "faiss_master_index3")
     faiss_index_path2=os.path.join(script_dir, "faiss_GK_index")
     
     if not os.path.exists(faiss_index_path):
