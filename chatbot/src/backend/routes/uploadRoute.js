@@ -15,15 +15,15 @@ const fileUploadRoute = (app) => {
     allowedHeaders: ['Content-Type', 'Authorization']
   };
 
-  // Require admin for all file upload endpoints
-  const requireAdmin = authenticateToken.requireAdmin;
+  // Require admin or manager for all file upload endpoints
+  const requireAdminOrManager = authenticateToken.requireAdminOrManager;
 
   // Protected chatbot endpoints - require authentication
   app.post(
     "/api/fileUpload/upload",
     cors(corsOptions),
     authenticateToken,  // First check auth
-    requireAdmin,        // Check admin rights
+    requireAdminOrManager,        // Check admin or manager rights
     upload.single('file'),  // Then handle file
     (req, res, next) => {
       // Debug logging
@@ -40,7 +40,7 @@ const fileUploadRoute = (app) => {
     "/api/fileUpload/config",
     cors(corsOptions),
     authenticateToken,
-    requireAdmin,
+    requireAdminOrManager,
     fileUploadController.getUploadConfig
   );
   
@@ -48,20 +48,20 @@ const fileUploadRoute = (app) => {
     "/api/fileUpload/indices",
     cors(corsOptions),
     authenticateToken,
-    requireAdmin,
+    requireAdminOrManager,
     fileUploadController.getAvailableIndices
   );
   
   app.get(
     "/api/fileUpload/getFile/:id",
     authenticateToken,
-    requireAdmin,
+    requireAdminOrManager,
     fileUploadController.getFile
   );
   app.delete(
     "/api/fileUpload/deleteFile/:id",
     authenticateToken,
-    requireAdmin,
+    requireAdminOrManager,
     fileUploadController.deleteFile
   );
 };

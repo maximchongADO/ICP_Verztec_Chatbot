@@ -53,7 +53,7 @@ load_dotenv()
 nlp = spacy.load("en_core_web_sm")
 
 # Initialize models
-api_key = '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'  # Set in your .env file
+api_key = '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'  # Set in your .env file
 model = "deepseek-r1-distill-llama-70b"
 deepseek = ChatGroq(api_key=api_key, model_name=model)
 deepseek_chain = deepseek | StrOutputParser()
@@ -121,13 +121,19 @@ def get_faiss_index_path(country, department, base_dir="faiss_indices"):
     """
     Generate FAISS index path based on country and department.
     Creates directory structure: faiss_indices/{country}/{department}/
+    Special case: admin/master -> faiss_indices/admin_master/
     """
     # Normalize inputs
     country = country.lower().strip()
     department = department.lower().strip()
     
-    # Create directory path
-    index_dir = Path(base_dir) / country / department
+    # Special case for admin master index
+    if country == 'admin' and department == 'master':
+        index_dir = Path(base_dir) / "admin_master"
+    else:
+        # Create directory path
+        index_dir = Path(base_dir) / country / department
+    
     index_dir.mkdir(parents=True, exist_ok=True)
     
     return str(index_dir / "faiss_index")
@@ -287,7 +293,7 @@ def unified_document_pipeline(file_path, images_dir, cleaned_dir, vertztec_colle
         # Return processing details for the Node.js backend to handle database operations
         return {
             **processing_result,
-            "faiss_index_path": faiss_index_path,
+            "faiss_index_path": str(faiss_index_path),
             "country": country,
             "department": department,
             "chunks": [doc.page_content for doc in faiss_db.docstore._dict.values()],
@@ -298,7 +304,7 @@ def unified_document_pipeline(file_path, images_dir, cleaned_dir, vertztec_colle
         error_msg = f"Pipeline failed: {str(e)}"
         print(f"[ERROR] {error_msg}")
         return {
-            "original_path": file_path,
+            "original_path": str(file_path),
             "cleaned_text_path": None,
             "success": False,
             "error": error_msg,

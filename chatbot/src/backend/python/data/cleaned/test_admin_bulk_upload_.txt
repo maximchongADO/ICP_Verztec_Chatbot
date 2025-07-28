@@ -1,0 +1,6 @@
+Test Document for Admin Bulk Upload ===================================== This is a test document to verify the admin bulk upload functionality. Content Details: - Document Type: Test Policy - Test Date: 2025-07-28 - Upload Mode: Admin Bulk Upload (All Knowledge Bases) - Purpose: Verify that the file gets uploaded to all 4 country/department combinations plus the admin master index Expected Behavior:
+1. Upload to China/HR index
+2. Upload to China/IT index
+3. Upload to Singapore/HR index
+4. Upload to Singapore/IT index
+5. Upload to Admin Master index This document should appear in all 5 FAISS indices when the admin bulk upload is successful. Test completed successfully if this document can be found in: - All individual country/department knowledge bases - The admin master knowledge base accessible to administrators
