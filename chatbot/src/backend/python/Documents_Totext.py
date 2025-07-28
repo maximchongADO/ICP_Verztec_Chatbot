@@ -390,8 +390,8 @@ def process_single_file(file_path, images_dir, cleaned_dir, vertztec_collection)
             out_file.write(text)
         print(f"[INFO] Processed and saved: {cleaned_text_path}")
         return {
-            "original_path": file_path,
-            "cleaned_text_path": cleaned_text_path,
+            "original_path": str(file_path),
+            "cleaned_text_path": str(cleaned_text_path),
             "filename": base_filename,
             "cleaned_filename": cleaned_filename,
             "text_content": text,
@@ -401,7 +401,7 @@ def process_single_file(file_path, images_dir, cleaned_dir, vertztec_collection)
     except Exception as e:
         print(f"[ERROR] Failed to process {file_path}: {e}")
         return {
-            "original_path": file_path,
+            "original_path": str(file_path),
             "cleaned_text_path": None,
             "filename": base_filename,
             "cleaned_filename": cleaned_filename,

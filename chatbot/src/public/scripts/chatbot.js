@@ -1268,7 +1268,7 @@ function handleFileUpload(event) {
   // Prevent default file input behavior
   event.preventDefault();
 
-  // Check admin before redirecting
+  // Check admin or manager access before redirecting
   fetch('/api/users/me', {
     headers: { 
       Authorization: `Bearer ${token}`,
@@ -1282,7 +1282,7 @@ function handleFileUpload(event) {
       return res.json();
     })
     .then(user => {
-      if (user && user.role === 'admin') {
+      if (user && (user.role === 'admin' || user.role === 'manager')) {
         window.location.href = "/fileupload.html";
       } else {
         showNoAccessPopup();
@@ -1299,7 +1299,7 @@ function showNoAccessPopup() {
   if (document.getElementById('noAccessPopup')) return;
   const popup = document.createElement('div');
   popup.id = 'noAccessPopup';
-  popup.textContent = "You do not have access to the file upload feature.";
+  popup.textContent = "Access Denied: File upload is restricted to managers and administrators only.";
   popup.style.position = "fixed";
   popup.style.top = "50%";
   popup.style.left = "50%";

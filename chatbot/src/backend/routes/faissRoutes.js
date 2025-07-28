@@ -6,14 +6,19 @@ const router = express.Router();
 // FAISS extraction endpoint
 router.post('/extract', async (req, res) => {
     try {
-        const { command, query, limit } = req.body;
+        const { command, query, limit, filters, userRole, adminMaster } = req.body;
+        
+        console.log('FAISS Route - Received request body:', JSON.stringify(req.body, null, 2));
+        console.log('FAISS Route - User role:', userRole);
+        console.log('FAISS Route - Admin master:', adminMaster);
+        console.log('FAISS Route - Extracted filters:', filters);
         
         if (!command) {
             return res.status(400).json({
                 error: 'Command is required'
             });
         }
-        
+
         const pythonScriptPath = path.join(__dirname, '../python/faiss_extractor_optimized.py');
         
         // Build command arguments
@@ -30,6 +35,26 @@ router.post('/extract', async (req, res) => {
                 args.push('--limit', limit.toString());
             }
         }
+        
+        // Add user role if provided
+        if (userRole) {
+            args.push('--user-role', userRole);
+        }
+        
+        // Add admin master flag if requested
+        if (adminMaster && userRole === 'admin') {
+            args.push('--admin-master');
+        }
+        
+        // Add filter arguments if provided
+        if (filters) {
+            if (filters.country) {
+                args.push('--country', filters.country);
+            }
+            if (filters.department) {
+                args.push('--department', filters.department);
+            }
+        }        console.log('FAISS Route - Final command args:', args);
         
         // Execute Python script
         const pythonProcess = spawn('python', args);

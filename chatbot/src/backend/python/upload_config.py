@@ -185,11 +185,15 @@ def validate_country_department(country: str, department: str) -> tuple:
     country = country.lower().strip()
     department = department.lower().strip()
     
+    # Special case for admin master index
+    if country == 'admin' and department == 'master':
+        return country, department
+    
     if not config.is_valid_country(country):
-        raise ValueError(f"Unsupported country '{country}'. Supported: {', '.join(SUPPORTED_COUNTRIES)}")
+        raise ValueError(f"Unsupported country '{country}'. Supported: {', '.join(SUPPORTED_COUNTRIES)} or 'admin'")
     
     if not config.is_valid_department(department):
-        raise ValueError(f"Unsupported department '{department}'. Supported: {', '.join(SUPPORTED_DEPARTMENTS)}")
+        raise ValueError(f"Unsupported department '{department}'. Supported: {', '.join(SUPPORTED_DEPARTMENTS)} or 'master'")
     
     return country, department
 
