@@ -55,7 +55,7 @@ logger = logging.getLogger(__name__)
 # Initialize models and clients
 embedding_model = SentenceTransformer('BAAI/bge-large-en-v1.5')
 load_dotenv()
-api_key=''
+api_key='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'
 # i love api keyyy
 model = "deepseek-r1-distill-llama-70b" 
 deepseek = ChatGroq(api_key=api_key, model=model, temperature = 0.4) # type: ignore
@@ -1929,7 +1929,7 @@ def generate_answer_histoy_retrieval(user_query: str, user_id:str, chat_id:str):
             return_source_documents=True,
             output_key="answer"
         )
-        logger.info(memory)
+        logger.info(chat_history.chat_memory.messages)
     
     
         # Refine query
