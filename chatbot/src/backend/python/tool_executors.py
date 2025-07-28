@@ -1356,7 +1356,7 @@ What would you like to do?"""
 
 from pathlib import Path
 
-def get_vacation_days(user_id: str, filename: str = r"C:/Users/Jacobs laptop/ICP_Verztec_Chatbot-2/chatbot/src/backend/python/leave.csv") -> int:
+def get_vacation_days(user_id: str, filename: str = r"leave.csv") -> int:
     """
     Reads leave.csv and returns the number of vacation days for the given user_id.
     Assumes columns: user_id, vacation_days
