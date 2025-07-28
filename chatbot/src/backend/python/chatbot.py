@@ -55,7 +55,7 @@ logger = logging.getLogger(__name__)
 # Initialize models and clients
 embedding_model = SentenceTransformer('BAAI/bge-large-en-v1.5')
 load_dotenv()
-api_key='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'
+api_key='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'
 # i love api keyyy
 model = "deepseek-r1-distill-llama-70b" 
 deepseek = ChatGroq(api_key=api_key, model=model, temperature = 0) # type: ignore
@@ -1651,8 +1651,8 @@ def generate_answer(user_query: str, chat_history: ConversationBufferMemory ):
 memory_store = {}
 global_tools = {
     "raise_to_hr": {
-        "description": "Raise the query to HR — ONLY for serious complaints, legal issues, or sensitive workplace matters. DO NOT use this tool for general HR queries (e.g., leave balance, benefits, policies), questions about entitlements, or non-sensitive issues.",
-        "prompt_style": "ONLY use this tool for workplace issues that are serious, sensitive, involve harassment, discrimination, legal matters, or require confidential escalation. DO NOT use this tool for general HR questions such as leave balance, entitlements, policies, routine HR matters, or informational queries about HR processes.",
+        "description": "Raise the query to HR — ONLY for serious complaints, legal issues, or sensitive workplace matters. DO NOT use this tool for general HR queries (e.g., leave balance, benefits, policies), questions about entitlements, or non-sensitive issues. This tool is for confidential escalation to HR. ONLY CALL IT WHEN YOU THINK A USER NEEDS IT, OR IS SUGGESTING TO IT. DO NOT CALL IT FOR GENERAL HR QUESTIONS THAT CAN BE ANSWERED BY THE SYSTEM SUCH AS OFFBOARDING OR WHAT TO DO IF I GET FIRED UNLESS THE USER EXPLICTLY RAISES.",
+        "prompt_style": "ONLY use this tool for workplace issues that are serious, sensitive, involve harassment, discrimination, legal matters, or require confidential escalation. DO NOT use this tool for general HR questions such as leave balance, entitlements, policies, routine HR matters, or informational queries about HR processes such as offboarding.",
         "response_tone": "supportive_professional"
     },
     "schedule_meeting": {
@@ -1661,10 +1661,53 @@ global_tools = {
         "response_tone": "organized_efficient"
     },
     "vacation_check": {
-        "description": "Check vacation balance — for inquiries about remaining leave days, entitlements",
-        "prompt_style": "You are a helpful assistant focused on vacation and leave inquiries. When responding to vacation balance questions, provide clear information about remaining leave days, entitlements, and any relevant policies. Be concise and direct in your responses, ensuring the user understands their current vacation status.",
+        "description": "Check vacation balance — for inquiries about remaining leave days, entitlements,ONLY CALL THIS TOOL WHEN USER EXPLICITLY ASKS ABOUT LEAVE BALANCE, DO NOT CALL THIS TOOL FOR ANYTHING OTHER THAN VACATION BALANCE QUERIES. IF THE USER IS ASKING ABOUT THE LEAVE POLICY DO NOT CALL THIS",
+        "prompt_style": "ONLY CALL THIS TOOL WHEN USER EXPLICITLY ASKS ABOUT LEAVE BALANCE. You are a helpful assistant focused on vacation and leave inquiries. When responding to vacation balance questions, provide clear information about remaining leave days, entitlements, and any relevant policies. Be concise and direct in your responses, ensuring the user understands their current vacation status. DO NOT CALL THIS TOOL FOR ANYTHING OTHER THAN VACATION BALANCE QUERIES. IF THE USER IS ASKING ABOUT THE LEAVE POLICY DO NOT CALL THIS",
         "response_tone": "concise_direct"
     }   
+}
+global_tools = {
+    "raise_to_hr": {
+        "description": (
+            "Raise the query to HR — ONLY for serious complaints, legal issues, or sensitive workplace matters. "
+            "DO NOT use this tool for general HR queries such as leave balance, benefits, offboarding policies, termination procedures, "
+            "or entitlement questions. This tool is for confidential escalation to HR. "
+            "ONLY CALL IT IF THE USER INDICATES HARASSMENT, DISCRIMINATION, ILLEGAL BEHAVIOR, OR REQUESTS ESCALATION. "
+            "DO NOT CALL THIS FOR 'what is the offboarding policy' or 'what do I do if I get fired'."
+        ),
+        "prompt_style": (
+            "ONLY use this tool for workplace issues that are serious, sensitive, involve harassment, discrimination, legal matters, "
+            "or require confidential escalation. DO NOT use this tool for general HR questions such as leave balance, entitlements, "
+            "offboarding policies, or routine HR procedures like resignations or termination steps."
+        ),
+        "response_tone": "supportive_professional"
+    },
+    "schedule_meeting": {
+        "description": (
+            "Set up a meeting — for coordination involving multiple stakeholders or recurring issues. "
+            "DO NOT use this tool for basic HR policy or FAQ-type questions like 'how to offboard' or 'what to do if I get fired'."
+        ),
+        "prompt_style": (
+            "You are an efficient scheduling and coordination assistant. When handling meeting requests, focus on practical logistics, "
+            "available time slots, and clear next steps. Be organized and detail-oriented in your responses, asking for necessary information "
+            "like preferred dates, attendees, and meeting purpose. ONLY use for true coordination needs, not general HR queries."
+        ),
+        "response_tone": "organized_efficient"
+    },
+    "vacation_check": {
+        "description": (
+            "Check vacation balance — for inquiries about remaining leave days and entitlements. "
+            "ONLY CALL THIS TOOL WHEN THE USER EXPLICITLY ASKS ABOUT THEIR LEAVE BALANCE. "
+            "DO NOT USE THIS FOR LEAVE POLICY QUESTIONS, OFFBOARDING, OR TERMINATION-RELATED QUESTIONS."
+        ),
+        "prompt_style": (
+            "ONLY CALL THIS TOOL WHEN THE USER EXPLICITLY ASKS ABOUT VACATION OR LEAVE BALANCE. "
+            "You are a helpful assistant focused on vacation balance inquiries. "
+            "Do NOT use this tool for questions like 'how much notice do I give before resigning', "
+            "'what is the offboarding process', or 'what happens if I get fired'."
+        ),
+        "response_tone": "concise_direct"
+    }
 }
 # Utility: Get last bot message from ConversationBufferMemory
 def get_last_bot_message(chat_history):
@@ -1929,7 +1972,7 @@ def generate_answer_histoy_retrieval(user_query: str, user_id:str, chat_id:str):
             return_source_documents=True,
             output_key="answer"
         )
-        logger.info(memory)
+        logger.info(chat_history.chat_memory.messages)
     
     
         # Refine query
@@ -2098,7 +2141,12 @@ def generate_answer_histoy_retrieval(user_query: str, user_id:str, chat_id:str):
 
             # Ensures a flat list of strings
         top_3_img = list(set(top_3_img))  # Remove duplicates
-        
+        if 'maxim' in user_query.lower():
+            # Apply specific logic for queries containing 'maxim'
+            #top_3_img.append('avatar1.png')
+            pass
+            
+
         is_task_query = is_query_score(user_query)
         logger.info(f"Top 3 images: {top_3_img}")
         logger.info(f"Query Score: {is_task_query}")
@@ -2227,7 +2275,7 @@ def generate_answer_histoy_retrieval(user_query: str, user_id:str, chat_id:str):
     
             return {
                 'text': cleaned_fallback,
-                'images': [],
+                'images': top_3_img,
                 'sources': [],
                 'tool_used': tool_used,
                 'tool_identified': tool_identified,
@@ -2354,6 +2402,8 @@ def generate_answer_histoy_retrieval(user_query: str, user_id:str, chat_id:str):
             # Define regex pattern to match full <think>...</think> block
             think_block_pattern = re.compile(r"<think>.*?</think>", flags=re.DOTALL)
             single_think_block_pattern = re.compile(r"</think>", flags=re.DOTALL)
+            cleaned_answer = think_block_pattern.sub("", raw_answer).strip()
+            cleaned_answer = single_think_block_pattern.sub("", cleaned_answer).strip()
             
            
             
@@ -2363,8 +2413,7 @@ def generate_answer_histoy_retrieval(user_query: str, user_id:str, chat_id:str):
         
 
             # Clean the <think> block regardless
-            cleaned_answer = think_block_pattern.sub("", raw_answer).strip()
-            cleaned_answer = single_think_block_pattern.sub("", cleaned_answer).strip()
+            
             has_tag = False
            
 
