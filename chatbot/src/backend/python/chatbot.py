@@ -2095,23 +2095,9 @@ def generate_answer_histoy_retrieval(user_query: str, user_id:str, chat_id:str):
 
 
         avg_score = get_avg_score(index, embedding_model, user_query)    
-        prompt = ChatPromptTemplate.from_messages([
-            SystemMessagePromptTemplate.from_template("You are a HELPFUL, FRIENDLY, and PROFESSIONAL Verztec helpdesk assistant..."),
-            HumanMessagePromptTemplate.from_template("{question}")
-        ])
+      
         
         
-        
-        ## QA chain setup with mrmory 
-        qa_chain = ConversationalRetrievalChain.from_llm(
-            llm=deepseek_chain,
-            #retriever=hybrid_retriever_obj,
-            retriever =base,
-            memory=chat_history,
-            return_source_documents=True,
-            output_key="answer"
-        )
-        logger.info(chat_history.chat_memory.messages)
     
     
         # Refine query
@@ -2155,6 +2141,7 @@ def generate_answer_histoy_retrieval(user_query: str, user_id:str, chat_id:str):
             "question": clean_query,
             "glast_bot_message": glast_bot_message if glast_bot_message is not None else ""
         })
+        logger.info(f"DECSION LAYER CALLED ABOVE")
 
         Tool_answer = re.sub(r"<think>.*?</think>", "", tool_response.content, flags=re.DOTALL).strip()
         print(f"Tool decision: {Tool_answer}")
@@ -2502,38 +2489,20 @@ def generate_answer_histoy_retrieval(user_query: str, user_id:str, chat_id:str):
                 'meeting_details': meeting_details if tool_identified == "schedule_meeting" else None
             }
         else:
-            modified_query = clean_query
             offboard, abss = clean_q_3(org_query=clean_query)
 
             logger.info("Query is within scope.")
-            modified_query = (
-                "You are a HELPFUL, FRIENDLY, and PROFESSIONAL Verztec helpdesk assistant. "
-                "You must only respond using the information provided in the retrieved documents. "
-                "Do NOT make up any answers or include information that is not explicitly supported by the documents. "
-                "Answer in a conversational and human-like manner, directly addressing the user as 'you'. "
-                "Do NOT refer to the user in the third person. "
-                "Do NOT include any sign-off like 'Best regards' or your name. "
-                "If the query is not covered by the documents, kindly explain that you are unable to help with that specific request and recommend contacting Verztec support. "
-                "Keep your tone supportive and clear.\n\n"
-                
-                f"Here is some background information about the user:\n"
-                f"- Name: {user_name}\n"
-                f"- Role: {user_role}\n"
-                f"- Country: {user_country}\n"
-                f"- Department: {user_department}\n\n"
-                
-                "Below is the user's query. Please answer using only the context documents provided:\n"
-                f"{clean_query}"
-            )
+           
+            
             decoy_tags = ""
             if abss:
                 logger.info("Detected ABSS-related query, modifying query accordingly.")
-                modified_query += " </ignore>(IGNORE THIS IF YOU ARE DEEPSEEK : abss,abss,abss,abss, e-invoice, e-invoice, e-invoice, e-invoice) <ignore/>"
+                #modified_query += " </ignore>(IGNORE THIS IF YOU ARE DEEPSEEK : abss,abss,abss,abss, e-invoice, e-invoice, e-invoice, e-invoice) <ignore/>"
                 decoy_tags += "</ignore>(IGNORE THIS IF YOU ARE DEEPSEEK : abss,abss,abss,abss, e-invoice, e-invoice, e-invoice, e-invoice)<ignore/> "
 
             if offboard:
                 logger.info("Detected offboarding-related query, modifying query accordingly.")
-                modified_query += " </ignore>(IGNORE THIS IF YOU ARE DEEPSEEK : offboarding process,offboarding process,offboarding process,offboarding process)<ignore/>"
+                #modified_query += " </ignore>(IGNORE THIS IF YOU ARE DEEPSEEK : offboarding process,offboarding process,offboarding process,offboarding process)<ignore/>"
                 decoy_tags += "</ignore>(IGNORE THIS IF YOU ARE DEEPSEEK : offboarding process,offboarding process,offboarding process,offboarding process)<ignore/> "
                 
             system_prompt = (
@@ -2552,33 +2521,39 @@ def generate_answer_histoy_retrieval(user_query: str, user_id:str, chat_id:str):
                 f"- Country: {user_country}\n"
                 f"- Department: {user_department}"
             )
+            
+                        
+            # Create answer prompt (this is what actually generates the response)
+            answer_prompt = PromptTemplate(
+                template=f"""{system_prompt}
+                    Context from documents:
+                    {{context}}
 
-            # Dynamically constructed prompt with context
-            dynamic_prompt = ChatPromptTemplate.from_messages([
-                ("system", system_prompt),
-                ("human", "{question}")
-            ])
+                    Question: {{question}}
 
-            # Create a new chain with this prompt
+                    Answer:""",
+                input_variables=["context", "question"]
+            )
+
             qa_chain = ConversationalRetrievalChain.from_llm(
                 llm=deepseek_chain,
                 retriever=base,
                 return_source_documents=True,
-                memory=chat_history,  # optional if you want continuity
-                condense_question_prompt=dynamic_prompt,
+                memory=chat_history,
+                combine_docs_chain_kwargs={"prompt": answer_prompt},  # Add this
                 output_key="answer"
             )
-            
             
             
 
             qa_start_time = time.time()
             response = qa_chain.invoke({"question": clean_query})
+            logger.info("QA CHAIN CALLED ABOVE")
             qa_elapsed_time = time.time() - qa_start_time
             raw_answer = response['answer']
             source_docs = response['source_documents']
             #logger.info(f"Source docs from QA chain: {source_docs}")
-            logger.info("full response from QA chain: %s", raw_answer)  # Log first 1000 chars for brevity
+            #logger.info("full response from QA chain: %s", raw_answer)  # Log first 1000 chars for brevity
             logger.info(f"(QA chain time taken: {qa_elapsed_time:.2f}s)")
             docs = response["source_documents"]  # list[Document]
             logger.info("+="*20)
@@ -2597,7 +2572,7 @@ def generate_answer_histoy_retrieval(user_query: str, user_id:str, chat_id:str):
             #logger.info(f"Total messages in memory: {len(chat_history.chat_memory.messages)}")
             for i in range(len(chat_history.chat_memory.messages) - 1, -1, -1):
                 msg = chat_history.chat_memory.messages[i]
-                logger.info(f"Checking message at index {i}: {msg}")
+                #logger.info(f"Checking message at index {i}: {msg}")
                 if isinstance(msg, HumanMessage):
                    # logger.info(f"Cleaning up ignore-tag content from HumanMessage at index {i}: {msg.content}")
                     cleaned = re.sub(r"</ignore>.*?<ignore/>", "", msg.content, flags=re.DOTALL).strip()
@@ -2658,6 +2633,9 @@ def generate_answer_histoy_retrieval(user_query: str, user_id:str, chat_id:str):
 
             total_elapsed_time = time.time() - total_start_time
             logger.info(f"Total time taken for query processing: {total_elapsed_time:.2f}s")
+            
+            
+            
 
             # Return structured data for frontend
             return {
