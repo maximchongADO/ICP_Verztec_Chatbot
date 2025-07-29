@@ -208,6 +208,9 @@ function handleKeyPress(event) {
     event.preventDefault();
     sendMessage();
   }
+  
+  // Update button state after any key press
+  setTimeout(updateActionButton, 0);
 }
 
 // Add these new variables at the top of the file with other global variables
@@ -264,9 +267,9 @@ function sendMessage() {
   // Clear welcome message on first message
   clearWelcomeContent();
 
-  // Disable send button
-  const sendButton = document.getElementById("sendButton");
-  sendButton.disabled = true;
+  // Disable action button
+  const actionButton = document.getElementById("actionButton");
+  if (actionButton) actionButton.disabled = true;
   // const fullMessage = `${message} YABABDODD`;
 
   // Add user message to chat
@@ -275,6 +278,9 @@ function sendMessage() {
   // Clear input and reset height
   input.value = "";
   input.style.height = "auto";
+  
+  // Update action button state after clearing input
+  updateActionButton();
 
   // Show typing indicator with realistic staged status updates
   showTypingIndicator("Retrieving relevant documents...");
@@ -333,8 +339,9 @@ function sendMessage() {
       );
     })
     .finally(() => {
-      // Re-enable send button
-      sendButton.disabled = false;
+      // Re-enable action button
+      const actionButton = document.getElementById("actionButton");
+      if (actionButton) actionButton.disabled = false;
     });
 }
 
@@ -2596,5 +2603,259 @@ document.addEventListener('click', function(event) {
 
 // ==========================================
 // END THEME CUSTOMIZATION FUNCTIONALITY
+// ==========================================
+
+// ==========================================
+// SPEECH-TO-TEXT FUNCTIONALITY
+// ==========================================
+
+let speechToText = null;
+let isRecording = false;
+
+// Initialize speech recognition when DOM is loaded
+document.addEventListener('DOMContentLoaded', function() {
+  // Initialize SpeechToText (preferring browser API for faster response)
+  if (typeof SpeechToText !== 'undefined') {
+    speechToText = new SpeechToText(false); // false = prefer browser API over Google Cloud
+    
+    // Set up event listeners
+    speechToText.onResult = function(transcript, isFinal) {
+      console.log('Speech recognized:', transcript, 'Final:', isFinal);
+      
+      // Insert the transcript into the input field
+      const messageInput = document.getElementById('messageInput');
+      if (messageInput && isFinal) {
+        const currentValue = messageInput.value.trim();
+        const newValue = currentValue ? currentValue + ' ' + transcript : transcript;
+        messageInput.value = newValue;
+        
+        // Trigger input event to resize textarea if needed
+        messageInput.dispatchEvent(new Event('input'));
+        
+        // Update button state after adding text
+        updateActionButton();
+        
+        // Focus the input field
+        messageInput.focus();
+        
+        // Auto-stop recording after getting final result
+        stopSpeechRecognition();
+      }
+    };
+    
+    speechToText.onEnd = function() {
+      console.log('Speech recognition ended');
+      stopSpeechRecognition();
+    };
+    
+    speechToText.onError = function(error) {
+      console.error('Speech recognition error:', error);
+      showSpeechError(error);
+      stopSpeechRecognition();
+    };
+    
+    speechToText.onStart = function() {
+      console.log('Speech recognition started');
+      showSpeechStatus('Listening... Speak now');
+    };
+    
+    console.log('Speech-to-Text initialized with service:', speechToText.getServiceType());
+  } else {
+    console.warn('SpeechToText class not available');
+  }
+
+  // Initialize button state
+  updateActionButton();
+});
+
+// Handle the unified action button (mic/send)
+function handleActionButton() {
+  const messageInput = document.getElementById('messageInput');
+  const inputText = messageInput ? messageInput.value.trim() : '';
+  
+  console.log('Action button clicked:', { inputText, isRecording });
+  
+  if (isRecording) {
+    // If recording, stop it
+    console.log('Stopping speech recognition');
+    stopSpeechRecognition();
+  } else if (inputText) {
+    // If there's text, send message
+    console.log('Sending message:', inputText);
+    sendMessage();
+  } else {
+    // If no text, start speech recognition
+    console.log('Starting speech recognition');
+    startSpeechRecognition();
+  }
+}
+
+// Update action button based on input state
+function updateActionButton() {
+  const messageInput = document.getElementById('messageInput');
+  const actionButton = document.getElementById('actionButton');
+  const micIcon = document.getElementById('micIcon');
+  const recordingIcon = document.getElementById('recordingIcon');
+  const sendIcon = document.getElementById('sendIcon');
+  
+  if (!messageInput || !actionButton || !micIcon || !recordingIcon || !sendIcon) return;
+  
+  const inputText = messageInput.value.trim();
+  
+  if (isRecording) {
+    // Recording state
+    actionButton.classList.add('recording');
+    actionButton.classList.remove('send-mode');
+    actionButton.title = 'Click to stop recording';
+    micIcon.style.display = 'none';
+    recordingIcon.style.display = 'block';
+    sendIcon.style.display = 'none';
+  } else if (inputText) {
+    // Send mode
+    actionButton.classList.remove('recording');
+    actionButton.classList.add('send-mode');
+    actionButton.title = 'Send message';
+    micIcon.style.display = 'none';
+    recordingIcon.style.display = 'none';
+    sendIcon.style.display = 'block';
+  } else {
+    // Microphone mode
+    actionButton.classList.remove('recording', 'send-mode');
+    actionButton.title = 'Click to speak';
+    micIcon.style.display = 'block';
+    recordingIcon.style.display = 'none';
+    sendIcon.style.display = 'none';
+  }
+}
+
+// Toggle speech recognition (legacy function for keyboard shortcuts)
+function toggleSpeechRecognition() {
+  if (!speechToText || !speechToText.isSupported()) {
+    showSpeechError('Speech recognition not available in this browser');
+    return;
+  }
+  
+  if (isRecording) {
+    stopSpeechRecognition();
+  } else {
+    startSpeechRecognition();
+  }
+}
+
+// Start speech recognition
+function startSpeechRecognition() {
+  if (!speechToText || isRecording) return;
+  
+  try {
+    speechToText.startListening('en-GB');
+    isRecording = true;
+    updateActionButton();
+    showSpeechStatus('Listening... Speak now');
+    console.log('Started speech recognition');
+  } catch (error) {
+    console.error('Failed to start speech recognition:', error);
+    showSpeechError('Failed to start speech recognition: ' + error.message);
+  }
+}
+
+// Stop speech recognition
+function stopSpeechRecognition() {
+  if (!speechToText || !isRecording) return;
+  
+  try {
+    speechToText.stopListening();
+    isRecording = false;
+    updateActionButton();
+    hideSpeechStatus();
+    console.log('Stopped speech recognition');
+  } catch (error) {
+    console.error('Failed to stop speech recognition:', error);
+  }
+}
+
+// Update microphone button appearance (legacy function - now handled by updateActionButton)
+function updateMicrophoneButton(recording) {
+  updateActionButton();
+}
+
+// Show speech recognition status
+function showSpeechStatus(message) {
+  const speechStatus = document.getElementById('speechStatus');
+  const statusText = document.getElementById('statusText');
+  
+  if (speechStatus && statusText) {
+    statusText.textContent = message;
+    speechStatus.style.display = 'flex';
+  }
+}
+
+// Hide speech recognition status
+function hideSpeechStatus() {
+  const speechStatus = document.getElementById('speechStatus');
+  if (speechStatus) {
+    speechStatus.style.display = 'none';
+  }
+}
+
+// Show speech recognition error
+function showSpeechError(error) {
+  let errorMessage = 'Speech recognition error';
+  
+  if (typeof error === 'string') {
+    errorMessage = error;
+  } else if (error && error.error) {
+    switch (error.error) {
+      case 'no-speech':
+        errorMessage = 'No speech detected. Please try again.';
+        break;
+      case 'audio-capture':
+        errorMessage = 'Microphone not accessible. Please check permissions.';
+        break;
+      case 'not-allowed':
+        errorMessage = 'Microphone access denied. Please allow microphone access.';
+        break;
+      case 'network':
+        errorMessage = 'Network error. Please check your connection.';
+        break;
+      case 'service-not-allowed':
+        errorMessage = 'Speech recognition service not allowed.';
+        break;
+      default:
+        errorMessage = `Speech recognition error: ${error.error}`;
+    }
+  }
+  
+  console.error('Speech recognition error:', errorMessage);
+  
+  // Show error message temporarily
+  showSpeechStatus(errorMessage);
+  setTimeout(() => {
+    hideSpeechStatus();
+  }, 3000);
+}
+
+// Handle keyboard shortcuts for speech recognition
+document.addEventListener('keydown', function(event) {
+  // Ctrl + Shift + M or Cmd + Shift + M to toggle speech recognition
+  if ((event.ctrlKey || event.metaKey) && event.shiftKey && event.key === 'M') {
+    event.preventDefault();
+    const messageInput = document.getElementById('messageInput');
+    const inputText = messageInput ? messageInput.value.trim() : '';
+    
+    // Only start speech recognition if there's no text
+    if (!inputText) {
+      toggleSpeechRecognition();
+    }
+  }
+  
+  // Escape key to stop speech recognition
+  if (event.key === 'Escape' && isRecording) {
+    event.preventDefault();
+    stopSpeechRecognition();
+  }
+});
+
+// ==========================================
+// END SPEECH-TO-TEXT FUNCTIONALITY
 // ==========================================
 
