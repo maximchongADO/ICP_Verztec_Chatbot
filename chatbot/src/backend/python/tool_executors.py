@@ -568,26 +568,38 @@ def execute_hr_escalation_tool(
         sanitized_issue = primary_issue.strip()[:800]  # Limit for better context
         escalation_id = f"ESC-{datetime.now().strftime('%Y%m%d-%H%M%S')}-{user_id[:8]}"
         
+        
         # Enhanced logging with structured data
         logger.info(f"HR Escalation initiated - ID: {escalation_id}, User: {user_id}, Chat: {chat_id}")
         if user_description:
             logger.info(f"User provided detailed description: {user_description[:200]}...")
+        email_list = [
+            os.getenv('HR_EMAIL', 'jwwl6424@gmail.com'),
+            os.getenv('HR_EMAIL2', ''),
+            os.getenv('HR_EMAIL3', ''),
+            os.getenv('HR_EMAIL4', '')  # Note: You had HR_EMAIL_3 twice
+        ]
+
+        # Filter out any empty or duplicate emails
+        unique_emails = list(set([email.strip() for email in email_list if email.strip()]))
+
+        # Send email notification to each HR contact
         
-        # Send email notification to HR
-        email_sent = send_hr_escalation_email(
-            escalation_id=escalation_id,
-            user_id=user_id,
-            chat_id=chat_id,
-            user_query=user_query,
-            user_description=user_description,
-            hr_email=os.getenv('HR_EMAIL', 'jwwl6424@gmail.com')  # Use env var or fallback
-        )
-        
-        if email_sent:
-            logger.info(f"Email notification sent to HR for escalation {escalation_id}")
-        else:
-            logger.warning(f"Failed to send email notification for escalation {escalation_id}")
-        
+        for email in unique_emails:
+            logger.info(f"Sending HR escalation email to: {email}")
+            email_sent = send_hr_escalation_email(
+                escalation_id=escalation_id,
+                user_id=user_id,
+                chat_id=chat_id,
+                user_query=user_query,
+                user_description=user_description,
+                hr_email=email
+            )
+            if email_sent:
+                logger.info(f"Email notification sent to HR for escalation {escalation_id}")
+            else:
+                logger.warning(f"Failed to send email notification for escalation {escalation_id}")
+            
         # Store HR escalation in dedicated database table if function is provided
         db_success = False
         if store_hr_escalation_func:
