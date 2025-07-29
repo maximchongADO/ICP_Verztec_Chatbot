@@ -57,7 +57,7 @@ logger = logging.getLogger(__name__)
 # Initialize models and clients
 embedding_model = SentenceTransformer('BAAI/bge-large-en-v1.5')
 load_dotenv()
-api_key='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'
+api_key='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'
 # i love api keyyy
 model = "deepseek-r1-distill-llama-70b" 
 deepseek = ChatGroq(api_key=api_key, model=model, temperature = 0) # type: ignore
