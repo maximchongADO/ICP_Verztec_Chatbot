@@ -17,7 +17,7 @@ from datetime import datetime
 from time import sleep
 from spacy.matcher import PhraseMatcher
 from langchain.prompts import ChatPromptTemplate, SystemMessagePromptTemplate, HumanMessagePromptTemplate
-
+from langchain.chains import ConversationChain 
 from typing import List
 from dotenv import load_dotenv
 from sentence_transformers import SentenceTransformer
@@ -57,7 +57,7 @@ logger = logging.getLogger(__name__)
 # Initialize models and clients
 embedding_model = SentenceTransformer('BAAI/bge-large-en-v1.5')
 load_dotenv()
-api_key=''
+api_key='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'
 # i love api keyyy
 model = "deepseek-r1-distill-llama-70b" 
 deepseek = ChatGroq(api_key=api_key, model=model, temperature = 0) # type: ignore
@@ -2385,7 +2385,7 @@ def generate_answer_histoy_retrieval(user_query: str, user_id:str, chat_id:str):
             # Handle different prompt types based on relevance analysis
             if should_dismiss_completely:
                 fallback_prompt = (
-                    f'The user said: "{clean_query}". '
+                   # f'The user said: "{clean_query}". '
                     'As a HELPFUL and FRIENDLY Verztec helpdesk assistant, respond with a warm, light-hearted, or polite reply — '
                     'even if the message is small talk or clearly out of scope (e.g., "how are you", "do you like pizza"). '
                     'Do not greet the user unless they greeted you first. '
@@ -2396,7 +2396,7 @@ def generate_answer_histoy_retrieval(user_query: str, user_id:str, chat_id:str):
                 )
             elif should_suggest and suggestions:
                 fallback_prompt = (
-                    f'The user asked: "{clean_query}". '
+                    #f'The user asked: "{clean_query}". '
                     'This seems to be workplace-related, but might need clarification to give the most helpful answer. '
                     'As a HELPFUL Verztec helpdesk assistant, politely acknowledge the query and express your intent to assist. '
                     'Let the user know that you have a few specific follow-up questions or suggestions that could help. '
@@ -2406,7 +2406,7 @@ def generate_answer_histoy_retrieval(user_query: str, user_id:str, chat_id:str):
                 )
             else:
                 fallback_prompt = (
-                    f'The user said: "{clean_query}". '
+                    #f'The user said: "{clean_query}". '
                     'As a HELPFUL and FRIENDLY Verztec helpdesk assistant, respond with a polite and understanding reply. '
                     'Explain that you might not have the exact information for this request, but encourage the user to try rephrasing '
                     'or ask about specific Verztec policies, procedures, or workplace-related topics. '
@@ -2416,7 +2416,7 @@ def generate_answer_histoy_retrieval(user_query: str, user_id:str, chat_id:str):
 
             
             fallback_prompt_original = (
-                f'The user said: "{clean_query}". '
+                #f'The user said: "{clean_query}". '
                 'As a HELPFUL and FRIENDLY VERZTEC helpdesk assistant, respond with a light-hearted or polite reply — '
                 'even if the message is small talk or out of scope (e.g., "how are you", "do you like pizza"). '
                 'You do not need to greet the user, unless they greeted you first. '
@@ -2424,20 +2424,61 @@ def generate_answer_histoy_retrieval(user_query: str, user_id:str, chat_id:str):
                 'Do not answer any questions that are not related to Verztec helpdesk topics'
                 f"Here is some information about the user, NAME:{user_name}, ROLE: {user_role}, COUNTRY: {user_country}, DEPARTMENT: {user_department}\n\n"
                 )
-            if formatted_prev_docs: 
+            hi = False
+            if formatted_prev_docs and hi: 
                 fallback_prompt += (
                     "To help you stay conversational, here are a few bits of previous Verztec-related context retrieved from earlier:\n"
                     f"{formatted_prev_docs}\n\n"
                     "These documents were retrieved to attempt to answer the previous query. YOU MAY USE THEM TO ATTEMPT AN ACCURATE ANSWER\n"
-                    f'The previous query was: "{prev_query}"\n\n'
-                    f'The response to the previous query was you may use this for context: "{glast_bot_message}"\n\n'
+                   # f'The previous query was: "{prev_query}"\n\n'
+                   # f'The response to the previous query was you may use this for context: "{glast_bot_message}"\n\n'
                 )
             logger.info("=+" * 20)
             logger.info(f"Fallback prompt: {fallback_prompt}")
-            #modified_query = "You are a verztec helpdesk assistant. You will only use
+            
             logger.info("=+" * 20)
+            
+            #######################################################################
+            
+            from langchain.chains import LLMChain
 
-           
+
+
+            # Create answer prompt that matches your memory
+            answer_prompt = PromptTemplate(
+                template=f"""{fallback_prompt}
+                {{chat_history}}
+                
+                Question: {{question}}
+                
+                Answer:""",
+                input_variables=["chat_history", "question"]
+            )
+
+            # Use LLMChain instead of ConversationChain
+            qa_chain = LLMChain(
+                llm=deepseek_chain,
+                prompt=answer_prompt
+            )
+
+            # Get chat history from memory and invoke
+            chat_history_str = memory.chat_memory.messages if hasattr(memory, 'chat_memory') else ""
+            raw_fallback = qa_chain.invoke({
+                "chat_history": chat_history_str,
+                "question": clean_query
+            })
+
+            # Manually save to memory
+            memory.save_context({"question": clean_query}, {"answer": raw_fallback["text"]})
+
+            # Remove <think> block if present
+            think_block_pattern = re.compile(r"<think>.*?</think>", flags=re.DOTALL)
+            cleaned_fallback = think_block_pattern.sub("", raw_fallback["text"]).strip()
+                                    
+            
+            ################################################################
+
+            '''
             messages = build_memory_prompt(memory, fallback_prompt)
             response = deepseek.generate([messages])
             raw_fallback = response.generations[0][0].text.strip()
@@ -2449,14 +2490,14 @@ def generate_answer_histoy_retrieval(user_query: str, user_id:str, chat_id:str):
             # Store the fallback response in chat memory
             memory.chat_memory.add_user_message(fallback_prompt)
             memory.chat_memory.add_ai_message(cleaned_fallback) 
-            
+            '''
             
             # Clean up chat memory to keep it manageable
             # Limit chat memory to last 4 turns (8 messages)
             
             MAX_TURNS = 4
-            if len(memory.chat_memory.messages) > 2 * MAX_TURNS:
-                memory.chat_memory.messages = memory.chat_memory.messages[-2 * MAX_TURNS:]
+            if len(chat_history.chat_memory.messages) > 2 * MAX_TURNS:
+                chat_history.chat_memory.messages = chat_history.chat_memory.messages[-2 * MAX_TURNS:]
             if tool_used:
                 is_task_query = 0  # Force task query for fallback response
                 avg_score = 2  # Force average score for fallback response
