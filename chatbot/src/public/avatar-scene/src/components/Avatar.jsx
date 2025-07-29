@@ -114,6 +114,9 @@ export function Avatar(props) {
   const { message, onMessagePlayed, chat } = useChat();
 
   const [lipsync, setLipsync] = useState();
+  const [animation, setAnimation] = useState("Standing Idle");
+  const [facialExpression, setFacialExpression] = useState("");
+  const [audio, setAudio] = useState();
 
   useEffect(() => {
     console.log(message);
@@ -126,17 +129,32 @@ export function Avatar(props) {
     setAnimation("Standing Idle");
     setFacialExpression(message.facialExpression);
     setLipsync(message.lipsync);
+    
+    // Create and play audio element
     const audio = new Audio("data:audio/mp3;base64," + message.audio);
-    audio.play();
     setAudio(audio);
-    audio.onended = onMessagePlayed;
+    
+    console.log('🎵 Playing audio for avatar message');
+    audio.volume = 1;
+    audio.play();
+    
+    // Handle audio end event
+    audio.onended = () => {
+      onMessagePlayed();
+      // Send message to main chatbot to hide stop button
+      if (window.parent && window.parent !== window) {
+        window.parent.postMessage({
+          type: 'avatar_tts_ended'
+        }, '*');
+        console.log('🎵 Avatar TTS ended, notified main chatbot');
+      }
+    };
   }, [message]);
 
   const { animations } = useGLTF("/avatar/models/animations.glb");
 
   const group = useRef();
   const { actions, mixer } = useAnimations(animations, group);
-  const [animation, setAnimation] = useState("Standing Idle"); // Force Standing Idle as default
   
   useEffect(() => {
     // Always force Standing Idle animation - don't change this
@@ -194,8 +212,27 @@ export function Avatar(props) {
   const [blink, setBlink] = useState(false);
   const [winkLeft, setWinkLeft] = useState(false);
   const [winkRight, setWinkRight] = useState(false);
-  const [facialExpression, setFacialExpression] = useState("");
-  const [audio, setAudio] = useState();
+
+  // Simple mute handler for interrupting ongoing audio
+  useEffect(() => {
+    const handleMuteCommand = (event) => {
+      if (event.data?.type === 'mute_immediate') {
+        console.log('🔇 Received immediate mute command');
+        // Stop any currently playing audio
+        if (audio && !audio.paused) {
+          audio.pause();
+          audio.currentTime = 0;
+        }
+      } else if (event.data?.type === 'unmute') {
+        console.log('🔊 Received unmute command - audio can play again');
+        // Note: No action needed here, just logging for confirmation
+        // Audio playback will be controlled by the muted flag in TTS messages
+      }
+    };
+
+    window.addEventListener('message', handleMuteCommand);
+    return () => window.removeEventListener('message', handleMuteCommand);
+  }, [audio]);
 
   useFrame(() => {
     !setupMode &&
