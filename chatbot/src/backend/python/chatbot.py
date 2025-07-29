@@ -197,7 +197,63 @@ def store_chat_log_updated(user_message, bot_response, query_score, relevance_sc
         return chat_name  # handy if caller wants to know what was used
     finally:
         conn.close()
+def store_chat_log_updated(user_message, bot_response, query_score, relevance_score,
+                           chat_id, user_id, chat_name=None):
+    # Check for invalid float values
+    def is_invalid(val):
+        return val is None or np.isnan(val) or np.isinf(val)
 
+    # Log if any invalid values exist
+    if is_invalid(query_score) or is_invalid(relevance_score):
+        full_row = {
+            "user_message": user_message,
+            "bot_response": bot_response,
+            "query_score": query_score,
+            "relevance_score": relevance_score,
+            "chat_id": chat_id,
+            "user_id": user_id,
+            "chat_name": chat_name
+        }
+        logger.warning("❗ Invalid score detected in chat log entry:\n%s", full_row)
+        print("❗ Invalid score detected:\n", full_row)
+        return None  # Optionally skip insertion entirely
+
+    # Proceed with DB write
+    conn = pymysql.connect(**DB_CONFIG)
+    try:
+        with conn.cursor() as cursor:
+            # Reuse earliest name if not supplied
+            if not chat_name or not chat_name.strip():
+                select_query = """
+                    SELECT chat_name
+                    FROM chat_logs
+                    WHERE user_id = %s AND chat_id = %s
+                    ORDER BY timestamp ASC
+                    LIMIT 1;
+                """
+                cursor.execute(select_query, (user_id, chat_id))
+                row = cursor.fetchone()
+                if row and row[0] and row[0].strip():
+                    chat_name = row[0].strip()
+
+            insert_query = """
+                INSERT INTO chat_logs
+                    (timestamp, user_message, bot_response, feedback,
+                     query_score, relevance_score, user_id, chat_id, chat_name)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+            """
+            timestamp = datetime.utcnow()
+            feedback = None
+
+            cursor.execute(insert_query, (
+                timestamp, user_message, bot_response, feedback,
+                query_score, relevance_score, user_id, chat_id, chat_name
+            ))
+        conn.commit()
+        logger.info("Stored chat log for session %s %s at %s", user_id, chat_id, timestamp)
+        return chat_name
+    finally:
+        conn.close()
 
 def store_hr_escalation(escalation_id, user_id, chat_id, user_message, issue_summary, status="PENDING", priority="NORMAL", user_description=None):
     """
@@ -818,13 +874,13 @@ def analyze_query_relevance(user_query: str, index, embedding_model, relevance_t
         # If query score is very low (casual/general queries), treat as completely irrelevant
         if query_score <= 0.0:
             logger.info(f"General/casual query detected (score: {query_score:.4f}) - treating as completely irrelevant")
-            return False, float('inf'), False, 'none'
+            return False, 2, False, 'none'
         
         # Get top documents to analyze relevance with broader scope
         results = index.similarity_search_with_score(user_query, k=10)
         
         if not results:
-            return False, float('inf'), False, 'none'
+            return False, 2, False, 'none'
         
         best_score = results[0][1]  # Get the best (lowest) score
         avg_top5_score = np.mean([score for _, score in results[:5]])
