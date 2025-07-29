@@ -71,6 +71,14 @@ function requireAdmin(req, res, next) {
     next();
 }
 
+// Middleware to restrict to manager only
+function requireManager(req, res, next) {
+    if (!req.user || req.user.role !== 'manager') {
+        return res.status(403).json({ success: false, message: 'Manager access required' });
+    }
+    next();
+}
+
 // Middleware to restrict to admin or manager
 function requireAdminOrManager(req, res, next) {
     if (!req.user || !['admin', 'manager'].includes(req.user.role)) {
@@ -81,4 +89,5 @@ function requireAdminOrManager(req, res, next) {
 
 module.exports = authenticateToken;
 module.exports.requireAdmin = requireAdmin;
+module.exports.requireManager = requireManager;
 module.exports.requireAdminOrManager = requireAdminOrManager;

@@ -269,8 +269,18 @@ def main():
                        help='Number of search results (default: 5)')
     parser.add_argument('--index-path', '-p', type=str, default='faiss_master_index3',
                        help='Path to FAISS index directory')
+    parser.add_argument('--country', '-c', type=str, 
+                       help='Filter by country')
+    parser.add_argument('--department', '-d', type=str, 
+                       help='Filter by department')
+    parser.add_argument('--admin-master', action='store_true',
+                       help='Use admin master index (contains all data)')
+    parser.add_argument('--user-role', type=str, choices=['admin', 'manager', 'user'],
+                       help='User role for access control')
     
     args = parser.parse_args()
+    
+    print(f"Python Script - Received args: {vars(args)}", file=sys.stderr)
     
     try:
         if args.command == 'warmup':
@@ -278,8 +288,70 @@ def main():
             print(json.dumps(result, indent=2))
             return
         
+        # Determine index path based on user role and filters
+        index_path = args.index_path
+        script_dir = os.path.dirname(os.path.abspath(__file__))
+        
+        # Admin users have special access
+        if args.user_role == 'admin':
+            if args.admin_master or (not args.country and not args.department):
+                # Admin master index contains all data
+                admin_index_path = os.path.join(script_dir, "faiss_indices/admin_master/faiss_index")
+                if os.path.exists(admin_index_path):
+                    index_path = admin_index_path
+                    print(f"Using admin master index: {index_path}", file=sys.stderr)
+                else:
+                    print(f"Warning: Admin master index not found at {admin_index_path}, using default master index", file=sys.stderr)
+            elif args.country and args.department:
+                # Admin can access specific country/department index
+                specific_index_path = os.path.join(script_dir, f"faiss_indices/{args.country.lower()}/{args.department.lower()}/faiss_index")
+                if os.path.exists(specific_index_path):
+                    index_path = specific_index_path
+                    print(f"Admin accessing specific index: {index_path}", file=sys.stderr)
+                else:
+                    print(f"Warning: Specific index not found at {specific_index_path}, using master index", file=sys.stderr)
+        
+        # Manager users can only access their specific country/department
+        elif args.user_role == 'manager':
+            if args.country and args.department:
+                specific_index_path = os.path.join(script_dir, f"faiss_indices/{args.country.lower()}/{args.department.lower()}/faiss_index")
+                
+                print(f"DEBUG: Manager looking for specific index at: {specific_index_path}", file=sys.stderr)
+                print(f"DEBUG: Path exists: {os.path.exists(specific_index_path)}", file=sys.stderr)
+                
+                if os.path.exists(specific_index_path):
+                    index_path = specific_index_path
+                    print(f"Using manager filtered index: {index_path}", file=sys.stderr)
+                else:
+                    print(f"Warning: Manager specific index not found at {specific_index_path}, access denied", file=sys.stderr)
+                    print(json.dumps({"error": "Access denied: Your specific index is not available"}))
+                    return
+            else:
+                print(f"Warning: Manager must specify both country and department", file=sys.stderr)
+                print(json.dumps({"error": "Access denied: Managers must specify country and department"}))
+                return
+        
+        # Legacy handling for when role is not specified (backward compatibility)
+        elif args.country and args.department:
+            specific_index_path = os.path.join(script_dir, f"faiss_indices/{args.country.lower()}/{args.department.lower()}/faiss_index")
+            
+            print(f"DEBUG: Looking for specific index at: {specific_index_path}", file=sys.stderr)
+            print(f"DEBUG: Path exists: {os.path.exists(specific_index_path)}", file=sys.stderr)
+            
+            if os.path.exists(specific_index_path):
+                index_path = specific_index_path
+                print(f"Using filtered index: {index_path}", file=sys.stderr)
+            else:
+                print(f"Warning: Specific index not found at {specific_index_path}, using master index", file=sys.stderr)
+                # Also try to list what's available in the faiss_indices directory
+                faiss_indices_dir = os.path.join(script_dir, "faiss_indices")
+                if os.path.exists(faiss_indices_dir):
+                    print(f"Available in faiss_indices: {os.listdir(faiss_indices_dir)}", file=sys.stderr)
+        
+        print(f"DEBUG: Final index path being used: {index_path}", file=sys.stderr)
+        
         # Initialize extractor (will use cached model if available)
-        extractor = OptimizedFAISSExtractor(args.index_path)
+        extractor = OptimizedFAISSExtractor(index_path)
         
         if args.command == 'stats':
             # Fast statistics operation

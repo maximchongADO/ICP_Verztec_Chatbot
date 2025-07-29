@@ -26,20 +26,41 @@ document.addEventListener('DOMContentLoaded', function() {
 });
 
 function updateConfigInfo() {
+    // Check if this is admin bulk upload mode
+    const adminUploadMode = currentUser && currentUser.role === 'admin' ? getAdminUploadMode() : 'specific';
+    
+    if (adminUploadMode === 'all') {
+        // Show bulk upload info
+        configInfo.style.display = 'block';
+        configInfoText.innerHTML = `Documents will be stored in: <strong>🌍 ALL KNOWLEDGE BASES</strong> (China/HR, China/IT, Singapore/HR, Singapore/IT + Admin Master)`;
+        
+        if (currentUser) {
+            configInfoText.innerHTML += `<br><small style="color: var(--text-secondary);">Access Level: Administrator Access - Bulk Upload Mode</small>`;
+        }
+        return;
+    }
+    
+    // Regular specific upload mode
     const country = countrySelect.value;
     const department = departmentSelect.value;
     
     if (country && department) {
         configInfo.style.display = 'block';
-        uploadWarning.style.display = 'none';
         
         const countryFlag = country === 'china' ? '🇨🇳' : country === 'singapore' ? '🇸🇬' : '';
         const departmentIcon = department === 'hr' ? '👥' : department === 'it' ? '💻' : '';
         
         configInfoText.innerHTML = `Documents will be stored in: <strong>${countryFlag} ${country.toUpperCase()}/${departmentIcon} ${department.toUpperCase()}</strong> knowledge base`;
+        
+        // Show user's access level
+        if (currentUser) {
+            const accessLevel = currentUser.role === 'admin' ? 'Administrator Access' : 
+                               currentUser.role === 'manager' ? `${currentUser.country?.toUpperCase()}/${currentUser.department?.toUpperCase()} Manager Access` :
+                               'Limited Access';
+            configInfoText.innerHTML += `<br><small style="color: var(--text-secondary);">Access Level: ${accessLevel}</small>`;
+        }
     } else {
         configInfo.style.display = 'none';
-        uploadWarning.style.display = 'none';
     }
 }
 
@@ -91,50 +112,538 @@ function updateSelectOptions(config) {
     }
 }
 
-// Check admin access and disable UI for non-admins
-(function() {
-    const token = localStorage.getItem("token");
-    if (!token) return;
-    fetch('/api/users/me', {
-        headers: { Authorization: `Bearer ${token}` }
-    })
-    .then(res => res.ok ? res.json() : null)
-    .then(user => {
-        if (user && user.role !== 'admin') {
-            showAdminPopup();
-            // Disable upload UI
-            if (document.getElementById('dropZone')) {
-                document.getElementById('dropZone').style.pointerEvents = 'none';
-                document.getElementById('dropZone').style.opacity = '0.6';
-            }
-            if (document.getElementById('uploadList')) {
-                document.getElementById('uploadList').style.opacity = '0.6';
+// Global variable to store current user info
+let currentUser = null;
+
+// Helper functions for user authentication (similar to analytics dashboard)
+function getToken() { 
+    return localStorage.getItem("token"); 
+}
+
+function getCurrentUser() { 
+    return window.currentUser || null; 
+}
+
+// Fetch current user info
+async function fetchCurrentUser() {
+    const token = getToken();
+    console.log('Fetching current user with token:', token ? 'Present' : 'Missing');
+    
+    if (!token) return null;
+    try {
+        console.log('Making request to /api/users/me');
+        const res = await fetch('/api/users/me', {
+            headers: { Authorization: `Bearer ${token}` }
+        });
+        
+        console.log('Response status:', res.status);
+        console.log('Response ok:', res.ok);
+        
+        if (res.ok) {
+            const user = await res.json();
+            console.log('User data received:', user);
+            window.currentUser = user;
+            return user;
+        } else {
+            console.log('Response not ok:', await res.text());
+        }
+    } catch (error) {
+        console.error('Error fetching current user:', error);
+    }
+    window.currentUser = null;
+    return null;
+}
+
+// Initialize upload interface based on user role
+async function initializeUploadInterface() {
+    console.log('Initializing upload interface...');
+    const user = await fetchCurrentUser();
+    console.log('Fetched user:', user);
+    
+    if (!user) {
+        console.log('No user found, showing access denied');
+        showAccessDenied("Unable to verify user authentication");
+        return;
+    }
+    
+    console.log('User role:', user.role);
+    console.log('User country:', user.country);
+    console.log('User department:', user.department);
+    
+    // Check if user has access to file uploads (only managers and admins)
+    if (user.role !== 'admin' && user.role !== 'manager') {
+        console.log('User role not admin or manager, denying access');
+        showAccessDenied("Access Denied: File upload is restricted to managers and administrators only");
+        return;
+    }
+    
+    console.log('User has valid role, setting up interface');
+    currentUser = user;
+    
+    // Filter dropdown options based on user's role and permissions
+    filterDropdownOptions(user);
+    
+    // Show appropriate interface sections
+    const uploadInterface = document.getElementById('uploadInterface');
+    const accessDenied = document.getElementById('accessDenied');
+    
+    console.log('uploadInterface element found:', !!uploadInterface);
+    console.log('accessDenied element found:', !!accessDenied);
+    
+    if (uploadInterface) {
+        uploadInterface.style.display = 'block';
+        uploadInterface.style.visibility = 'visible';
+        uploadInterface.style.opacity = '1';
+        console.log('Set uploadInterface display to block');
+        console.log('uploadInterface computed style:', window.getComputedStyle(uploadInterface).display);
+        console.log('uploadInterface offsetHeight:', uploadInterface.offsetHeight);
+    }
+    if (accessDenied) {
+        accessDenied.style.display = 'none';
+        console.log('Set accessDenied display to none');
+        console.log('accessDenied computed style:', window.getComputedStyle(accessDenied).display);
+    }
+    
+    // Display user access information
+    displayUserAccessInfo(user);
+    
+    // Initialize knowledge base view with role-based filtering
+    initializeKnowledgeBaseView(user);
+    
+    // Final check - log what should be visible
+    setTimeout(() => {
+        console.log('=== FINAL STATUS CHECK ===');
+        console.log('uploadInterface display:', window.getComputedStyle(document.getElementById('uploadInterface')).display);
+        console.log('accessDenied display:', window.getComputedStyle(document.getElementById('accessDenied')).display);
+        console.log('uploadInterface visible:', document.getElementById('uploadInterface').offsetHeight > 0);
+        console.log('accessDenied visible:', document.getElementById('accessDenied').offsetHeight > 0);
+    }, 100);
+}
+
+// Filter dropdown options based on user role and permissions
+function filterDropdownOptions(user) {
+    console.log('filterDropdownOptions called for user:', user);
+    const countrySelect = document.getElementById('countrySelect');
+    const departmentSelect = document.getElementById('departmentSelect');
+    const adminUploadOptions = document.getElementById('adminUploadOptions');
+    
+    console.log('countrySelect found:', !!countrySelect);
+    console.log('departmentSelect found:', !!departmentSelect);
+    console.log('adminUploadOptions found:', !!adminUploadOptions);
+    
+    if (!countrySelect || !departmentSelect) {
+        console.error('Dropdown elements not found!');
+        return;
+    }
+    
+    // Clear existing options
+    countrySelect.innerHTML = '<option value="">Select Country</option>';
+    departmentSelect.innerHTML = '<option value="">Select Department</option>';
+    
+    if (user.role === 'admin') {
+        console.log('Setting up admin options');
+        // Admin can access all countries and departments
+        addCountryOption('china', '🇨🇳 China');
+        addCountryOption('singapore', '🇸🇬 Singapore');
+        addDepartmentOption('hr', '👥 Human Resources');
+        addDepartmentOption('it', '💻 Information Technology');
+        
+        // Show admin upload options
+        if (adminUploadOptions) {
+            adminUploadOptions.style.display = 'block';
+            console.log('Showing admin upload options');
+        }
+    } else if (user.role === 'manager' && user.country && user.department) {
+        console.log('Setting up manager options for:', user.country, user.department);
+        // Manager can only access their specific country and department
+        const countryFlag = user.country === 'china' ? '🇨🇳' : user.country === 'singapore' ? '🇸🇬' : '';
+        const departmentIcon = user.department === 'hr' ? '👥' : user.department === 'it' ? '💻' : '';
+        const departmentName = user.department === 'hr' ? 'Human Resources' : user.department === 'it' ? 'Information Technology' : user.department;
+        
+        addCountryOption(user.country, `${countryFlag} ${user.country.charAt(0).toUpperCase() + user.country.slice(1)}`);
+        addDepartmentOption(user.department, `${departmentIcon} ${departmentName}`);
+        
+        // Auto-select user's country and department
+        countrySelect.value = user.country;
+        departmentSelect.value = user.department;
+        
+        // Hide admin upload options for managers
+        if (adminUploadOptions) {
+            adminUploadOptions.style.display = 'none';
+        }
+        
+        // Update config info immediately
+        updateConfigInfo();
+    } else {
+        showAccessDenied("User profile incomplete - missing country or department information");
+        return;
+    }
+}
+
+// Helper functions to add options to dropdowns
+function addCountryOption(value, text) {
+    const option = document.createElement('option');
+    option.value = value;
+    option.textContent = text;
+    document.getElementById('countrySelect').appendChild(option);
+}
+
+function addDepartmentOption(value, text) {
+    const option = document.createElement('option');
+    option.value = value;
+    option.textContent = text;
+    document.getElementById('departmentSelect').appendChild(option);
+}
+
+// Show access denied message
+function showAccessDenied(message) {
+    console.log('showAccessDenied called with message:', message);
+    const accessDeniedDiv = document.getElementById('accessDenied');
+    console.log('accessDeniedDiv found:', !!accessDeniedDiv);
+    if (accessDeniedDiv) {
+        const messageElement = accessDeniedDiv.querySelector('p');
+        console.log('messageElement found:', !!messageElement);
+        if (messageElement) {
+            messageElement.textContent = message;
+        }
+        accessDeniedDiv.style.display = 'block';
+    }
+    const uploadInterface = document.getElementById('uploadInterface');
+    console.log('uploadInterface found:', !!uploadInterface);
+    if (uploadInterface) {
+        uploadInterface.style.display = 'none';
+    }
+}
+
+// Display user access information
+function displayUserAccessInfo(user) {
+    const userAccessDisplay = document.getElementById('userAccessDisplay');
+    if (userAccessDisplay) {
+        const accessLevel = user.role === 'admin' ? 'Administrator Access' : 
+                           user.role === 'manager' ? `${user.country?.toUpperCase()}/${user.department?.toUpperCase()} Manager Access` :
+                           'Limited Access';
+        
+        const countryFlag = user.country === 'china' ? '🇨🇳' : user.country === 'singapore' ? '🇸🇬' : '';
+        const departmentIcon = user.department === 'hr' ? '👥' : user.department === 'it' ? '💻' : '';
+        
+        userAccessDisplay.innerHTML = `
+            <div class="config-row">
+                <div class="config-group">
+                    <div class="config-label">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/>
+                            <circle cx="12" cy="7" r="4"/>
+                        </svg>
+                        USER
+                    </div>
+                    <div class="access-value">${user.username}</div>
+                </div>
+                <div class="config-group">
+                    <div class="config-label">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M16 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/>
+                            <circle cx="8.5" cy="7" r="4"/>
+                            <path d="M20 8v6M23 11h-6"/>
+                        </svg>
+                        ROLE
+                    </div>
+                    <div class="access-value">${user.role}</div>
+                </div>
+            </div>
+            <div class="config-row">
+                ${user.country ? `<div class="config-group">
+                    <div class="config-label">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/>
+                            <circle cx="12" cy="10" r="3"/>
+                        </svg>
+                        COUNTRY
+                    </div>
+                    <div class="access-value">${countryFlag} ${user.country}</div>
+                </div>` : ''}
+                ${user.department ? `<div class="config-group">
+                    <div class="config-label">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/>
+                            <circle cx="9" cy="7" r="4"/>
+                            <path d="M23 21v-2a4 4 0 00-3-3.87"/>
+                            <path d="M16 3.13a4 4 0 010 7.75"/>
+                        </svg>
+                        DEPARTMENT
+                    </div>
+                    <div class="access-value">${departmentIcon} ${user.department}</div>
+                </div>` : ''}
+            </div>
+            <div class="config-row">
+                <div class="config-group" style="grid-column: 1 / -1;">
+                    <div class="config-label">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                        </svg>
+                        ACCESS LEVEL
+                    </div>
+                    <div class="access-value">${accessLevel}</div>
+                </div>
+            </div>
+        `;
+        
+        const userAccessInfo = document.getElementById('userAccessInfo');
+        if (userAccessInfo) {
+            userAccessInfo.style.display = 'block';
+        }
+    }
+}
+
+// Initialize knowledge base view dropdowns with role-based filtering
+function initializeKnowledgeBaseView(user) {
+    console.log('Initializing knowledge base view for user:', user);
+    
+    const viewCountrySelect = document.getElementById('viewCountrySelect');
+    const viewDepartmentSelect = document.getElementById('viewDepartmentSelect');
+    
+    if (!viewCountrySelect || !viewDepartmentSelect) {
+        console.log('Knowledge base view dropdowns not found');
+        return;
+    }
+    
+    // Clear existing options
+    viewCountrySelect.innerHTML = '<option value="">All Countries</option>';
+    viewDepartmentSelect.innerHTML = '<option value="">All Departments</option>';
+    
+    if (user.role === 'admin') {
+        console.log('Setting up admin knowledge base view options');
+        // Admin can view all countries and departments
+        addViewCountryOption('china', '🇨🇳 China');
+        addViewCountryOption('singapore', '🇸🇬 Singapore');
+        addViewDepartmentOption('hr', '👥 Human Resources');
+        addViewDepartmentOption('it', '💻 Information Technology');
+    } else if (user.role === 'manager' && user.country && user.department) {
+        console.log('Setting up manager knowledge base view options for:', user.country, user.department);
+        // Manager can only view their specific country and department
+        const countryFlag = user.country === 'china' ? '🇨🇳' : user.country === 'singapore' ? '🇸🇬' : '';
+        const departmentIcon = user.department === 'hr' ? '👥' : user.department === 'it' ? '💻' : '';
+        const departmentName = user.department === 'hr' ? 'Human Resources' : user.department === 'it' ? 'Information Technology' : user.department;
+        
+        addViewCountryOption(user.country, `${countryFlag} ${user.country.charAt(0).toUpperCase() + user.country.slice(1)}`);
+        addViewDepartmentOption(user.department, `${departmentIcon} ${departmentName}`);
+        
+        // Auto-select user's country and department for knowledge base view
+        viewCountrySelect.value = user.country;
+        viewDepartmentSelect.value = user.department;
+    }
+}
+
+// Helper functions to add options to knowledge base view dropdowns
+function addViewCountryOption(value, text) {
+    const option = document.createElement('option');
+    option.value = value;
+    option.textContent = text;
+    document.getElementById('viewCountrySelect').appendChild(option);
+}
+
+function addViewDepartmentOption(value, text) {
+    const option = document.createElement('option');
+    option.value = value;
+    option.textContent = text;
+    document.getElementById('viewDepartmentSelect').appendChild(option);
+}
+
+// Update knowledge base view based on selected filters
+function updateKnowledgeBaseView() {
+    const viewCountry = document.getElementById('viewCountrySelect').value;
+    const viewDepartment = document.getElementById('viewDepartmentSelect').value;
+    
+    console.log('Knowledge base view filter changed:', viewCountry, viewDepartment);
+    
+    // Validate user access to selected combination
+    if (!validateKnowledgeBaseAccess(viewCountry, viewDepartment)) {
+        return;
+    }
+    
+    // Clear previous results when filter changes
+    const statsDiv = document.getElementById('faissStats');
+    const filesListDiv = document.getElementById('faissFilesList');
+    if (statsDiv) statsDiv.style.display = 'none';
+    if (filesListDiv) filesListDiv.style.display = 'none';
+}
+
+// Validate user access to knowledge base viewing for selected country/department
+function validateKnowledgeBaseAccess(country, department) {
+    if (!currentUser) {
+        console.log('No current user for knowledge base access validation');
+        return false;
+    }
+    
+    // Admin can view everything
+    if (currentUser.role === 'admin') {
+        return true;
+    }
+    
+    // Managers can only view their specific country/department or "all" if it matches their assignment
+    if (currentUser.role === 'manager') {
+        // If no specific filter selected, allow (they'll see their assigned data)
+        if (!country && !department) {
+            return true;
+        }
+        
+        // If specific filters selected, must match their assignment
+        if (country && country !== currentUser.country) {
+            console.log('Manager cannot view knowledge base for different country');
+            return false;
+        }
+        
+        if (department && department !== currentUser.department) {
+            console.log('Manager cannot view knowledge base for different department');
+            return false;
+        }
+        
+        return true;
+    }
+    
+    // Regular users don't have knowledge base view access
+    console.log('User role does not have knowledge base view access');
+    return false;
+}
+
+// Validate user access to selected country/department combination
+function validateUserAccess() {
+    const country = document.getElementById('countrySelect').value;
+    const department = document.getElementById('departmentSelect').value;
+    
+    if (!currentUser) {
+        showUploadWarning("User authentication required");
+        return false;
+    }
+    
+    // Admin can access everything
+    if (currentUser.role === 'admin') {
+        hideUploadWarning();
+        return true;
+    }
+    
+    // Managers can only access their specific country/department
+    if (currentUser.role === 'manager') {
+        if (country && department) {
+            if (country !== currentUser.country || department !== currentUser.department) {
+                showUploadWarning(`Access Denied: You can only upload to ${currentUser.country?.toUpperCase()}/${currentUser.department?.toUpperCase()}`);
+                return false;
             }
         }
-    })
-    .catch(() => {});
-})();
-
-function showAdminPopup() {
-    let popup = document.createElement('div');
-    popup.textContent = "Admin access required to upload files.";
-    popup.style.position = "fixed";
-    popup.style.top = "30px";
-    popup.style.left = "50%";
-    popup.style.transform = "translateX(-50%)";
-    popup.style.background = "#222";
-    popup.style.color = "#FFD700";
-    popup.style.padding = "18px 36px";
-    popup.style.borderRadius = "18px";
-    popup.style.fontSize = "1.1rem";
-    popup.style.boxShadow = "0 4px 24px rgba(255,215,0,0.18)";
-    popup.style.zIndex = "9999";
-    popup.style.opacity = "0.97";
-    document.body.appendChild(popup);
-    setTimeout(() => {
-        popup.remove();
-    }, 3500);
+        hideUploadWarning();
+        return true;
+    }
+    
+    // Regular users don't have file upload access
+    showUploadWarning("Access Denied: File upload is restricted to managers and administrators only");
+    return false;
 }
+
+// Show upload warning
+function showUploadWarning(message) {
+    const uploadWarning = document.getElementById('uploadWarning');
+    if (uploadWarning) {
+        uploadWarning.innerHTML = `
+            <svg fill="currentColor" viewBox="0 0 20 20">
+                <path fill-rule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clip-rule="evenodd"></path>
+            </svg>
+            ${message}
+        `;
+        uploadWarning.style.display = 'flex';
+    }
+}
+
+// Hide upload warning
+function hideUploadWarning() {
+    const uploadWarning = document.getElementById('uploadWarning');
+    if (uploadWarning) {
+        uploadWarning.style.display = 'none';
+    }
+}
+
+// Show FAISS loading error
+function showFAISSError(message) {
+    const knowledgeBaseSection = document.getElementById('knowledgeBaseSection');
+    if (knowledgeBaseSection) {
+        knowledgeBaseSection.innerHTML = `
+            <div class="error-message">
+                <i class="fas fa-exclamation-triangle"></i>
+                ${message}
+            </div>
+        `;
+    }
+}
+
+// Admin upload mode handling
+function updateAdminUploadMode() {
+    const uploadMode = document.querySelector('input[name="uploadMode"]:checked').value;
+    const adminModeWarning = document.getElementById('adminModeWarning');
+    const countrySelect = document.getElementById('countrySelect');
+    const departmentSelect = document.getElementById('departmentSelect');
+    
+    console.log('Admin upload mode changed to:', uploadMode);
+    
+    if (uploadMode === 'all') {
+        // Show warning for upload to all
+        if (adminModeWarning) {
+            adminModeWarning.style.display = 'block';
+        }
+        
+        // Disable country/department selection for "upload to all" mode
+        if (countrySelect) {
+            countrySelect.disabled = true;
+            countrySelect.value = '';
+        }
+        if (departmentSelect) {
+            departmentSelect.disabled = true;
+            departmentSelect.value = '';
+        }
+        
+        // Update config info
+        updateConfigInfo();
+    } else {
+        // Hide warning for specific upload
+        if (adminModeWarning) {
+            adminModeWarning.style.display = 'none';
+        }
+        
+        // Enable country/department selection
+        if (countrySelect) {
+            countrySelect.disabled = false;
+        }
+        if (departmentSelect) {
+            departmentSelect.disabled = false;
+        }
+        
+        // Update config info for specific mode
+        updateConfigInfo();
+    }
+}
+
+// Get current admin upload mode
+function getAdminUploadMode() {
+    const uploadModeElement = document.querySelector('input[name="uploadMode"]:checked');
+    return uploadModeElement ? uploadModeElement.value : 'specific';
+}
+
+// Initialize upload interface when DOM is loaded
+document.addEventListener('DOMContentLoaded', function() {
+    // Initialize upload interface with user-based access control
+    initializeUploadInterface();
+    
+    const countrySelect = document.getElementById('countrySelect');
+    const departmentSelect = document.getElementById('departmentSelect');
+    
+    if (countrySelect && departmentSelect) {
+        countrySelect.addEventListener('change', function() {
+            validateUserAccess();
+            updateConfigInfo();
+        });
+        departmentSelect.addEventListener('change', function() {
+            validateUserAccess();
+            updateConfigInfo();
+        });
+    }
+});
 
 // Handle drag and drop events
 ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
@@ -192,7 +701,21 @@ function handleFileSelect(e) {
 }
 
 function handleFiles(files) {
-    // Check if country and department are selected
+    // Check if this is admin bulk upload mode
+    const adminUploadMode = currentUser && currentUser.role === 'admin' ? getAdminUploadMode() : 'specific';
+    
+    // For admin bulk uploads, skip country/department validation
+    if (adminUploadMode === 'all') {
+        if (uploadWarning) {
+            uploadWarning.style.display = 'none';
+        }
+        
+        // For bulk uploads, pass dummy values that will be handled by the backend
+        [...files].forEach(file => uploadFile(file, 'admin', 'master'));
+        return;
+    }
+    
+    // For specific uploads, check if country and department are selected
     const country = countrySelect ? countrySelect.value : '';
     const department = departmentSelect ? departmentSelect.value : '';
     
@@ -212,6 +735,33 @@ function handleFiles(files) {
 }
 
 async function uploadFile(file, country, department) {
+    // Check user authentication
+    if (!currentUser) {
+        showStatus('error', 'User authentication required');
+        return;
+    }
+    
+    // Check admin upload mode for admins
+    const adminUploadMode = currentUser.role === 'admin' ? getAdminUploadMode() : 'specific';
+    
+    // For admin bulk uploads, skip individual country/department validation
+    if (currentUser.role === 'admin' && adminUploadMode === 'all') {
+        console.log('Admin bulk upload mode detected');
+        // Proceed with bulk upload - no specific country/department restrictions
+    } else {
+        // Check if user has access to this country/department combination
+        if (currentUser.role !== 'admin') {
+            if (currentUser.role !== 'manager') {
+                showStatus('error', 'Access Denied: File upload is restricted to managers and administrators only');
+                return;
+            }
+            if (country !== currentUser.country || department !== currentUser.department) {
+                showStatus('error', `Access Denied: You can only upload to ${currentUser.country?.toUpperCase()}/${currentUser.department?.toUpperCase()}`);
+                return;
+            }
+        }
+    }
+    
     // Validate file before upload
     if (!validateFile(file)) {
         return;
@@ -224,8 +774,18 @@ async function uploadFile(file, country, department) {
 
     const formData = new FormData();
     formData.append('file', file);
-    formData.append('country', country);
-    formData.append('department', department);
+    
+    // For admin bulk uploads, include upload mode
+    if (currentUser.role === 'admin' && adminUploadMode === 'all') {
+        formData.append('uploadMode', 'all');
+        // These are not used in bulk mode but required by validation
+        formData.append('country', 'admin');
+        formData.append('department', 'master');
+    } else {
+        formData.append('uploadMode', 'specific');
+        formData.append('country', country);
+        formData.append('department', department);
+    }
 
     try {
         const response = await fetch('/api/fileUpload/upload', {
@@ -245,8 +805,40 @@ async function uploadFile(file, country, department) {
         }
 
         const result = await response.json();
-        updateFileStatus(fileItem, 'success', `File processed successfully for ${country.toUpperCase()}/${department.toUpperCase()}`);
-        showStatus('success', result.message || `File uploaded successfully to ${country.toUpperCase()}/${department.toUpperCase()} knowledge base`);
+        
+        // Handle different response types
+        if (result.uploadResults) {
+            // Admin bulk upload response
+            updateFileStatus(fileItem, 'success', `Bulk upload completed: ${result.successfulUploads}/${result.totalUploads} successful`);
+            
+            // Show detailed results
+            let detailMessage = `Admin Bulk Upload Results:\n`;
+            detailMessage += `✅ Successful: ${result.successfulUploads}\n`;
+            detailMessage += `❌ Failed: ${result.failedUploads}\n`;
+            detailMessage += `📊 Total: ${result.totalUploads}\n\n`;
+            
+            if (result.uploadResults.length > 0) {
+                detailMessage += `Upload Details:\n`;
+                result.uploadResults.forEach(upload => {
+                    const status = upload.success ? '✅' : '❌';
+                    const location = upload.country === 'admin' ? 'ADMIN MASTER' : `${upload.country.toUpperCase()}/${upload.department.toUpperCase()}`;
+                    detailMessage += `${status} ${location}: ${upload.message}\n`;
+                });
+            }
+            
+            if (result.errors.length > 0) {
+                detailMessage += `\nErrors:\n`;
+                result.errors.forEach(error => {
+                    detailMessage += `❌ ${error}\n`;
+                });
+            }
+            
+            showStatus(result.success ? 'success' : 'warning', result.message, detailMessage);
+        } else {
+            // Regular single upload response
+            updateFileStatus(fileItem, 'success', `File processed successfully for ${country.toUpperCase()}/${department.toUpperCase()}`);
+            showStatus('success', result.message || `File uploaded successfully to ${country.toUpperCase()}/${department.toUpperCase()} knowledge base`);
+        }
 
     } catch (error) {
         console.error('Upload error:', error);
@@ -303,11 +895,23 @@ function updateFileStatus(fileItem, status, message) {
     }
 }
 
-function showStatus(type, message) {
+function showStatus(type, message, detailMessage = null) {
     if (uploadStatus) {
         uploadStatus.className = `upload-status ${type}`;
         uploadStatus.textContent = message;
         uploadStatus.style.display = 'block';
+        
+        // If detail message provided, show in console and potentially in alert for admin bulk uploads
+        if (detailMessage) {
+            console.log('Upload Details:', detailMessage);
+            
+            // For admin bulk uploads, show detailed results in an alert
+            if (detailMessage.includes('Admin Bulk Upload Results')) {
+                // Create a more user-friendly display
+                const formattedDetails = detailMessage.replace(/\n/g, '\n');
+                alert(formattedDetails);
+            }
+        }
         
         setTimeout(() => {
             uploadStatus.style.display = 'none';
@@ -336,6 +940,29 @@ function formatFileSize(bytes) {
 
 // FAISS Knowledge Base Functions
 async function loadFAISSData() {
+    // Check user access first
+    if (!currentUser) {
+        console.error('No user authenticated for knowledge base access');
+        return;
+    }
+    
+    // Validate user has access to knowledge base viewing
+    if (currentUser.role !== 'admin' && currentUser.role !== 'manager') {
+        console.error('User does not have access to view knowledge base');
+        showFAISSError('Access Denied: Knowledge base viewing is restricted to managers and administrators only');
+        return;
+    }
+    
+    // Get selected filters
+    const viewCountry = document.getElementById('viewCountrySelect')?.value || '';
+    const viewDepartment = document.getElementById('viewDepartmentSelect')?.value || '';
+    
+    // Validate access to selected filters
+    if (!validateKnowledgeBaseAccess(viewCountry, viewDepartment)) {
+        showFAISSError('Access Denied: You can only view knowledge base for your assigned country/department');
+        return;
+    }
+    
     const loadingSpinner = document.getElementById('faissLoadingSpinner');
     const statsDiv = document.getElementById('faissStats');
     const filesListDiv = document.getElementById('faissFilesList');
@@ -380,13 +1007,36 @@ async function loadFAISSData() {
             loadingMessage.textContent = 'Loading knowledge base data... (2/2)';
         }
         
+        // Prepare request body with filters and user role information
+        const requestBody = { 
+            command: 'list',
+            userRole: currentUser?.role,
+            filters: {
+                country: viewCountry,
+                department: viewDepartment
+            }
+        };
+        
+        // For admin users, check if they want to view the master index
+        if (currentUser?.role === 'admin') {
+            // If no specific filters are selected, use admin master index
+            if (!viewCountry && !viewDepartment) {
+                requestBody.adminMaster = true;
+                console.log('Admin user loading master index (all data)');
+            } else {
+                console.log('Admin user loading specific filters:', requestBody.filters);
+            }
+        }
+        
+        console.log('Loading FAISS data with request:', requestBody);
+        
         const response = await fetch('/api/faiss/extract', {
             method: 'POST',
             headers: {
                 'Authorization': `Bearer ${token}`,
                 'Content-Type': 'application/json'
             },
-            body: JSON.stringify({ command: 'list' })
+            body: JSON.stringify(requestBody)
         });
         
         if (!response.ok) {

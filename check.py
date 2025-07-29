@@ -81,6 +81,6 @@ def inspect_faiss_index(folder_path):
 # Example usage
 if __name__ == "__main__":
     # Use relative path from repository root
-    faiss_folder = "chatbot/src/backend/python/faiss_indices/china/hr/faiss_index"
+    faiss_folder = "chatbot/src/backend/python/faiss_indices/admin_master/faiss_index"
     inspect_faiss_index(faiss_folder)
     

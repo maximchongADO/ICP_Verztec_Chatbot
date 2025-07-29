@@ -16,6 +16,8 @@ import concurrent.futures
 from datetime import datetime
 from time import sleep
 from spacy.matcher import PhraseMatcher
+from langchain.prompts import ChatPromptTemplate, SystemMessagePromptTemplate, HumanMessagePromptTemplate
+
 from typing import List
 from dotenv import load_dotenv
 from sentence_transformers import SentenceTransformer
@@ -55,10 +57,10 @@ logger = logging.getLogger(__name__)
 # Initialize models and clients
 embedding_model = SentenceTransformer('BAAI/bge-large-en-v1.5')
 load_dotenv()
-api_key='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'
+api_key='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'
 # i love api keyyy
 model = "deepseek-r1-distill-llama-70b" 
-deepseek = ChatGroq(api_key=api_key, model=model, temperature = 0.4) # type: ignore
+deepseek = ChatGroq(api_key=api_key, model=model, temperature = 0) # type: ignore
 decisionlayer_model=ChatGroq(api_key=api_key, 
                             model="qwen/qwen3-32b",
                             temperature=0,                # ⬅ deterministic, no creativity
@@ -1697,7 +1699,7 @@ global_tools = {
     "vacation_check": {
         "description": (
             "Check vacation balance — for inquiries about remaining leave days and entitlements. "
-            "ONLY CALL THIS TOOL WHEN THE USER EXPLICITLY ASKS ABOUT THEIR LEAVE BALANCE. "
+            "ONLY CALL THIS TOOL WHEN THE USER EXPLICITLY ASKS ABOUT THEIR LEAVE BALANCE. NOT WHEN USERS ASK ABOUT POLICY, OR RULES "
             "DO NOT USE THIS FOR LEAVE POLICY QUESTIONS, OFFBOARDING, OR TERMINATION-RELATED QUESTIONS."
         ),
         "prompt_style": (
@@ -1902,8 +1904,138 @@ def get_vacation_days(user_id: str, filename: str = r"chatbot\src\backend\python
     except Exception as e:
         print(f"Error reading {filename}: {e}")
         return 0  
-    
-    
+def clean_q_2(org_query):
+    """
+    Cleans the query by removing specific patterns, trimming whitespace,
+    and replacing all variations of offboarding-related terms with 'offboarding process'.
+    Adds a disclaimer only if such a term is found and replaced.
+    """
+    import re
+
+    # Step 1: Remove <think>...</think> and <image>...</image> blocks
+    org_query = re.sub(r"<think>.*?</think>", "", org_query, flags=re.DOTALL)
+    org_query = re.sub(r"<image>.*?</image>", "", org_query, flags=re.DOTALL)
+
+    # Step 2: Normalize offboarding-related language
+    offboarding_patterns = [
+        r"\b(was|were|been|being|got|getting|has been|have been)?\s*(fired|terminated|let go|dismissed|laid off|made redundant|retrenched|removed from (my|the)? job|separated|downsized|restructured|booted|axed|released|cut loose|shown the door|sacked|outplaced|out of a job|termination|terminated|sent packing|got the axe|get the axe|get the sack)\b",
+        r"\b(resign(ed|ing)?|resignation|quit|quitting|walked out|handed in (my|their)? notice|stepped down|left the (role|company|position|organization)|gave (my|their)? notice|departed)\b",
+        r"\b(end(ed)? of (my )?employment|termination (of employment)?|employment ended|no longer employed|no longer with the company|losing (my|their)? job|lost (my|their)? job|exit(ed)? the company|offboard(ed|ing)?)\b",
+        r"\b(employee separation|release from employment|HR action|contract (ended|terminated)|employment contract (ended|terminated)|forced to leave|involuntary exit)\b"
+    ]
+    abss_patterns = [
+        r"\babss\b",  # Core term
+        r"\b(abss )?(e-?invoice|einvoice)\b",
+        r"\bimport (supplier )?(e-?invoice|einvoice) to abss\b",
+        r"\bimport.*abss\b",
+        r"\bxtranet.*abss\b",
+        r"\bgenerate (abss )?(file|csv|text|txt)\b",
+        r"\bexport(ed)? abss file\b",
+        r"\bcopy.*excel.*to notepad\b",
+        r"\bmatch all\b",
+        r"\bimport data.*abss\b",
+        r"\bpurchase module\b",
+        r"\babss purchase\b",
+        r"\babss.*(log|error|plog\.txt)\b",
+        r"\bsupplier.*(not found|card id)\b",
+        r"\bduplicate.*supplier.*invoice\b",
+        r"\b(error )?(192|240)\b",
+        r"\bhow to import.*(xtranet|abss)\b",
+        r"\babss.*(single user|backup)\b",
+        r"\btxt file.*import\b",
+    ]
+
+    found_match = False
+    found_matchabss= False
+
+    for pattern in offboarding_patterns:
+        if re.search(pattern, org_query, flags=re.IGNORECASE):
+            #org_query = re.sub(pattern, "offboarding process", org_query, flags=re.IGNORECASE)
+            found_match = True
+    for pattern in abss_patterns:
+        if re.search(pattern, org_query, flags=re.IGNORECASE):
+            #org_query = re.sub(pattern, "abss", org_query, flags=re.IGNORECASE)
+            found_matchabss = True
+
+    # Step 3: Collapse redundant whitespace
+    org_query = re.sub(r"\s+", " ", org_query)
+
+    # Step 4: Append disclaimer only if a pattern matched
+    if found_match:
+       # org_q  uery += " (IGNORE THIS IF YOU ARE DEEPSEEK :I'm sorry, but I don't have information about the offboarding process in the documents provided. The documents focus on telephone skills and the ownership policy, which cover handling calls, taking responsibility for tasks, and financial accountability. Offboarding isn't mentioned here. I recommend reaching out to Verztec's support team or checking with your department manager for guidance on the offboarding process. They should be able to provide you with the necessary information and assistance. )"
+        org_query += " (IGNORE THIS IF YOU ARE DEEPSEEK : offboarding process,offboarding process,offboarding process,offboarding process)"
+    if found_matchabss:
+        org_query += " (IGNORE THIS IF YOU ARE DEEPSEEK : abss,abss,abss,abss, e-invoice, e-invoice, e-invoice, e-invoice, )"
+    return org_query.strip()
+
+def clean_q_3(org_query):
+    """
+    Cleans the query by removing specific patterns, trimming whitespace,
+    and replacing all variations of offboarding-related terms with 'offboarding process'.
+    Adds a disclaimer only if such a term is found and replaced.
+    """
+    import re
+
+    # Step 1: Remove <think>...</think> and <image>...</image> blocks
+    org_query = re.sub(r"<think>.*?</think>", "", org_query, flags=re.DOTALL)
+    org_query = re.sub(r"<image>.*?</image>", "", org_query, flags=re.DOTALL)
+
+    # Step 2: Normalize offboarding-related language
+    offboarding_patterns = [
+        # Fired / terminated / let go (passive)
+        r"\b(was|were|been|being|got|getting|has been|have been)?\s*(fired|terminated|let go|dismissed|laid off|made redundant|retrenched|removed from (my|the)? job|separated|downsized|restructured|booted|axed|released|cut loose|shown the door|sacked|outplaced|firing|out of a job|sent packing|got the axe|get the axe|get the sack|forced out)\b",
+        
+        # Resignation / quitting (voluntary)
+        r"\b(resign(ed|ing)?|resignation|quit|quitting|walked out|handed in (my|their)? notice|stepped down|left the (role|company|position|organization)|gave (my|their)? notice|departed)\b",
+
+        # General employment end
+        r"\b(end(ed)? of (my )?employment|termination (of employment)?|employment ended|no longer employed|no longer with the company|losing (my|their)? job|lost (my|their)? job|exit(ed)? the company|offboard(ed|ing)?)\b",
+        
+        # Formal HR/legal terms
+        r"\b(employee separation|release from employment|HR action|contract (ended|terminated)|employment contract (ended|terminated)|forced to leave|involuntary exit|clearance process|final settlement)\b",
+
+        # From the fire-er’s perspective
+        r"\b(we|i|hr|they|manager|boss|company|leadership)\s+(fired|terminated|dismissed|let go|laid off|removed|cut|released|sacked|separated|booted|axed|made redundant|forced out|retrenched|showed.*door|gave.*(axe|sack|notice))\b",
+        
+        # Implicit or indirect firings
+        r"\b(position was made redundant|role was dissolved|team was downsized|headcount reduction|budget cuts|eliminated role|restructuring effort|org restructure|performance-related exit|PIP exit)\b"
+    ]
+
+    abss_patterns = [
+        r"\babss\b",  # Core term
+        r"\b(abss )?(e-?invoice|einvoice)\b",
+        r"\bimport (supplier )?(e-?invoice|einvoice) to abss\b",
+        r"\bimport.*abss\b",
+        r"\bxtranet.*abss\b",
+        r"\bgenerate (abss )?(file|csv|text|txt)\b",
+        r"\bexport(ed)? abss file\b",
+        r"\bcopy.*excel.*to notepad\b",
+        r"\bmatch all\b",
+        r"\bimport data.*abss\b",
+        r"\bpurchase module\b",
+        r"\babss purchase\b",
+        r"\babss.*(log|error|plog\.txt)\b",
+        r"\bsupplier.*(not found|card id)\b",
+        r"\bduplicate.*supplier.*invoice\b",
+        r"\b(error )?(192|240)\b",
+        r"\bhow to import.*(xtranet|abss)\b",
+        r"\babss.*(single user|backup)\b",
+        r"\btxt file.*import\b",
+    ]
+
+    found_match = False
+    found_matchabss= False
+
+    for pattern in offboarding_patterns:
+        if re.search(pattern, org_query, flags=re.IGNORECASE):
+            #org_query = re.sub(pattern, "offboarding process", org_query, flags=re.IGNORECASE)
+            found_match = True
+    for pattern in abss_patterns:
+        if re.search(pattern, org_query, flags=re.IGNORECASE):
+            #org_query = re.sub(pattern, "abss", org_query, flags=re.IGNORECASE)
+            found_matchabss = True
+
+    return found_match, found_matchabss
 def generate_answer_histoy_retrieval(user_query: str, user_id:str, chat_id:str):
     """
     Returns a tuple: (answer_text, image_list)
@@ -1957,22 +2089,15 @@ def generate_answer_histoy_retrieval(user_query: str, user_id:str, chat_id:str):
             search_type="similarity",
             search_kwargs={"k": 15}
         )
-   
+        SUPER_CLEAN_QUERY=user_query
+        #user_query = clean_q_2(user_query)
+        logger.info(f"Cleaned user query: {user_query}")
+
 
         avg_score = get_avg_score(index, embedding_model, user_query)    
+      
         
         
-        
-        ## QA chain setup with mrmory 
-        qa_chain = ConversationalRetrievalChain.from_llm(
-            llm=deepseek_chain,
-            #retriever=hybrid_retriever_obj,
-            retriever =base,
-            memory=chat_history,
-            return_source_documents=True,
-            output_key="answer"
-        )
-        logger.info(chat_history.chat_memory.messages)
     
     
         # Refine query
@@ -2016,6 +2141,7 @@ def generate_answer_histoy_retrieval(user_query: str, user_id:str, chat_id:str):
             "question": clean_query,
             "glast_bot_message": glast_bot_message if glast_bot_message is not None else ""
         })
+        logger.info(f"DECSION LAYER CALLED ABOVE")
 
         Tool_answer = re.sub(r"<think>.*?</think>", "", tool_response.content, flags=re.DOTALL).strip()
         print(f"Tool decision: {Tool_answer}")
@@ -2096,9 +2222,9 @@ def generate_answer_histoy_retrieval(user_query: str, user_id:str, chat_id:str):
 
         for doc, _ in all_results:  # Process combined results
             content = doc.page_content
-           # logger.info("=" * 20)
+            logger.info("=+" * 30)
            # logger.info(f"Processing document content: {content[:50]}...")  # Log first 50 chars for brevity
-           # logger.info(f"Document metadata: {doc.metadata}")  # Log metadata for debugging
+            logger.info(f"Document source: {doc.metadata.get('source')}")  # Log metadata for debugging
             if content not in seen:
                 seen.add(content)
                 unique_docs.append(doc)
@@ -2200,30 +2326,34 @@ def generate_answer_histoy_retrieval(user_query: str, user_id:str, chat_id:str):
             if should_dismiss_completely:
                 fallback_prompt = (
                     f'The user said: "{clean_query}". '
-                    'As a HELPFUL and FRIENDLY VERZTEC helpdesk assistant, respond with a light-hearted or polite reply — '
-                    'even if the message is small talk or out of scope (e.g., "how are you", "do you like pizza"). '
-                    'You do not need to greet the user, unless they greeted you first. '
-                    'Keep it human and warm (e.g., "I\'m doing great, thanks for asking!"), then ***gently guide the user back to Verztec-related helpdesk topics***. '
-                    'Do not answer any questions that are not related to Verztec helpdesk topics. '
-                    f"Here is some information about the user, NAME:{user_name}, ROLE: {user_role}, COUNTRY: {user_country}, DEPARTMENT: {user_department}\n\n"
+                    'As a HELPFUL and FRIENDLY Verztec helpdesk assistant, respond with a warm, light-hearted, or polite reply — '
+                    'even if the message is small talk or clearly out of scope (e.g., "how are you", "do you like pizza"). '
+                    'Do not greet the user unless they greeted you first. '
+                    'After your brief response, gently guide the user back to Verztec-related helpdesk topics. '
+                    'Keep the tone human, kind, and professional — like a friendly colleague. '
+                    'Do NOT include any formal sign-offs like "Best regards" or your name at the end. '
+                    f"Here is some information about the user: NAME: {user_name}, ROLE: {user_role}, COUNTRY: {user_country}, DEPARTMENT: {user_department}\n\n"
                 )
             elif should_suggest and suggestions:
                 fallback_prompt = (
                     f'The user asked: "{clean_query}". '
-                    'This query seems to be workplace-related but might need some clarification to provide the most helpful information. '
-                    'As a HELPFUL VERZTEC helpdesk assistant, politely acknowledge that you want to make sure you understand their needs correctly, '
-                    'and explain that you have some specific questions that might help them find exactly what they\'re looking for. '
-                    'Be encouraging and mention that these suggestions are based on relevant company information. '
-                    f"Here is some information about the user, NAME:{user_name}, ROLE: {user_role}, COUNTRY: {user_country}, DEPARTMENT: {user_department}\n\n"
+                    'This seems to be workplace-related, but might need clarification to give the most helpful answer. '
+                    'As a HELPFUL Verztec helpdesk assistant, politely acknowledge the query and express your intent to assist. '
+                    'Let the user know that you have a few specific follow-up questions or suggestions that could help. '
+                    'Mention that these are based on relevant company policies or practices. '
+                    'Be encouraging and warm, and do NOT include any formal sign-offs like "Best regards" or your name at the end. '
+                    f"Here is some information about the user: NAME: {user_name}, ROLE: {user_role}, COUNTRY: {user_country}, DEPARTMENT: {user_department}\n\n"
                 )
             else:
                 fallback_prompt = (
                     f'The user said: "{clean_query}". '
-                    'As a HELPFUL and FRIENDLY VERZTEC helpdesk assistant, respond with a polite reply acknowledging their query. '
-                    'Explain that you might not have specific information about their request, but encourage them to try rephrasing their question '
-                    'or ask about specific Verztec policies, procedures, or workplace topics. '
-                    f"Here is some information about the user, NAME:{user_name}, ROLE: {user_role}, COUNTRY: {user_country}, DEPARTMENT: {user_department}\n\n"
+                    'As a HELPFUL and FRIENDLY Verztec helpdesk assistant, respond with a polite and understanding reply. '
+                    'Explain that you might not have the exact information for this request, but encourage the user to try rephrasing '
+                    'or ask about specific Verztec policies, procedures, or workplace-related topics. '
+                    'Keep the tone supportive and conversational, and DO NOT include any formal sign-offs like "Best regards" or your name at the end. '
+                    f"Here is some information about the user: NAME: {user_name}, ROLE: {user_role}, COUNTRY: {user_country}, DEPARTMENT: {user_department}\n\n"
                 )
+
             
             fallback_prompt_original = (
                 f'The user said: "{clean_query}". '
@@ -2271,7 +2401,7 @@ def generate_answer_histoy_retrieval(user_query: str, user_id:str, chat_id:str):
                 is_task_query = 0  # Force task query for fallback response
                 avg_score = 2  # Force average score for fallback response
                 
-            store_chat_log_updated(user_message=user_query, bot_response=cleaned_fallback, query_score=is_task_query, relevance_score=best_doc_score, user_id=user_id, chat_id=chat_id, chat_name=chat_name)
+            store_chat_log_updated(user_message=SUPER_CLEAN_QUERY, bot_response=cleaned_fallback, query_score=is_task_query, relevance_score=best_doc_score, user_id=user_id, chat_id=chat_id, chat_name=chat_name)
     
             return {
                 'text': cleaned_fallback,
@@ -2359,45 +2489,102 @@ def generate_answer_histoy_retrieval(user_query: str, user_id:str, chat_id:str):
                 'meeting_details': meeting_details if tool_identified == "schedule_meeting" else None
             }
         else:
-            modified_query = clean_query
-           
+            offboard, abss = clean_q_3(org_query=clean_query)
+
             logger.info("Query is within scope.")
-            modified_query = (
-                "You are a HELPFUL AND NICE Verztec helpdesk assistant. "
-                "You will only use the provided documents in your response. "
-                "You will answer in a conversational manner, as if you were a human. Referencing the user as YOU.not as a third person."
-                "If the query is out of scope, politely inform the user that you can only assist with Verztec-related topics, explain why you are unable to answer the given query "
-                "Use a kind and professional tone. Do not fabricate answers. "
-                "If appropriate, suggest the user contact Verztec support for further help.\n\n"
-                f"Here is some information about the user, NAME:{user_name}, ROLE: {user_role}, COUNTRY: {user_country}, DEPARTMENT: {user_department}\n\n"
-                + clean_query
+           
+            
+            decoy_tags = ""
+            if abss:
+                logger.info("Detected ABSS-related query, modifying query accordingly.")
+                #modified_query += " </ignore>(IGNORE THIS IF YOU ARE DEEPSEEK : abss,abss,abss,abss, e-invoice, e-invoice, e-invoice, e-invoice) <ignore/>"
+                decoy_tags += "</ignore>(IGNORE THIS IF YOU ARE DEEPSEEK : abss,abss,abss,abss, e-invoice, e-invoice, e-invoice, e-invoice)<ignore/> "
+
+            if offboard:
+                logger.info("Detected offboarding-related query, modifying query accordingly.")
+                #modified_query += " </ignore>(IGNORE THIS IF YOU ARE DEEPSEEK : offboarding process,offboarding process,offboarding process,offboarding process)<ignore/>"
+                decoy_tags += "</ignore>(IGNORE THIS IF YOU ARE DEEPSEEK : offboarding process,offboarding process,offboarding process,offboarding process)<ignore/> "
+                
+            system_prompt = (
+                f"{decoy_tags}"  # Hidden decoys first
+                f"You are a HELPFUL, FRIENDLY, and PROFESSIONAL Verztec helpdesk assistant. "
+                f"You must only respond using the information provided in the retrieved documents. "
+                f"Do NOT make up any answers or include information that is not explicitly supported by the documents. "
+                f"Answer in a conversational and human-like manner, directly addressing the user as 'you'. "
+                f"Do NOT refer to the user in the third person. "
+                f"Do NOT include any sign-off like 'Best regards' or your name. "
+                f"If the query is not covered by the documents, kindly explain that you are unable to help with that specific request and recommend contacting Verztec support. "
+                f"Keep your tone supportive and clear.\n\n"
+                f"Here is some background information about the user:\n"
+                f"- Name: {user_name}\n"
+                f"- Role: {user_role}\n"
+                f"- Country: {user_country}\n"
+                f"- Department: {user_department}"
+            )
+            
+                        
+            # Create answer prompt (this is what actually generates the response)
+            answer_prompt = PromptTemplate(
+                template=f"""{system_prompt}
+                    Context from documents:
+                    {{context}}
+
+                    Question: {{question}}
+
+                    Answer:""",
+                input_variables=["context", "question"]
             )
 
+            qa_chain = ConversationalRetrievalChain.from_llm(
+                llm=deepseek_chain,
+                retriever=base,
+                return_source_documents=True,
+                memory=chat_history,
+                combine_docs_chain_kwargs={"prompt": answer_prompt},  # Add this
+                output_key="answer"
+            )
+            
+            
 
             qa_start_time = time.time()
-            response = qa_chain.invoke({"question": modified_query})
+            response = qa_chain.invoke({"question": clean_query})
+            logger.info("QA CHAIN CALLED ABOVE")
             qa_elapsed_time = time.time() - qa_start_time
             raw_answer = response['answer']
             source_docs = response['source_documents']
             #logger.info(f"Source docs from QA chain: {source_docs}")
+            #logger.info("full response from QA chain: %s", raw_answer)  # Log first 1000 chars for brevity
             logger.info(f"(QA chain time taken: {qa_elapsed_time:.2f}s)")
             docs = response["source_documents"]  # list[Document]
             logger.info("+="*20)
             for i, d in enumerate(docs):
                 src   = d.metadata.get("source")
                 score = d.metadata.get("score")
-                snip  = d.page_content[:500].replace("\n", " ")
+                snip  = d.page_content
 
-                logger.info("=== Doc %d ===", i)
+                logger.info("============================== Doc %d =============================", i)
                 logger.info("source: %s | score: %s", src, score)
-                logger.info("%s ...", snip)
+               # logger.info("%s ...", snip)
 
+            # Clean up the chat memory to remove any <ignore> tags
+            # This is done to ensure that the chat memory does not contain any irrelevant or sensitive information
+            logger.info("Cleaning up chat memory.")
+            #logger.info(f"Total messages in memory: {len(chat_history.chat_memory.messages)}")
+            for i in range(len(chat_history.chat_memory.messages) - 1, -1, -1):
+                msg = chat_history.chat_memory.messages[i]
+                #logger.info(f"Checking message at index {i}: {msg}")
+                if isinstance(msg, HumanMessage):
+                   # logger.info(f"Cleaning up ignore-tag content from HumanMessage at index {i}: {msg.content}")
+                    cleaned = re.sub(r"</ignore>.*?<ignore/>", "", msg.content, flags=re.DOTALL).strip()
+                    chat_history.chat_memory.messages[i] = HumanMessage(content=cleaned)
+                    logger.info("Cleaned up ignore-tag content from last HumanMessage.")
+                    break
+            #logger.info(chat_history.chat_memory.messages)
             # Clean the chat memory to keep it manageable
             # Limit chat memory to last 4 turns (8 messages)
-            
             MAX_TURNS = 4
-            if len(memory.chat_memory.messages) > 2 * MAX_TURNS:
-                memory.chat_memory.messages = memory.chat_memory.messages[-2 * MAX_TURNS:]
+            if len(chat_history.chat_memory.messages) > 2 * MAX_TURNS:
+                chat_history.chat_memory.messages = chat_history.chat_memory.messages[-2 * MAX_TURNS:]
 
             # Define regex pattern to match full <think>...</think> block
             think_block_pattern = re.compile(r"<think>.*?</think>", flags=re.DOTALL)
@@ -2427,15 +2614,13 @@ def generate_answer_histoy_retrieval(user_query: str, user_id:str, chat_id:str):
             #user_query = user_query+"AHHAHAHAHHA"
             
            
-            store_chat_log_updated(user_message=user_query, bot_response=cleaned_answer, query_score=is_task_query, relevance_score=avg_score, user_id=user_id, chat_id=chat_id, chat_name=chat_name)##brian u need to update sql for this to work
+            store_chat_log_updated(user_message=SUPER_CLEAN_QUERY, bot_response=cleaned_answer, query_score=is_task_query, relevance_score=avg_score, user_id=user_id, chat_id=chat_id, chat_name=chat_name)##brian u need to update sql for this to work
             logger.info(f"Stored chat log for user {user_id}, chat {chat_id} with query score {is_task_query} and relevance score {avg_score}")
             # also need to update the store_chat_bot method, to incoude user id and chat id
             # After generating the bot's response
             final_response, source_docs = append_sources_with_links(cleaned_answer, top_docs)
             #print(final_response)
-            
-            # Log source documents for debugging
-            logger.info(f"Source documents data: {source_docs}")
+            #logger.info(f"Final response generated: {final_response[:100]}...")  # Log first 100 chars for brevity            
             
             # Also append clickable links to text for backwards compatibility
             for doc in source_docs:
@@ -2448,6 +2633,9 @@ def generate_answer_histoy_retrieval(user_query: str, user_id:str, chat_id:str):
 
             total_elapsed_time = time.time() - total_start_time
             logger.info(f"Total time taken for query processing: {total_elapsed_time:.2f}s")
+            
+            
+            
 
             # Return structured data for frontend
             return {
