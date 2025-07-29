@@ -104,13 +104,20 @@ const adminCreateUser = async (req, res) => {
     if (!req.user || req.user.role !== 'admin') {
         return res.status(403).json({ message: 'Admin access required' });
     }
-    const { username, email, password, role, country, department } = req.body;
+    let { username, email, password, role, country, department } = req.body;
     if (!username || !email || !password || !role) {
         return res.status(400).json({ message: 'Missing required fields' });
     }
     if (!['user', 'admin', 'manager'].includes(role)) {
         return res.status(400).json({ message: 'Role must be user, admin, or manager' });
     }
+    
+    // Admin users should not have country/department
+    if (role === 'admin') {
+        country = null;
+        department = null;
+    }
+    
     try {
         const hashedPassword = await hashPassword(password);
         const createdUser = await User.createUser({
@@ -144,13 +151,20 @@ const adminUpdateUser = async (req, res) => {
         return res.status(403).json({ message: 'Admin access required' });
     }
     const userId = req.params.id;
-    const { username, email, role, password, country, department } = req.body;
+    let { username, email, role, password, country, department } = req.body;
     if (!username && !email && !role && !password && !country && !department) {
         return res.status(400).json({ message: 'No fields to update' });
     }
     if (role && !['user', 'admin', 'manager'].includes(role)) {
         return res.status(400).json({ message: 'Role must be user, admin, or manager' });
     }
+    
+    // Admin users should not have country/department
+    if (role === 'admin') {
+        country = null;
+        department = null;
+    }
+    
     try {
         let updateFields = {};
         if (username) updateFields.username = username;

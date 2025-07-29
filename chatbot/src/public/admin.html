@@ -204,6 +204,89 @@
       gap: 0.75rem;
       align-items: center;
     }
+
+    /* Location Fields Styles */
+    .location-fields {
+      transition: opacity 0.3s ease, height 0.3s ease;
+    }
+
+    .location-fields.hidden {
+      opacity: 0.5;
+      pointer-events: none;
+    }
+
+    .location-fields.hidden input,
+    .location-fields.hidden select {
+      background-color: var(--background-muted);
+      color: var(--text-muted);
+    }
+
+    /* User Groups Styles */
+    .user-groups {
+      display: flex;
+      flex-direction: column;
+      gap: 2rem;
+    }
+
+    .user-group {
+      background: var(--card-background);
+      border: 1px solid var(--border-main);
+      border-radius: 12px;
+      overflow: hidden;
+    }
+
+    .user-group-header {
+      background: var(--background-muted);
+      padding: 1rem 1.5rem;
+      border-bottom: 1px solid var(--border-main);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .user-group-title {
+      margin: 0;
+      font-size: 1.125rem;
+      font-weight: 600;
+      color: var(--text-primary);
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+
+    .user-group-count {
+      background: var(--primary-accent);
+      color: white;
+      padding: 0.25rem 0.75rem;
+      border-radius: 12px;
+      font-size: 0.875rem;
+      font-weight: 500;
+    }
+
+    .user-group-table {
+      margin: 0;
+      border: none;
+    }
+
+    .user-group-table thead th {
+      background: var(--background-secondary);
+      border-bottom: 1px solid var(--border-main);
+    }
+
+    .user-group.empty {
+      opacity: 0.6;
+    }
+
+    .user-group.empty .user-group-header {
+      background: var(--background-secondary);
+    }
+
+    .empty-group-message {
+      padding: 2rem;
+      text-align: center;
+      color: var(--text-muted);
+      font-style: italic;
+    }
     
     /* Enhanced button styles with chatbot font */
     .btn {
@@ -852,22 +935,188 @@
         </div>
 
         <div id="usersTableContainer">
-          <table class="users-table" id="usersTable">
-            <thead>
-              <tr>
-                <th>Name</th>
-                <th>Email</th>
-                <th>Role</th>
-                <th>Country</th>
-                <th>Department</th>
-                <th>Status</th>
-                <th>Actions</th>
-              </tr>
-            </thead>
-            <tbody id="usersTableBody">
-              <!-- Users will be populated here by JavaScript -->
-            </tbody>
-          </table>
+          <!-- Segregated Users by Department and Country -->
+          <div class="user-groups" id="userGroups">
+            <!-- Admin Users Group -->
+            <div class="user-group" id="adminGroup">
+              <div class="user-group-header">
+                <h3 class="user-group-title">
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/>
+                  </svg>
+                  Administrators
+                </h3>
+                <span class="user-group-count" id="adminCount">0</span>
+              </div>
+              <table class="users-table user-group-table" id="adminTable">
+                <thead>
+                  <tr>
+                    <th>Name</th>
+                    <th>Email</th>
+                    <th>Role</th>
+                    <th>Status</th>
+                    <th>Actions</th>
+                  </tr>
+                </thead>
+                <tbody id="adminTableBody">
+                  <!-- Admin users will be populated here -->
+                </tbody>
+              </table>
+            </div>
+
+            <!-- China HR Group -->
+            <div class="user-group" id="chinaHrGroup">
+              <div class="user-group-header">
+                <h3 class="user-group-title">
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/>
+                    <circle cx="12" cy="7" r="4"/>
+                  </svg>
+                  China - HR Department
+                </h3>
+                <span class="user-group-count" id="chinaHrCount">0</span>
+              </div>
+              <table class="users-table user-group-table" id="chinaHrTable">
+                <thead>
+                  <tr>
+                    <th>Name</th>
+                    <th>Email</th>
+                    <th>Role</th>
+                    <th>Country</th>
+                    <th>Department</th>
+                    <th>Status</th>
+                    <th>Actions</th>
+                  </tr>
+                </thead>
+                <tbody id="chinaHrTableBody">
+                  <!-- China HR users will be populated here -->
+                </tbody>
+              </table>
+            </div>
+
+            <!-- China IT Group -->
+            <div class="user-group" id="chinaItGroup">
+              <div class="user-group-header">
+                <h3 class="user-group-title">
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <rect x="2" y="3" width="20" height="14" rx="2" ry="2"/>
+                    <line x1="8" y1="21" x2="16" y2="21"/>
+                    <line x1="12" y1="17" x2="12" y2="21"/>
+                  </svg>
+                  China - IT Department
+                </h3>
+                <span class="user-group-count" id="chinaItCount">0</span>
+              </div>
+              <table class="users-table user-group-table" id="chinaItTable">
+                <thead>
+                  <tr>
+                    <th>Name</th>
+                    <th>Email</th>
+                    <th>Role</th>
+                    <th>Country</th>
+                    <th>Department</th>
+                    <th>Status</th>
+                    <th>Actions</th>
+                  </tr>
+                </thead>
+                <tbody id="chinaItTableBody">
+                  <!-- China IT users will be populated here -->
+                </tbody>
+              </table>
+            </div>
+
+            <!-- Singapore HR Group -->
+            <div class="user-group" id="singaporeHrGroup">
+              <div class="user-group-header">
+                <h3 class="user-group-title">
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/>
+                    <circle cx="12" cy="7" r="4"/>
+                  </svg>
+                  Singapore - HR Department
+                </h3>
+                <span class="user-group-count" id="singaporeHrCount">0</span>
+              </div>
+              <table class="users-table user-group-table" id="singaporeHrTable">
+                <thead>
+                  <tr>
+                    <th>Name</th>
+                    <th>Email</th>
+                    <th>Role</th>
+                    <th>Country</th>
+                    <th>Department</th>
+                    <th>Status</th>
+                    <th>Actions</th>
+                  </tr>
+                </thead>
+                <tbody id="singaporeHrTableBody">
+                  <!-- Singapore HR users will be populated here -->
+                </tbody>
+              </table>
+            </div>
+
+            <!-- Singapore IT Group -->
+            <div class="user-group" id="singaporeItGroup">
+              <div class="user-group-header">
+                <h3 class="user-group-title">
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <rect x="2" y="3" width="20" height="14" rx="2" ry="2"/>
+                    <line x1="8" y1="21" x2="16" y2="21"/>
+                    <line x1="12" y1="17" x2="12" y2="21"/>
+                  </svg>
+                  Singapore - IT Department
+                </h3>
+                <span class="user-group-count" id="singaporeItCount">0</span>
+              </div>
+              <table class="users-table user-group-table" id="singaporeItTable">
+                <thead>
+                  <tr>
+                    <th>Name</th>
+                    <th>Email</th>
+                    <th>Role</th>
+                    <th>Country</th>
+                    <th>Department</th>
+                    <th>Status</th>
+                    <th>Actions</th>
+                  </tr>
+                </thead>
+                <tbody id="singaporeItTableBody">
+                  <!-- Singapore IT users will be populated here -->
+                </tbody>
+              </table>
+            </div>
+
+            <!-- Unassigned Users Group -->
+            <div class="user-group" id="unassignedGroup">
+              <div class="user-group-header">
+                <h3 class="user-group-title">
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <circle cx="12" cy="12" r="3"/>
+                    <path d="M12 1v6m0 6v6"/>
+                    <path d="m5.64 7.05 4.95 4.95m4.95-4.95-4.95 4.95"/>
+                  </svg>
+                  Unassigned Users
+                </h3>
+                <span class="user-group-count" id="unassignedCount">0</span>
+              </div>
+              <table class="users-table user-group-table" id="unassignedTable">
+                <thead>
+                  <tr>
+                    <th>Name</th>
+                    <th>Email</th>
+                    <th>Role</th>
+                    <th>Country</th>
+                    <th>Department</th>
+                    <th>Status</th>
+                    <th>Actions</th>
+                  </tr>
+                </thead>
+                <tbody id="unassignedTableBody">
+                  <!-- Unassigned users will be populated here -->
+                </tbody>
+              </table>
+            </div>
+          </div>
         </div>
 
         <div id="emptyState" class="empty-state" style="display: none;">
@@ -908,7 +1157,7 @@
         
         <div class="form-group">
           <label for="userRole" class="form-label">Role</label>
-          <select id="userRole" name="role" class="form-select" required>
+          <select id="userRole" name="role" class="form-select" required onchange="handleRoleChange()">
             <option value="">Select role</option>
             <option value="admin">Admin</option>
             <option value="manager">Manager</option>
@@ -916,22 +1165,24 @@
           </select>
         </div>
         
-        <div class="form-group">
-          <label for="userCountry" class="form-label">Country</label>
-          <select id="userCountry" name="country" class="form-select">
-            <option value="">Select country</option>
-            <option value="China">China</option>
-            <option value="Singapore">Singapore</option>
-          </select>
-        </div>
-        
-        <div class="form-group">
-          <label for="userDepartment" class="form-label">Department</label>
-          <select id="userDepartment" name="department" class="form-select">
-            <option value="">Select department</option>
-            <option value="IT">IT</option>
-            <option value="HR">HR</option>
-          </select>
+        <div id="locationFields" class="location-fields">
+          <div class="form-group">
+            <label for="userCountry" class="form-label">Country</label>
+            <select id="userCountry" name="country" class="form-select">
+              <option value="">Select country</option>
+              <option value="China">China</option>
+              <option value="Singapore">Singapore</option>
+            </select>
+          </div>
+          
+          <div class="form-group">
+            <label for="userDepartment" class="form-label">Department</label>
+            <select id="userDepartment" name="department" class="form-select">
+              <option value="">Select department</option>
+              <option value="IT">IT</option>
+              <option value="HR">HR</option>
+            </select>
+          </div>
         </div>
         
         <div class="form-group" style="display: flex; gap: 1rem; margin-top: 2rem;">
@@ -1042,15 +1293,20 @@
     
     async function loadUsers() {
       try {
-        // Show loading state
-        const tbody = document.getElementById('usersTableBody');
-        tbody.innerHTML = `
-          <tr>
-            <td colspan="7" style="text-align: center; padding: 2rem;">
-              <div style="color: var(--text-muted);">Loading users...</div>
-            </td>
-          </tr>
-        `;
+        // Show loading state in all table bodies
+        const tableIds = ['adminTableBody', 'chinaHrTableBody', 'chinaItTableBody', 'singaporeHrTableBody', 'singaporeItTableBody', 'unassignedTableBody'];
+        tableIds.forEach(id => {
+          const tbody = document.getElementById(id);
+          if (tbody) {
+            tbody.innerHTML = `
+              <tr>
+                <td colspan="7" style="text-align: center; padding: 2rem;">
+                  <div style="color: var(--text-muted);">Loading users...</div>
+                </td>
+              </tr>
+            `;
+          }
+        });
         
         const response = await apiCall('/users');
         users = response.map(user => ({
@@ -1067,25 +1323,29 @@
       } catch (error) {
         console.error('Error loading users:', error);
         
-        // Show error state in table
-        const tbody = document.getElementById('usersTableBody');
-        tbody.innerHTML = `
-          <tr>
-            <td colspan="7" style="text-align: center; padding: 2rem;">
-              <div style="color: var(--text-muted);">
-                <p>Failed to load users</p>
-                <button class="btn btn-secondary btn-small" onclick="loadUsers()">Retry</button>
-              </div>
-            </td>
-          </tr>
-        `;
+        // Show error state in all table bodies
+        const tableIds = ['adminTableBody', 'chinaHrTableBody', 'chinaItTableBody', 'singaporeHrTableBody', 'singaporeItTableBody', 'unassignedTableBody'];
+        tableIds.forEach(id => {
+          const tbody = document.getElementById(id);
+          if (tbody) {
+            tbody.innerHTML = `
+              <tr>
+                <td colspan="7" style="text-align: center; padding: 2rem;">
+                  <div style="color: var(--text-muted);">
+                    <p>Failed to load users</p>
+                    <button class="btn btn-secondary btn-small" onclick="loadUsers()">Retry</button>
+                  </div>
+                </td>
+              </tr>
+            `;
+          }
+        });
         
         showError('Failed to load users. Please check your connection and try again.');
       }
     }
     
     function renderUsers() {
-      const tbody = document.getElementById('usersTableBody');
       const emptyState = document.getElementById('emptyState');
       const tableContainer = document.getElementById('usersTableContainer');
       
@@ -1098,13 +1358,52 @@
       tableContainer.style.display = 'block';
       emptyState.style.display = 'none';
       
-      tbody.innerHTML = filteredUsers.map(user => `
+      // Group users by role and location
+      const adminUsers = filteredUsers.filter(user => user.role === 'admin');
+      const chinaHrUsers = filteredUsers.filter(user => user.country === 'China' && user.department === 'HR' && user.role !== 'admin');
+      const chinaItUsers = filteredUsers.filter(user => user.country === 'China' && user.department === 'IT' && user.role !== 'admin');
+      const singaporeHrUsers = filteredUsers.filter(user => user.country === 'Singapore' && user.department === 'HR' && user.role !== 'admin');
+      const singaporeItUsers = filteredUsers.filter(user => user.country === 'Singapore' && user.department === 'IT' && user.role !== 'admin');
+      const unassignedUsers = filteredUsers.filter(user => user.role !== 'admin' && 
+        (!user.country || !user.department || 
+         !['China', 'Singapore'].includes(user.country) || 
+         !['HR', 'IT'].includes(user.department)));
+      
+      // Render each group
+      renderUserGroup('admin', adminUsers, false); // Don't show country/department for admins
+      renderUserGroup('chinaHr', chinaHrUsers, true);
+      renderUserGroup('chinaIt', chinaItUsers, true);
+      renderUserGroup('singaporeHr', singaporeHrUsers, true);
+      renderUserGroup('singaporeIt', singaporeItUsers, true);
+      renderUserGroup('unassigned', unassignedUsers, true);
+      
+      // Update counts
+      document.getElementById('adminCount').textContent = adminUsers.length;
+      document.getElementById('chinaHrCount').textContent = chinaHrUsers.length;
+      document.getElementById('chinaItCount').textContent = chinaItUsers.length;
+      document.getElementById('singaporeHrCount').textContent = singaporeHrUsers.length;
+      document.getElementById('singaporeItCount').textContent = singaporeItUsers.length;
+      document.getElementById('unassignedCount').textContent = unassignedUsers.length;
+      
+      // Hide empty groups or show empty message
+      toggleGroupVisibility('adminGroup', adminUsers.length);
+      toggleGroupVisibility('chinaHrGroup', chinaHrUsers.length);
+      toggleGroupVisibility('chinaItGroup', chinaItUsers.length);
+      toggleGroupVisibility('singaporeHrGroup', singaporeHrUsers.length);
+      toggleGroupVisibility('singaporeItGroup', singaporeItUsers.length);
+      toggleGroupVisibility('unassignedGroup', unassignedUsers.length);
+    }
+    
+    function renderUserGroup(groupId, users, showLocation) {
+      const tbody = document.getElementById(groupId + 'TableBody');
+      
+      tbody.innerHTML = users.map(user => `
         <tr>
           <td>${user.name}</td>
           <td>${user.email}</td>
           <td><span style="color: var(--text-accent); font-weight: 600; text-transform: capitalize;">${user.role}</span></td>
-          <td>${user.country || '-'}</td>
-          <td>${user.department || '-'}</td>
+          ${showLocation ? `<td>${user.country || '-'}</td>` : ''}
+          ${showLocation ? `<td>${user.department || '-'}</td>` : ''}
           <td><span class="status-badge status-${user.status}">${user.status}</span></td>
           <td>
             <div class="user-actions">
@@ -1114,6 +1413,46 @@
           </td>
         </tr>
       `).join('');
+      
+      // Show empty message if no users
+      if (users.length === 0) {
+        tbody.innerHTML = `
+          <tr>
+            <td colspan="${showLocation ? '7' : '5'}" class="empty-group-message">
+              No users in this group
+            </td>
+          </tr>
+        `;
+      }
+    }
+    
+    function toggleGroupVisibility(groupId, userCount) {
+      const group = document.getElementById(groupId);
+      if (userCount === 0) {
+        group.classList.add('empty');
+      } else {
+        group.classList.remove('empty');
+      }
+    }
+    
+    // Add function to handle role change in user form
+    function handleRoleChange() {
+      const roleSelect = document.getElementById('userRole');
+      const locationFields = document.getElementById('locationFields');
+      const countrySelect = document.getElementById('userCountry');
+      const departmentSelect = document.getElementById('userDepartment');
+      
+      if (roleSelect.value === 'admin') {
+        locationFields.classList.add('hidden');
+        countrySelect.value = '';
+        departmentSelect.value = '';
+        countrySelect.required = false;
+        departmentSelect.required = false;
+      } else {
+        locationFields.classList.remove('hidden');
+        countrySelect.required = true;
+        departmentSelect.required = true;
+      }
     }
     
     function filterUsers() {
@@ -1126,7 +1465,6 @@
         (user.department && user.department.toLowerCase().includes(searchTerm))
       );
       
-      const tbody = document.getElementById('usersTableBody');
       const emptyState = document.getElementById('emptyState');
       const tableContainer = document.getElementById('usersTableContainer');
       
@@ -1166,11 +1504,15 @@
         document.getElementById('userDepartment').value = user.department || '';
         document.getElementById('userPassword').placeholder = 'Leave blank to keep current password';
         document.getElementById('userPassword').required = false;
+        // Trigger role change handler to show/hide location fields
+        handleRoleChange();
       } else {
         title.textContent = 'Add New User';
         form.reset();
         document.getElementById('userPassword').placeholder = 'Enter password';
         document.getElementById('userPassword').required = true;
+        // Reset location fields visibility
+        handleRoleChange();
       }
       
       modal.classList.add('show');

@@ -5,7 +5,6 @@ const FileUpload = require('../models/fileUpload.js');
 
 // Admin bulk upload function
 const handleAdminBulkUpload = async (req, res) => {
-    console.log('DEBUG: handleAdminBulkUpload function called!');
     try {
         const results = {
             success: true,
@@ -166,13 +165,6 @@ const uploadFile = async (req, res) => {
         }
 
 
-        // Debug logging for upload mode and user role
-        console.log('DEBUG: uploadFile called');
-        console.log('DEBUG: req.body.uploadMode =', req.body.uploadMode);
-        console.log('DEBUG: req.user.user_type =', req.user && req.user.user_type);
-        console.log('DEBUG: req.body.country =', req.body.country);
-        console.log('DEBUG: req.body.department =', req.body.department);
-        
         // Check if this is an admin bulk upload
         const uploadMode = req.body.uploadMode;
         const userRole = req.user.user_type;
@@ -182,16 +174,9 @@ const uploadFile = async (req, res) => {
         const department = req.body.department;
 
         // For admin bulk uploads: upload to all indices (including admin master)
-        console.log('DEBUG: Checking admin bulk upload condition...');
-        console.log('DEBUG: uploadMode === "all"?', uploadMode === 'all');
-        console.log('DEBUG: userRole === "admin"?', userRole === 'admin');
-        
-        // TEMPORARY: Force admin bulk upload for testing
-        if (uploadMode === 'all' || (country === 'admin' && department === 'master')) {
-            console.log('DEBUG: Triggering admin bulk upload!');
+        if (uploadMode === 'all' && userRole === 'admin') {
             return await handleAdminBulkUpload(req, res);
         }
-        console.log('DEBUG: Admin bulk upload condition not met, proceeding with regular upload');
 
         if (!country || !department) {
             return res.status(400).json({
