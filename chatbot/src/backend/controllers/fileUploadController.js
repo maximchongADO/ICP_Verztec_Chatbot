@@ -5,6 +5,7 @@ const FileUpload = require('../models/fileUpload.js');
 
 // Admin bulk upload function
 const handleAdminBulkUpload = async (req, res) => {
+    console.log('DEBUG: handleAdminBulkUpload function called!');
     try {
         const results = {
             success: true,
@@ -29,9 +30,10 @@ const handleAdminBulkUpload = async (req, res) => {
         // Upload to each combination
         for (const combo of combinations) {
             try {
-                // Create form data for FastAPI
+                // Create a fresh buffer for each upload
+                const fileBuffer = Buffer.from(req.file.buffer);
                 const formData = new FormData();
-                const stream = Readable.from(req.file.buffer);
+                const stream = Readable.from(fileBuffer);
                 formData.append('file', stream, {
                     filename: req.file.originalname,
                     contentType: req.file.mimetype
@@ -54,21 +56,10 @@ const handleAdminBulkUpload = async (req, res) => {
                 );
 
                 if (response.data.success) {
-                    // Save to database
-                    const fileRecord = await FileUpload.createFileRecord({
-                        filename: req.file.originalname,
-                        cleanedContent: response.data.cleaned_content || '',
-                        uploadedBy: req.user.id || null,
-                        country: combo.country,
-                        department: combo.department,
-                        faissIndexPath: response.data.faiss_index_path || null
-                    });
-
                     results.uploadResults.push({
                         country: combo.country,
                         department: combo.department,
                         success: true,
-                        fileId: fileRecord.fileId,
                         message: `Successfully uploaded to ${combo.country.toUpperCase()}/${combo.department.toUpperCase()}`
                     });
                     results.successfulUploads++;
@@ -93,8 +84,9 @@ const handleAdminBulkUpload = async (req, res) => {
 
         // Also upload to admin master index
         try {
+            const fileBuffer = Buffer.from(req.file.buffer);
             const formData = new FormData();
-            const stream = Readable.from(req.file.buffer);
+            const stream = Readable.from(fileBuffer);
             formData.append('file', stream, {
                 filename: req.file.originalname,
                 contentType: req.file.mimetype
@@ -117,20 +109,10 @@ const handleAdminBulkUpload = async (req, res) => {
             );
 
             if (response.data.success) {
-                const fileRecord = await FileUpload.createFileRecord({
-                    filename: req.file.originalname,
-                    cleanedContent: response.data.cleaned_content || '',
-                    uploadedBy: req.user.id || null,
-                    country: 'admin',
-                    department: 'master',
-                    faissIndexPath: response.data.faiss_index_path || null
-                });
-
                 results.uploadResults.push({
                     country: 'admin',
                     department: 'master',
                     success: true,
-                    fileId: fileRecord.fileId,
                     message: 'Successfully uploaded to ADMIN MASTER index'
                 });
                 results.successfulUploads++;
@@ -183,29 +165,43 @@ const uploadFile = async (req, res) => {
             });
         }
 
+
+        // Debug logging for upload mode and user role
+        console.log('DEBUG: uploadFile called');
+        console.log('DEBUG: req.body.uploadMode =', req.body.uploadMode);
+        console.log('DEBUG: req.user.user_type =', req.user && req.user.user_type);
+        console.log('DEBUG: req.body.country =', req.body.country);
+        console.log('DEBUG: req.body.department =', req.body.department);
+        
         // Check if this is an admin bulk upload
         const uploadMode = req.body.uploadMode;
         const userRole = req.user.user_type;
-
-        // For admin bulk uploads
-        if (uploadMode === 'all' && userRole === 'admin') {
-            return await handleAdminBulkUpload(req, res);
-        }
-
-        // Get country and department from form data
+        
+        // Get country and department from form data (needed for condition check)
         const country = req.body.country;
         const department = req.body.department;
+
+        // For admin bulk uploads: upload to all indices (including admin master)
+        console.log('DEBUG: Checking admin bulk upload condition...');
+        console.log('DEBUG: uploadMode === "all"?', uploadMode === 'all');
+        console.log('DEBUG: userRole === "admin"?', userRole === 'admin');
         
+        // TEMPORARY: Force admin bulk upload for testing
+        if (uploadMode === 'all' || (country === 'admin' && department === 'master')) {
+            console.log('DEBUG: Triggering admin bulk upload!');
+            return await handleAdminBulkUpload(req, res);
+        }
+        console.log('DEBUG: Admin bulk upload condition not met, proceeding with regular upload');
+
         if (!country || !department) {
             return res.status(400).json({
                 success: false,
                 message: 'Country and department are required'
             });
-        }
-
-        // Create form data for FastAPI
+        }        // Upload to the selected index
+        const fileBuffer = Buffer.from(req.file.buffer);
         const formData = new FormData();
-        const stream = Readable.from(req.file.buffer);
+        const stream = Readable.from(fileBuffer);
         formData.append('file', stream, {
             filename: req.file.originalname,
             contentType: req.file.mimetype
@@ -230,23 +226,49 @@ const uploadFile = async (req, res) => {
             throw new Error(response.data.error || 'FastAPI processing failed');
         }
 
-        // Save to database with proper null checks
-        const fileRecord = await FileUpload.createFileRecord({
-            filename: req.file.originalname,
-            cleanedContent: response.data.cleaned_content || '',  // Ensure not null
-            uploadedBy: req.user.id || null,  // Ensure not undefined
-            country: country,
-            department: department,
-            faissIndexPath: response.data.faiss_index_path || null
-        });
+        // Always also upload to admin master index (unless already uploading to admin/master)
+        let adminUploadResult = null;
+        if (!(country === 'admin' && department === 'master')) {
+            try {
+                const adminFileBuffer = Buffer.from(req.file.buffer);
+                const adminFormData = new FormData();
+                const adminStream = Readable.from(adminFileBuffer);
+                adminFormData.append('file', adminStream, {
+                    filename: req.file.originalname,
+                    contentType: req.file.mimetype
+                });
+                adminFormData.append('country', 'admin');
+                adminFormData.append('department', 'master');
+                adminFormData.append('replaceIfExists', 'true');
 
+                console.log('Also uploading to admin master index...');
+
+                const adminResponse = await axios.post(
+                    'http://localhost:3000/internal/upload',
+                    adminFormData,
+                    {
+                        headers: {
+                            ...adminFormData.getHeaders(),
+                            'Authorization': `Bearer ${process.env.INTERNAL_API_KEY || 'default-key'}`
+                        }
+                    }
+                );
+                adminUploadResult = adminResponse.data;
+            } catch (adminError) {
+                console.error('Error uploading to admin master:', adminError.message);
+                adminUploadResult = { success: false, error: adminError.message };
+            }
+        }
+
+        // File record DB logic removed
         return res.status(200).json({
             success: true,
-            message: `File processed and stored successfully in ${country.toUpperCase()}/${department.toUpperCase()} knowledge base`,
-            fileId: fileRecord.fileId,
+            message: `File processed and stored successfully in ${country.toUpperCase()}/${department.toUpperCase()} knowledge base` +
+                ((adminUploadResult && adminUploadResult.success) ? ' and ADMIN MASTER index' : ''),
             country: country,
             department: department,
-            faissIndexPath: response.data.faiss_index_path
+            faissIndexPath: response.data.faiss_index_path,
+            adminMasterUpload: adminUploadResult
         });
 
     } catch (error) {
@@ -260,55 +282,19 @@ const uploadFile = async (req, res) => {
 };
 
 const getFile = async (req, res) => {
-    try {
-        const fileId = req.params.id;
-        const file = await FileUpload.getFileById(fileId);
-        
-        if (!file) {
-            return res.status(404).json({
-                success: false,
-                message: 'File not found'
-            });
-        }
-
-        res.status(200).json({
-            success: true,
-            data: file
-        });
-    } catch (error) {
-        console.error('Error getting file:', error);
-        res.status(500).json({
-            success: false,
-            message: 'Failed to get file',
-            error: error.message
-        });
-    }
+    // File DB logic removed
+    return res.status(501).json({
+        success: false,
+        message: 'File DB logic removed'
+    });
 };
 
 const deleteFile = async (req, res) => {
-    try {
-        const fileId = req.params.id;
-        const result = await FileUpload.deleteFile(fileId);
-        
-        if (!result) {
-            return res.status(404).json({
-                success: false,
-                message: 'File not found'
-            });
-        }
-
-        res.status(200).json({
-            success: true,
-            message: 'File deleted successfully'
-        });
-    } catch (error) {
-        console.error('Error deleting file:', error);
-        res.status(500).json({
-            success: false,
-            message: 'Failed to delete file',
-            error: error.message
-        });
-    }
+    // File DB logic removed
+    return res.status(501).json({
+        success: false,
+        message: 'File DB logic removed'
+    });
 };
 
 const getUploadConfig = async (req, res) => {
