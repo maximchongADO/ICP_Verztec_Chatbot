@@ -89,6 +89,13 @@
           </button>
           <div class="chat-title">Chat Session</div>
           <div class="header-buttons">
+            <button class="header-btn stop-tts-btn" id="stopTtsButton" onclick="stopCurrentTTS()" title="Stop TTS" style="display: none;">
+              <svg viewBox="0 0 24 24" width="16" height="16">
+                <rect x="6" y="4" width="4" height="16" fill="currentColor"/>
+                <rect x="14" y="4" width="4" height="16" fill="currentColor"/>
+              </svg>
+              Stop TTS
+            </button>
             <button class="header-btn new-chat-btn" onclick="exportChat()">Export Chat</button>
             <button class="header-btn clear-chat-btn" onclick="triggerClearChat()">Clear Chat</button>
           </div>

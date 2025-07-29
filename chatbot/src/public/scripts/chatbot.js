@@ -937,6 +937,10 @@ function addMessage(textOrResponse, sender, isHistorical = false) {
     if (avatarActive) {
       // Send bot response text to avatar for TTS generation
       console.log('🎭 Sending bot response text to avatar for TTS');
+      // Show stop button when sending to avatar
+      showStopTTSButton();
+      isTTSPlaying = true;
+      
       setTimeout(() => {
         if (typeof sendMessageToAvatar === 'function') {
           console.log('🎭 Sending text to avatar for TTS generation');
@@ -952,11 +956,17 @@ function addMessage(textOrResponse, sender, isHistorical = false) {
           });
         } else {
           console.error('❌ sendMessageToAvatar function not found');
+          // Reset state if can't send to avatar
+          isTTSPlaying = false;
+          hideStopTTSButton();
         }
       }, 100);
     } else {
       // Fallback to local TTS if no avatar is active
       console.log('🔊 Using local TTS (no avatar active)');
+      // Show stop button for local TTS too
+      showStopTTSButton();
+      isTTSPlaying = true;
       setTimeout(() => speakMessage(text), 100);
     }
 
@@ -1343,46 +1353,203 @@ window.addEventListener("resize", function () {
   }
 });
 
-// Add mute toggle functionality
-let isMuted = false;
+// Add stop TTS functionality
+let currentTTSAudio = null;
+let isTTSPlaying = false;
 
-function toggleMute() {
-    isMuted = !isMuted;
-    const toggleButton = document.getElementById('toggleSpeechButton');
-    const avatar = document.getElementById('chatbotAvatar');
-    
-    if (isMuted) {
-        window.googleTTS?.pause();
-        if (avatar) avatar.classList.add('muted');
-        if (toggleButton) {
-            toggleButton.classList.add('muted');
-            toggleButton.innerHTML = '<i class="fas fa-volume-mute"></i> Muted';
-        }
+function showStopTTSButton() {
+    const stopButton = document.getElementById('stopTtsButton');
+    console.log('STOP-TTS: Attempting to show button. Button found:', !!stopButton);
+    if (stopButton) {
+        stopButton.style.display = 'flex';
+        console.log('STOP-TTS: Button display set to flex');
+        console.log('STOP-TTS: Button current style:', stopButton.style.display);
+        console.log('STOP-TTS: Button visible:', stopButton.offsetWidth > 0 && stopButton.offsetHeight > 0);
     } else {
-        window.googleTTS?.resume();
-        if (avatar) avatar.classList.remove('muted');
-        if (toggleButton) {
-            toggleButton.classList.remove('muted');
-            toggleButton.innerHTML = '<i class="fas fa-volume-up"></i> Unmuted';
-        }
+        console.error('STOP-TTS: Button element not found!');
     }
 }
+
+function hideStopTTSButton() {
+    const stopButton = document.getElementById('stopTtsButton');
+    console.log('STOP-TTS: Attempting to hide button. Button found:', !!stopButton);
+    if (stopButton) {
+        stopButton.style.display = 'none';
+        console.log('STOP-TTS: Button hidden');
+    }
+}
+
+function stopCurrentTTS() {
+    console.log('STOP-TTS: Stopping current TTS...');
+    
+    // Stop Google TTS
+    if (window.googleTTS) {
+        window.googleTTS.pause();
+        console.log('STOP-TTS: Stopped Google TTS');
+    }
+    
+    // Stop HTML5 audio elements
+    const audioElements = document.querySelectorAll('audio');
+    audioElements.forEach(audio => {
+        if (!audio.paused) {
+            audio.pause();
+            audio.currentTime = 0;
+        }
+    });
+    console.log('STOP-TTS: Stopped HTML5 audio elements');
+    
+    // Send stop command to avatar
+    if (typeof sendMessageToAvatar === 'function') {
+        sendMessageToAvatar({ type: 'mute_immediate' });
+        console.log('STOP-TTS: Sent stop command to avatar');
+    }
+    
+    // Reset TTS state
+    isTTSPlaying = false;
+    currentTTSAudio = null;
+    
+    // Hide the stop button
+    hideStopTTSButton();
+    
+    console.log('STOP-TTS: Current TTS stopped successfully');
+}
+
+function toggleMute() {
+    console.log('=== TOGGLE MUTE CALLED ===');
+    console.log('Before toggle - isMuted:', isMuted);
+    
+    // Toggle the state
+    isMuted = !isMuted;
+    
+    console.log('After toggle - isMuted:', isMuted);
+    
+    // Get UI elements
+    const muteButton = document.getElementById('muteButton');
+    const muteIcon = document.getElementById('muteIcon');
+    const mutedIcon = document.getElementById('mutedIcon');
+    
+    if (!muteButton || !muteIcon || !mutedIcon) {
+        console.error('MISSING UI ELEMENTS:', {
+            muteButton: !!muteButton,
+            muteIcon: !!muteIcon, 
+            mutedIcon: !!mutedIcon
+        });
+        return;
+    }
+    
+    if (isMuted) {
+        console.log('APPLYING MUTE STATE');
+        
+        // Stop any current audio
+        if (window.googleTTS) {
+            window.googleTTS.pause();
+        }
+        
+        const audioElements = document.querySelectorAll('audio');
+        audioElements.forEach(audio => {
+            if (!audio.paused) {
+                audio.pause();
+                audio.currentTime = 0;
+            }
+        });
+        
+        // Send mute command to avatar
+        sendMessageToAvatar({
+            type: 'mute_immediate'
+        });
+        
+        // Update UI for muted state
+        muteButton.classList.add('muted');
+        muteIcon.style.display = 'none';
+        mutedIcon.style.display = 'block';
+        muteButton.title = 'Unmute TTS';
+        
+        console.log('MUTE STATE APPLIED');
+        
+    } else {
+        // UNMUTE - Allow new audio to play
+        console.log('🔊 Applying unmute...');
+        
+        // Resume Google TTS
+        if (window.googleTTS) {
+            window.googleTTS.resume();
+            console.log('  ✓ Google TTS resumed');
+        }
+        
+        // Send unmute command to avatar to allow audio
+        sendMessageToAvatar({
+            type: 'unmute'
+        });
+        console.log('  ✓ Unmute command sent to avatar');
+        
+        // Update UI for unmuted state
+        muteButton.classList.remove('muted');
+        muteIcon.style.display = 'block';
+        mutedIcon.style.display = 'none';
+        muteButton.title = 'Mute TTS';
+        
+        console.log('UNMUTE STATE APPLIED');
+    }
+    
+    // Save state to localStorage
+    localStorage.setItem('tts_muted', isMuted.toString());
+    console.log('Saved to localStorage:', localStorage.getItem('tts_muted'));
+    console.log('=== TOGGLE COMPLETE ===');
+    console.log('� Mute state saved to localStorage:', isMuted.toString());
+    
+    // Verify the save worked
+    const verification = localStorage.getItem('tts_muted');
+    console.log('✓ Verification - localStorage now contains:', verification);
+}
+
+// Initialize stop TTS button as hidden
+document.addEventListener('DOMContentLoaded', function() {
+    hideStopTTSButton();
+    console.log('STOP-TTS: Initialized with button hidden');
+    
+    // Listen for avatar TTS end events
+    window.addEventListener('message', function(event) {
+        if (event.data && event.data.type === 'avatar_tts_ended') {
+            console.log('STOP-TTS: Received avatar TTS ended event');
+            isTTSPlaying = false;
+            hideStopTTSButton();
+        }
+    });
+    
+    // Test function to manually show button (for debugging)
+    window.testShowStopButton = function() {
+        console.log('TEST: Manually showing stop button');
+        showStopTTSButton();
+    };
+    
+    window.testHideStopButton = function() {
+        console.log('TEST: Manually hiding stop button');
+        hideStopTTSButton();
+    };
+    
+    console.log('STOP-TTS: Test functions available - testShowStopButton() and testHideStopButton()');
+});
 
 let currentMouthInterval = null; // Add this at the top level of your file
 
 async function speakMessage(text) {
     if (!text || !text.trim()) return;
     
-    console.log('🗣️ Speaking message:', text.substring(0, 50) + '...');
+    console.log('TTS: Speaking message:', text.substring(0, 50) + '...');
+    console.log('TTS: About to check if should show stop button');
     
     // Check if avatar is available and active
     const avatarActive = isAvatarActive();
-    console.log('🎭 Avatar active:', avatarActive);
+    console.log('TTS: Avatar active:', avatarActive);
     
     if (avatarActive) {
-        console.log('🎭 Avatar is active, sending message with TTS and lip sync');
-        // Send to avatar with enhanced TTS request
+        console.log('TTS: Avatar is active, sending message with TTS and lip sync');
+        // Always generate TTS for avatar so lipsync works
         try {
+            // Show stop button when generating TTS for avatar
+            showStopTTSButton();
+            isTTSPlaying = true;
+            
             const token = localStorage.getItem("token");
             const response = await fetch("/api/tts/synthesize-enhanced", {
                 method: "POST",
@@ -1403,47 +1570,62 @@ async function speakMessage(text) {
             if (response.ok) {
                 const data = await response.json();
                 if (data.success) {
-                    console.log('✅ TTS generated, sending to avatar');
+                    console.log('TTS: TTS generated, sending to avatar');
                     sendMessageToAvatar({
                         type: 'tts_with_lipsync',
                         text: text,
                         audio: data.audio,
                         lipsync: data.lipSyncData
                     });
-                    return; // Don't play locally
+                    return; // Don't play locally when avatar is active
                 }
             }
         } catch (error) {
-            console.error('❌ Failed to generate TTS for avatar:', error);
+            console.error('TTS: Failed to generate TTS for avatar:', error);
+            // Reset state on error
+            isTTSPlaying = false;
+            hideStopTTSButton();
         }
     }
     
     // Fallback to local TTS if avatar is not available or TTS failed
-    console.log('🔊 Playing TTS locally');
+    console.log('TTS: Playing TTS locally');
+    
     const avatar = document.getElementById('chatbotAvatar');
     
     try {
         if (avatar) avatar.classList.add('speaking');
         isCurrentlySpeaking = true;
+        isTTSPlaying = true;
+        
+        // Show stop button when TTS starts
+        showStopTTSButton();
         
         if (window.googleTTS) {
           await window.googleTTS.speak(text, {
             voice: 'en-GB-Standard-A',
             languageCode: 'en-GB',
-            volume: isMuted ? 0 : 1,
+            volume: 1,
             generateLipSync: false, // Don't need lip sync for local playback
             onend: () => {
               currentSpeechText = null;
               isCurrentlySpeaking = false;
+              isTTSPlaying = false;
+              hideStopTTSButton(); // Hide stop button when TTS ends
               stopAvatarAnimation();
+              console.log('TTS: Local TTS ended');
             },
             onstart: () => {
               isCurrentlySpeaking = true;
+              isTTSPlaying = true;
               if (avatar) avatar.classList.add('speaking');
+              console.log('TTS: Local TTS started');
             }
           });
         } else {
           console.warn('Google TTS not loaded');
+          isTTSPlaying = false;
+          hideStopTTSButton();
           stopAvatarAnimation();
         }
         

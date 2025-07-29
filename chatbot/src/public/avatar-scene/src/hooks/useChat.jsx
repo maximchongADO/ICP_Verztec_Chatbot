@@ -90,7 +90,7 @@ export const ChatProvider = ({ children }) => {
 
     // Handle pre-generated TTS with lipsync data
     if (event.data?.type === 'tts_with_lipsync') {
-      const { text, audio, lipsync } = event.data;
+      const { text, audio, lipsync, muted } = event.data;
       console.log('✅ Avatar received pre-generated TTS:', text?.substring(0, 50) + '...');
       
       const newMessage = {
@@ -98,7 +98,8 @@ export const ChatProvider = ({ children }) => {
         type: "bot",
         text,
         audio,
-        lipsync
+        lipsync,
+        muted: muted || false  // Pass mute state to message
       };
       console.log('✅ Adding ready TTS message to queue:', newMessage.id);
       setMessages((messages) => [...messages, newMessage]);
