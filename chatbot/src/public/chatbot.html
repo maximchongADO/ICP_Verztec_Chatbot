@@ -684,28 +684,29 @@
       function sendMessageToAvatar(message) {
         let messageSent = false;
         
-        // Cancel main chatbot TTS when sending to avatar
-        if (window.googleTTS) {
-          window.googleTTS.cancel();
-          console.log('Cancelled main chatbot TTS for avatar message');
-        }
+        console.log('� Sending message to avatar without TTS cancellation');
         
         // Handle different message types
-        const messageToSend = typeof message === 'string' ? {
-          type: 'chat_message',
-          payload: message
-        } : {
-          type: message.type || 'chat_message',
-          payload: message.text || message.payload || message
-        };
+        let messageToSend;
         
-        // If it's a TTS message with lip sync, format it properly
-        if (message.type === 'tts_with_lipsync') {
-          messageToSend.type = 'chat_message';
-          messageToSend.payload = {
+        if (typeof message === 'string') {
+          messageToSend = {
+            type: 'chat_message',
+            payload: message
+          };
+        } else if (message.type === 'tts_with_lipsync') {
+          // Preserve tts_with_lipsync type for pre-generated audio
+          messageToSend = {
+            type: 'tts_with_lipsync',
             text: message.text,
             audio: message.audio,
             lipsync: message.lipsync
+          };
+          console.log('📤 Sending pre-generated TTS to avatar');
+        } else {
+          messageToSend = {
+            type: message.type || 'chat_message',
+            payload: message.text || message.payload || message
           };
         }
         

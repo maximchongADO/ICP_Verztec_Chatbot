@@ -117,29 +117,46 @@ export function Avatar(props) {
   const [animation, setAnimation] = useState("Standing Idle");
   const [facialExpression, setFacialExpression] = useState("");
   const [audio, setAudio] = useState();
+  const [isSpeaking, setIsSpeaking] = useState(false);
+  // Removed currentTalkingAnimation - we'll only use Talking_1
 
   useEffect(() => {
-    console.log(message);
+    console.log('🎵 Avatar received message:', message);
     if (!message) {
-      // Always keep Standing Idle animation - don't change this
+      console.log('🎵 No message, stopping speech and setting idle');
+      setIsSpeaking(false);
       setAnimation("Standing Idle");
       return;
     }
-    // Always use Standing Idle regardless of message animation - don't change this
-    setAnimation("Standing Idle");
+    
+    console.log('🎵 Processing message with audio and lipsync');
     setFacialExpression(message.facialExpression);
     setLipsync(message.lipsync);
     
-    // Create and play audio element
-    const audio = new Audio("data:audio/mp3;base64," + message.audio);
-    setAudio(audio);
+    // Stop any existing audio first to prevent duplicates
+    if (audio && !audio.paused) {
+      console.log('🎵 Stopping previous audio to prevent overlap');
+      audio.pause();
+      audio.currentTime = 0;
+    }
     
-    console.log('🎵 Playing audio for avatar message');
-    audio.volume = 1;
-    audio.play();
+    // Create and play audio element
+    const newAudio = new Audio("data:audio/mp3;base64," + message.audio);
+    setAudio(newAudio);
+    
+    console.log('🎵 Setting up audio event handlers for new audio');
+    newAudio.volume = 1;
+    
+    // Start speaking animation when audio starts playing
+    newAudio.onplay = () => {
+      console.log('🎵 Audio started playing - enabling talking animations');
+      setIsSpeaking(true);
+    };
     
     // Handle audio end event
-    audio.onended = () => {
+    newAudio.onended = () => {
+      console.log('🎵 Audio ended - disabling talking animations');
+      setIsSpeaking(false);
       onMessagePlayed();
       // Send message to main chatbot to hide stop button
       if (window.parent && window.parent !== window) {
@@ -149,38 +166,91 @@ export function Avatar(props) {
         console.log('🎵 Avatar TTS ended, notified main chatbot');
       }
     };
-  }, [message]);
+    
+    // Error handling for audio playback
+    newAudio.onerror = (error) => {
+      console.error('🎵 Audio playback error:', error);
+      setIsSpeaking(false);
+    };
+    
+    // Play the audio
+    newAudio.play().catch(error => {
+      console.error('🎵 Audio play failed:', error);
+      setIsSpeaking(false);
+    });
+    
+    // Cleanup function to stop audio when component unmounts or new message arrives
+    return () => {
+      if (newAudio && !newAudio.paused) {
+        console.log('🎵 Cleaning up audio on message change');
+        newAudio.pause();
+        newAudio.currentTime = 0;
+      }
+    };
+  }, [message, onMessagePlayed]);
 
   const { animations } = useGLTF("/avatar/models/animations.glb");
 
   const group = useRef();
   const { actions, mixer } = useAnimations(animations, group);
   
+  // Talking animation effect - simplified to only use Talking_1
   useEffect(() => {
-    // Always force Standing Idle animation - don't change this
-    const animationToPlay = "Standing Idle";
+    if (isSpeaking) {
+      console.log('🎬 Starting Talking_1 animation (continuous loop)');
+    } else {
+      console.log('🎬 Stopping talking animation, returning to idle');
+    }
+  }, [isSpeaking]);
+  
+  // Animation state effect - handles playing the correct animation
+  useEffect(() => {
+    const animationToPlay = isSpeaking ? "Talking_1" : "Standing Idle";
+    console.log('🎬 Setting animation to:', animationToPlay, 'isSpeaking:', isSpeaking);
+    
     if (actions[animationToPlay]) {
-      actions[animationToPlay]
+      // Fade out all other animations first
+      Object.keys(actions).forEach(actionName => {
+        if (actionName !== animationToPlay && actions[actionName].isRunning()) {
+          actions[actionName].fadeOut(0.2);
+        }
+      });
+      
+      // Play the target animation with loop for talking
+      const action = actions[animationToPlay]
         .reset()
-        .fadeIn(mixer.stats.actions.inUse === 0 ? 0 : 0.5)
-        .play();
-      console.log('🎬 Playing Standing Idle animation');
+        .fadeIn(0.2);
+      
+      if (isSpeaking && animationToPlay === "Talking_1") {
+        // Set talking animation to loop continuously and reduce intensity
+        action.setLoop(2201); // LoopRepeat = 2201 in Three.js
+        action.setEffectiveWeight(0.7); // Reduce intensity for more natural look
+        console.log('🎬 Set Talking_1 to loop continuously with reduced weight');
+      }
+      
+      action.play();
+      console.log('🎬 Playing animation:', animationToPlay);
     } else if (actions["Idle"]) {
-      // Fallback to "Idle" if "Standing Idle" doesn't exist
+      // Fallback to "Idle" if target animation doesn't exist
+      console.log('🎬 Fallback to Idle animation');
+      Object.keys(actions).forEach(actionName => {
+        if (actionName !== "Idle" && actions[actionName].isRunning()) {
+          actions[actionName].fadeOut(0.2);
+        }
+      });
       actions["Idle"]
         .reset()
-        .fadeIn(mixer.stats.actions.inUse === 0 ? 0 : 0.5)
+        .fadeIn(0.2)
         .play();
-      console.log('🎬 Playing Idle animation as fallback');
     }
+    
     return () => {
+      // Cleanup function to handle animation transitions
       if (actions[animationToPlay]) {
-        actions[animationToPlay].fadeOut(0.5);
-      } else if (actions["Idle"]) {
-        actions["Idle"].fadeOut(0.5);
+        actions[animationToPlay].fadeOut(0.2);
       }
     };
-  }, [actions, mixer]); // Removed animation dependency to prevent changes
+  }, [actions, mixer, isSpeaking]);
 
   const lerpMorphTarget = (target, value, speed = 0.1) => {
     scene.traverse((child) => {
@@ -225,6 +295,10 @@ export function Avatar(props) {
           console.log('🔇 Audio stopped due to mute command');
         }
         
+        // Stop speaking animations immediately
+        console.log('🔇 Stopping talking animations');
+        setIsSpeaking(false);
+        
         // Clear the current message queue and notify main chatbot
         onMessagePlayed();
         
@@ -253,6 +327,16 @@ export function Avatar(props) {
         if (key === "eyeBlinkLeft" || key === "eyeBlinkRight") {
           return; // eyes wink/blink are handled separately
         }
+        
+        // During talking, override facial expressions that affect eye direction
+        if (isSpeaking && (
+          key.includes("eyeLook") || 
+          key.includes("eyeWide") || 
+          key.includes("eyeSquint")
+        )) {
+          return; // Skip these during talking to maintain eye lock
+        }
+        
         if (mapping && mapping[key]) {
           lerpMorphTarget(key, mapping[key], 0.1);
         } else {
@@ -263,6 +347,27 @@ export function Avatar(props) {
     lerpMorphTarget("eyeBlinkLeft", blink || winkLeft ? 1 : 0, 0.5);
     lerpMorphTarget("eyeBlinkRight", blink || winkRight ? 1 : 0, 0.5);
 
+    // Enhanced eye lock during talking animations
+    if (isSpeaking) {
+      // Aggressively reset ALL eye look directions to maintain forward gaze
+      const eyeLookTargets = [
+        "eyeLookUpLeft", "eyeLookUpRight",
+        "eyeLookDownLeft", "eyeLookDownRight", 
+        "eyeLookInLeft", "eyeLookInRight",
+        "eyeLookOutLeft", "eyeLookOutRight"
+      ];
+      
+      eyeLookTargets.forEach(target => {
+        lerpMorphTarget(target, 0, 0.3); // Faster lerp for more responsive centering
+      });
+      
+      // Also control eye width to prevent squinting during talking
+      lerpMorphTarget("eyeWideLeft", 0.1, 0.2); // Slight wide eyes for engagement
+      lerpMorphTarget("eyeWideRight", 0.1, 0.2);
+      lerpMorphTarget("eyeSquintLeft", 0, 0.3);
+      lerpMorphTarget("eyeSquintRight", 0, 0.3);
+    }
+
     // LIPSYNC
     if (setupMode) {
       return;
@@ -270,7 +375,7 @@ export function Avatar(props) {
 
     const appliedMorphTargets = [];
     if (message && lipsync) {
-      const currentAudioTime = audio.currentTime;
+      const currentAudioTime = audio?.currentTime || 0;
       for (let i = 0; i < lipsync.mouthCues.length; i++) {
         const mouthCue = lipsync.mouthCues[i];
         if (

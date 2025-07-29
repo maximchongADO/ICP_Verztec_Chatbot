@@ -947,32 +947,59 @@ function addMessage(textOrResponse, sender, isHistorical = false) {
     console.log('🤖 Message text:', text.substring(0, 50) + '...');
     
     if (avatarActive) {
-      // Send bot response text to avatar for TTS generation
-      console.log('🎭 Sending bot response text to avatar for TTS');
-      // Show stop button when sending to avatar
+      // Generate TTS first, then send audio to avatar (no duplication)
+      console.log('🎭 Generating TTS for avatar (single source)');
+      
+      // Show stop button when starting TTS generation
       showStopTTSButton();
       isTTSPlaying = true;
       
-      setTimeout(() => {
-        if (typeof sendMessageToAvatar === 'function') {
-          console.log('🎭 Sending text to avatar for TTS generation');
-          
-          // Send only the text - let avatar handle TTS generation
-          sendMessageToAvatar({
-            type: 'bot_response_for_tts',
-            payload: { 
-              text: text,
-              isNewMessage: true,
-              timestamp: Date.now()
+      try {
+        // Generate TTS with lipsync for avatar
+        const token = localStorage.getItem("token");
+        fetch("/api/tts/synthesize-enhanced", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({
+            text: text,
+            voice: 'en-GB-Standard-A',
+            languageCode: 'en-GB',
+            generateLipSyncData: true,
+            facialExpression: 'default',
+            animation: 'Talking_1'
+          }),
+        })
+        .then(response => response.json())
+        .then(data => {
+          if (data.success) {
+            console.log('🎭 TTS generated successfully, sending to avatar');
+            // Send the generated audio and lipsync to avatar
+            if (typeof sendMessageToAvatar === 'function') {
+              sendMessageToAvatar({
+                type: 'tts_with_lipsync',
+                text: text,
+                audio: data.audio,
+                lipsync: data.lipSyncData
+              });
             }
-          });
-        } else {
-          console.error('❌ sendMessageToAvatar function not found');
-          // Reset state if can't send to avatar
-          isTTSPlaying = false;
-          hideStopTTSButton();
-        }
-      }, 100);
+          } else {
+            console.error('🎭 TTS generation failed, falling back to local TTS');
+            // Fallback to local TTS
+            speakMessage(text);
+          }
+        })
+        .catch(error => {
+          console.error('🎭 TTS generation error, falling back to local TTS:', error);
+          // Fallback to local TTS
+          speakMessage(text);
+        });
+      } catch (error) {
+        console.error('🎭 TTS setup error, falling back to local TTS:', error);
+        speakMessage(text);
+      }
     } else {
       // Fallback to local TTS if no avatar is active
       console.log('🔊 Using local TTS (no avatar active)');
