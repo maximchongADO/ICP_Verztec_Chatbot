@@ -350,8 +350,8 @@
           profileRoleEl.textContent = window.currentUser.role || defaultUser.role;
         }
         
-        // Set admin privileges
-        if (window.currentUser.role === 'admin') {
+        // Set admin and manager privileges
+        if (window.currentUser.role === 'admin' || window.currentUser.role === 'manager') {
           if (document.getElementById('adminAddUserBtn')) 
             document.getElementById('adminAddUserBtn').style.display = 'none';
           if (document.getElementById('adminAddUserModalBtn')) 

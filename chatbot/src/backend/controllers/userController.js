@@ -13,7 +13,12 @@ const hashPassword = async (password) => {
 
 const generateAccessToken = (user) => {
     const secret = process.env.JWT_SECRET || 'fallback-secret-key';
-    return jwt.sign({ userId: user.id, role: user.role }, secret, { expiresIn: '1h' });
+    return jwt.sign({ 
+        userId: user.id, 
+        role: user.role,
+        country: user.country,
+        department: user.department
+    }, secret, { expiresIn: '1h' });
 }
 
 const getAllUsers = async (req, res) => {
@@ -587,6 +592,163 @@ const getAllUsersAnalytics = async (req, res) => {
     }
 };
 
+// Manager-only: get users from same department and country
+const managerGetUsers = async (req, res) => {
+    if (!req.user || req.user.role !== 'manager') {
+        return res.status(403).json({ message: 'Manager access required' });
+    }
+    
+    try {
+        const connection = await mysql.createConnection(dbConfig);
+        const [rows] = await connection.execute(
+            'SELECT id, username, email, role, country, department FROM users WHERE country = ? AND department = ?',
+            [req.user.country, req.user.department]
+        );
+        await connection.end();
+        res.json(rows);
+    } catch (error) {
+        console.error('Error fetching users (manager):', error);
+        res.status(500).json({ message: 'Internal server error' });
+    }
+};
+
+// Manager-only: create user in same department and country
+const managerCreateUser = async (req, res) => {
+    if (!req.user || req.user.role !== 'manager') {
+        return res.status(403).json({ message: 'Manager access required' });
+    }
+    
+    let { username, email, password, role } = req.body;
+    if (!username || !email || !password || !role) {
+        return res.status(400).json({ message: 'Missing required fields' });
+    }
+    if (!['user', 'manager'].includes(role)) {
+        return res.status(400).json({ message: 'Managers can only create user or manager roles' });
+    }
+    
+    try {
+        const hashedPassword = await hashPassword(password);
+        const createdUser = await User.createUser({
+            username,
+            email,
+            password: hashedPassword,
+            role,
+            country: req.user.country,
+            department: req.user.department
+        });
+        res.status(201).json({
+            message: 'User created successfully',
+            user: {
+                id: createdUser.id,
+                username: createdUser.username,
+                email: createdUser.email,
+                role: createdUser.role,
+                country: createdUser.country,
+                department: createdUser.department
+            }
+        });
+    } catch (error) {
+        console.error('Error creating user (manager):', error);
+        res.status(500).json({ message: 'Internal server error' });
+    }
+};
+
+// Manager-only: update user in same department and country
+const managerUpdateUser = async (req, res) => {
+    if (!req.user || req.user.role !== 'manager') {
+        return res.status(403).json({ message: 'Manager access required' });
+    }
+    
+    const userId = req.params.id;
+    let { username, email, role, password } = req.body;
+    if (!username && !email && !role && !password) {
+        return res.status(400).json({ message: 'No fields to update' });
+    }
+    if (role && !['user', 'manager'].includes(role)) {
+        return res.status(400).json({ message: 'Managers can only set user or manager roles' });
+    }
+    
+    try {
+        // Check if user is in same department and country
+        const connection = await mysql.createConnection(dbConfig);
+        const [userRows] = await connection.execute(
+            'SELECT country, department FROM users WHERE id = ?',
+            [userId]
+        );
+        await connection.end();
+        
+        if (userRows.length === 0) {
+            return res.status(404).json({ message: 'User not found' });
+        }
+        
+        const user = userRows[0];
+        if (user.country !== req.user.country || user.department !== req.user.department) {
+            return res.status(403).json({ message: 'Can only manage users in your department and country' });
+        }
+        
+        let updateFields = {};
+        if (username) updateFields.username = username;
+        if (email) updateFields.email = email;
+        if (role) updateFields.role = role;
+        if (password) updateFields.password = await hashPassword(password);
+
+        const updatedUser = await User.updateUser(userId, updateFields);
+        if (!updatedUser) {
+            return res.status(404).json({ message: 'User not found' });
+        }
+        res.json({
+            message: 'User updated successfully',
+            user: updatedUser
+        });
+    } catch (error) {
+        console.error('Error updating user (manager):', error);
+        res.status(500).json({ message: 'Internal server error' });
+    }
+};
+
+// Manager-only: delete user in same department and country
+const managerDeleteUser = async (req, res) => {
+    if (!req.user || req.user.role !== 'manager') {
+        return res.status(403).json({ message: 'Manager access required' });
+    }
+    
+    const userId = req.params.id;
+    
+    try {
+        // Check if user is in same department and country
+        const connection = await mysql.createConnection(dbConfig);
+        const [userRows] = await connection.execute(
+            'SELECT country, department, role FROM users WHERE id = ?',
+            [userId]
+        );
+        await connection.end();
+        
+        if (userRows.length === 0) {
+            return res.status(404).json({ message: 'User not found' });
+        }
+        
+        const user = userRows[0];
+        if (user.country !== req.user.country || user.department !== req.user.department) {
+            return res.status(403).json({ message: 'Can only manage users in your department and country' });
+        }
+        
+        // Prevent managers from deleting other managers or admins
+        if (user.role === 'manager' || user.role === 'admin') {
+            return res.status(403).json({ message: 'Cannot delete users with manager or admin roles' });
+        }
+        
+        const deleted = await User.deleteUser(userId);
+        if (deleted) {
+            res.status(200).json({ message: 'User deleted successfully' });
+        } else {
+            res.status(404).json({ message: 'User not found' });
+        }
+    } catch (error) {
+        console.error('Error deleting user (manager):', error);
+        res.status(500).json({ message: 'Internal server error' });
+    }
+};
+
 module.exports = {
     getAllUsers,
     getUserById,
@@ -599,6 +761,10 @@ module.exports = {
     adminCreateUser,
     adminUpdateUser,
     adminDeleteUser,
+    managerGetUsers,
+    managerCreateUser,
+    managerUpdateUser,
+    managerDeleteUser,
     getUserAnalytics,
     getUserChats,
     getUserFeedback,
