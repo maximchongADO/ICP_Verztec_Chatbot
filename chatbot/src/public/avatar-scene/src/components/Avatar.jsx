@@ -222,17 +222,29 @@ export function Avatar(props) {
         if (audio && !audio.paused) {
           audio.pause();
           audio.currentTime = 0;
+          console.log('🔇 Audio stopped due to mute command');
+        }
+        
+        // Clear the current message queue and notify main chatbot
+        onMessagePlayed();
+        
+        // Send message to main chatbot to hide stop button
+        if (window.parent && window.parent !== window) {
+          window.parent.postMessage({
+            type: 'avatar_tts_ended'
+          }, '*');
+          console.log('🔇 Sent avatar_tts_ended event after mute command');
         }
       } else if (event.data?.type === 'unmute') {
         console.log('🔊 Received unmute command - audio can play again');
         // Note: No action needed here, just logging for confirmation
-        // Audio playback will be controlled by the muted flag in TTS messages
+        // Audio playbook will be controlled by the muted flag in TTS messages
       }
     };
 
     window.addEventListener('message', handleMuteCommand);
     return () => window.removeEventListener('message', handleMuteCommand);
-  }, [audio]);
+  }, [audio, onMessagePlayed]);
 
   useFrame(() => {
     !setupMode &&

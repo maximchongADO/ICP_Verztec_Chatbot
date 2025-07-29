@@ -929,9 +929,21 @@ function addMessage(textOrResponse, sender, isHistorical = false) {
 }
 
   if (sender === "bot" && text && !tool_used && !isHistorical) {
+    console.log('🤖 ========== BOT MESSAGE TTS CHECK ==========');
+    console.log('🤖 Bot message detected, checking TTS status...');
+    console.log('🤖 isMuted status:', typeof isMuted !== 'undefined' ? isMuted : 'undefined');
+    console.log('🤖 localStorage tts_muted:', localStorage.getItem('tts_muted'));
+    
+    // Check if there's a mute state preventing TTS
+    if (typeof isMuted !== 'undefined' && isMuted) {
+        console.error('🤖 ❌ TTS is muted! Bot message will not generate TTS.');
+        console.error('🤖 ❌ This is likely why TTS stopped working after first stop.');
+        return; // Don't continue with TTS if muted
+    }
+    
     // Check if avatar is available and active
     const avatarActive = isAvatarActive();
-    console.log('🤖 Bot message detected, avatar active:', avatarActive);
+    console.log('🤖 Avatar active:', avatarActive);
     console.log('🤖 Message text:', text.substring(0, 50) + '...');
     
     if (avatarActive) {
@@ -1381,6 +1393,7 @@ function hideStopTTSButton() {
 
 function stopCurrentTTS() {
     console.log('STOP-TTS: Stopping current TTS...');
+    console.log('STOP-TTS: isMuted before stop:', typeof isMuted !== 'undefined' ? isMuted : 'undefined');
     
     // Stop Google TTS
     if (window.googleTTS) {
@@ -1398,7 +1411,7 @@ function stopCurrentTTS() {
     });
     console.log('STOP-TTS: Stopped HTML5 audio elements');
     
-    // Send stop command to avatar
+    // Send stop command to avatar (stops current audio without persistent mute)
     if (typeof sendMessageToAvatar === 'function') {
         sendMessageToAvatar({ type: 'mute_immediate' });
         console.log('STOP-TTS: Sent stop command to avatar');
@@ -1410,6 +1423,14 @@ function stopCurrentTTS() {
     
     // Hide the stop button
     hideStopTTSButton();
+    
+    // Make sure isMuted is not accidentally set
+    if (typeof isMuted !== 'undefined') {
+        console.log('STOP-TTS: isMuted after stop:', isMuted);
+        if (isMuted) {
+            console.warn('STOP-TTS: ⚠️ isMuted is true - this might prevent future TTS!');
+        }
+    }
     
     console.log('STOP-TTS: Current TTS stopped successfully');
 }
@@ -1510,7 +1531,8 @@ document.addEventListener('DOMContentLoaded', function() {
     // Listen for avatar TTS end events
     window.addEventListener('message', function(event) {
         if (event.data && event.data.type === 'avatar_tts_ended') {
-            console.log('STOP-TTS: Received avatar TTS ended event');
+            console.log('STOP-TTS: ✅ Received avatar TTS ended event');
+            console.log('STOP-TTS: Resetting TTS state and hiding button');
             isTTSPlaying = false;
             hideStopTTSButton();
         }
@@ -1533,9 +1555,23 @@ document.addEventListener('DOMContentLoaded', function() {
 let currentMouthInterval = null; // Add this at the top level of your file
 
 async function speakMessage(text) {
-    if (!text || !text.trim()) return;
+    console.log('TTS: ========== speakMessage CALLED ==========');
+    console.log('TTS: Text to speak:', text ? text.substring(0, 50) + '...' : 'null');
+    console.log('TTS: isMuted status:', typeof isMuted !== 'undefined' ? isMuted : 'undefined');
+    console.log('TTS: isTTSPlaying status:', isTTSPlaying);
     
-    console.log('TTS: Speaking message:', text.substring(0, 50) + '...');
+    if (!text || !text.trim()) {
+        console.log('TTS: No text provided, returning');
+        return;
+    }
+    
+    // Check if there's a mute state that's preventing TTS
+    if (typeof isMuted !== 'undefined' && isMuted) {
+        console.error('TTS: ❌ TTS is muted! This is why audio is not playing.');
+        console.error('TTS: ❌ isMuted =', isMuted, 'localStorage tts_muted =', localStorage.getItem('tts_muted'));
+        return;
+    }
+    
     console.log('TTS: About to check if should show stop button');
     
     // Check if avatar is available and active
