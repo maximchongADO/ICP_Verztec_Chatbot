@@ -317,45 +317,80 @@ function showAccessDenied(message) {
 
 // Display user access information
 function displayUserAccessInfo(user) {
-    const userAccessInfo = document.getElementById('userAccessInfo');
-    if (userAccessInfo) {
+    const userAccessDisplay = document.getElementById('userAccessDisplay');
+    if (userAccessDisplay) {
         const accessLevel = user.role === 'admin' ? 'Administrator Access' : 
                            user.role === 'manager' ? `${user.country?.toUpperCase()}/${user.department?.toUpperCase()} Manager Access` :
                            'Limited Access';
         
-        userAccessInfo.innerHTML = `
-            <div class="user-access-info">
-                <div class="user-access-header">
-                    <svg fill="currentColor" viewBox="0 0 20 20">
-                        <path d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
-                    </svg>
-                    Your Upload Access
+        const countryFlag = user.country === 'china' ? '🇨🇳' : user.country === 'singapore' ? '🇸🇬' : '';
+        const departmentIcon = user.department === 'hr' ? '👥' : user.department === 'it' ? '💻' : '';
+        
+        userAccessDisplay.innerHTML = `
+            <div class="config-row">
+                <div class="config-group">
+                    <div class="config-label">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/>
+                            <circle cx="12" cy="7" r="4"/>
+                        </svg>
+                        USER
+                    </div>
+                    <div class="access-value">${user.username}</div>
                 </div>
-                <div class="user-access-details">
-                    <div class="access-item">
-                        <div class="access-item-label">User</div>
-                        <div class="access-item-value">${user.username}</div>
+                <div class="config-group">
+                    <div class="config-label">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M16 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/>
+                            <circle cx="8.5" cy="7" r="4"/>
+                            <path d="M20 8v6M23 11h-6"/>
+                        </svg>
+                        ROLE
                     </div>
-                    <div class="access-item">
-                        <div class="access-item-label">Role</div>
-                        <div class="access-item-value">${user.role}</div>
+                    <div class="access-value">${user.role}</div>
+                </div>
+            </div>
+            <div class="config-row">
+                ${user.country ? `<div class="config-group">
+                    <div class="config-label">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/>
+                            <circle cx="12" cy="10" r="3"/>
+                        </svg>
+                        COUNTRY
                     </div>
-                    <div class="access-item">
-                        <div class="access-item-label">Access Level</div>
-                        <div class="access-item-value">${accessLevel}</div>
+                    <div class="access-value">${countryFlag} ${user.country}</div>
+                </div>` : ''}
+                ${user.department ? `<div class="config-group">
+                    <div class="config-label">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/>
+                            <circle cx="9" cy="7" r="4"/>
+                            <path d="M23 21v-2a4 4 0 00-3-3.87"/>
+                            <path d="M16 3.13a4 4 0 010 7.75"/>
+                        </svg>
+                        DEPARTMENT
                     </div>
-                    ${user.country ? `<div class="access-item">
-                        <div class="access-item-label">Country</div>
-                        <div class="access-item-value">${user.country}</div>
-                    </div>` : ''}
-                    ${user.department ? `<div class="access-item">
-                        <div class="access-item-label">Department</div>
-                        <div class="access-item-value">${user.department}</div>
-                    </div>` : ''}
+                    <div class="access-value">${departmentIcon} ${user.department}</div>
+                </div>` : ''}
+            </div>
+            <div class="config-row">
+                <div class="config-group" style="grid-column: 1 / -1;">
+                    <div class="config-label">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                        </svg>
+                        ACCESS LEVEL
+                    </div>
+                    <div class="access-value">${accessLevel}</div>
                 </div>
             </div>
         `;
-        userAccessInfo.style.display = 'block';
+        
+        const userAccessInfo = document.getElementById('userAccessInfo');
+        if (userAccessInfo) {
+            userAccessInfo.style.display = 'block';
+        }
     }
 }
 
