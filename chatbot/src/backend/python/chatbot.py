@@ -57,7 +57,7 @@ logger = logging.getLogger(__name__)
 # Initialize models and clients
 embedding_model = SentenceTransformer('BAAI/bge-large-en-v1.5')
 load_dotenv()
-api_key='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'
+api_key=''
 # i love api keyyy
 model = "deepseek-r1-distill-llama-70b" 
 deepseek = ChatGroq(api_key=api_key, model=model, temperature = 0) # type: ignore
@@ -398,13 +398,13 @@ def get_avg_score(index, embedding_model, query, k=10):
     return avg_score
 
 
-def generate_intelligent_query_suggestions(user_query: str, index, embedding_model, max_suggestions=3):
+def generate_intelligent_query_suggestions(user_query: str, index, embedding_model, max_suggestions=1):
     """
-    Advanced query suggestion system that:
+    Simplified query suggestion system that:
     1. Finds the most relevant documents to the user's query
     2. Extracts key topics and concepts from those documents
     3. Reformulates queries based on document content
-    4. Returns contextually relevant, clickable query suggestions
+    4. Returns one contextually relevant suggestion
     """
     try:
         # Get top documents with scores - cast broader net initially
@@ -424,7 +424,7 @@ def generate_intelligent_query_suggestions(user_query: str, index, embedding_mod
         
         # Use LLM to analyze the document and generate relevant queries
         analysis_prompt = f"""
-        Analyze this document content and the user's original query to generate 3 highly relevant, specific questions that would help the user find the information they're looking for.
+        Analyze this document content and the user's original query to generate 1 highly relevant, specific question that would help the user find the information they're looking for.
 
         User's Original Query: "{user_query}"
         
@@ -433,12 +433,12 @@ def generate_intelligent_query_suggestions(user_query: str, index, embedding_mod
         Document Source: "{document_source}"
 
         Requirements:
-        1. Generate exactly 3 questions that are directly related to the document content
-        2. Questions should be natural, specific, and likely to retrieve good information
+        1. Generate exactly 1 question that is directly related to the document content
+        2. Question should be natural, specific, and likely to retrieve good information
         3. Focus on practical, actionable queries that employees would ask
-        4. Each question should be complete and standalone
-        5. Return ONLY the 3 questions, one per line, without numbering or bullet points
-        6. Questions should be based on what information is actually available in the document
+        4. Question should be complete and standalone
+        5. Return ONLY the 1 question, without numbering or bullet points
+        6. Question should be based on what information is actually available in the document
         
         Examples of good questions:
         - "How do I apply for annual leave?"
@@ -454,29 +454,27 @@ def generate_intelligent_query_suggestions(user_query: str, index, embedding_mod
             clean_response = re.sub(r"<think>.*?</think>", "", response, flags=re.DOTALL).strip()
             
             # Split into individual questions and clean them
-            questions = []
-            for line in clean_response.split('\n'):
+            lines = clean_response.split('\n')
+            for line in lines:
                 line = line.strip()
                 # Remove numbering, bullets, or other formatting
                 line = re.sub(r'^[\d\.\-\*\•]\s*', '', line)
                 if line and len(line) > 10:  # Ensure it's a substantial question
-                    questions.append(line)
+                    suggestions = [line]  # Take only the first valid suggestion
+                    break
             
-            # Limit to max_suggestions
-            suggestions = questions[:max_suggestions]
-            
-            # If we don't have enough good suggestions, add some fallback based on document source
-            if len(suggestions) < max_suggestions:
+            # If we don't have a good suggestion, add fallback based on document source
+            if not suggestions:
                 fallback_suggestions = generate_fallback_suggestions(document_source, document_content)
-                suggestions.extend(fallback_suggestions[:max_suggestions - len(suggestions)])
+                suggestions = fallback_suggestions[:1]  # Take only first fallback
             
-            logger.info(f"Generated {len(suggestions)} intelligent query suggestions: {suggestions}")
+            logger.info(f"Generated {len(suggestions)} intelligent query suggestion: {suggestions}")
             return suggestions
             
         except Exception as e:
             logger.error(f"Error in LLM-based suggestion generation: {str(e)}")
             # Fallback to rule-based suggestions
-            return generate_fallback_suggestions(document_source, document_content)[:max_suggestions]
+            return generate_fallback_suggestions(document_source, document_content)[:1]
         
     except Exception as e:
         logger.error(f"Error in intelligent query suggestion generation: {str(e)}")
@@ -548,12 +546,10 @@ def generate_fallback_suggestions(document_source: str, document_content: str):
     # If no specific topics found, generate generic workplace questions
     if not suggestions:
         suggestions = [
-            "What company policies should I be aware of?",
-            "How do I access company resources and facilities?",
-            "What are the standard workplace procedures?"
+            "What company policies should I be aware of?"
         ]
     
-    return list(set(suggestions))  # Remove duplicates
+    return [suggestions[0]] if suggestions else []  # Return only one suggestion
 
 
 def extract_likely_topic(user_query: str, index, embedding_model):
@@ -604,10 +600,10 @@ def extract_likely_topic(user_query: str, index, embedding_model):
         return "workplace topics"
 
 
-def analyze_user_intent_and_suggest(user_query: str, index, embedding_model, max_suggestions=3):
+def analyze_user_intent_and_suggest(user_query: str, index, embedding_model, max_suggestions=1):
     """
-    Enhanced function to analyze user intent and find the most relevant topics they might be asking about.
-    Returns suggestions based on semantic similarity and content analysis.
+    Simplified function to analyze user intent and find the most relevant topic they might be asking about.
+    Returns one suggestion based on semantic similarity and content analysis.
     """
     try:
         # Get a broader range of documents to analyze
@@ -805,15 +801,25 @@ def extract_topic_based_suggestions(document_sources, document_contents):
             seen.add(suggestion)
             unique_suggestions.append(suggestion)
     
-    return unique_suggestions
+    # Return only the first suggestion to simplify the process
+    return [unique_suggestions[0]] if unique_suggestions else []
 
 
 def analyze_query_relevance(user_query: str, index, embedding_model, relevance_threshold=0.8):
     """
     Enhanced analysis to better identify what users might be asking about.
+    Treats general queries (greetings, casual phrases) as completely irrelevant.
     Returns: (is_relevant, best_doc_score, should_suggest, intent_level)
     """
     try:
+        # First check if this is a general/casual query using is_query_score
+        query_score = is_query_score(user_query)
+        
+        # If query score is very low (casual/general queries), treat as completely irrelevant
+        if query_score <= 0.0:
+            logger.info(f"General/casual query detected (score: {query_score:.4f}) - treating as completely irrelevant")
+            return False, float('inf'), False, 'none'
+        
         # Get top documents to analyze relevance with broader scope
         results = index.similarity_search_with_score(user_query, k=10)
         
@@ -843,16 +849,14 @@ def analyze_query_relevance(user_query: str, index, embedding_model, relevance_t
             intent_level = 'none'
             should_suggest = False  # Completely irrelevant - dismiss
         
-        # Additional check using task query score
-        task_query_score = is_query_score(user_query)
-        
+        # Additional check using task query score for enhanced filtering
         # Override suggestion decision if task query score is very low
-        if task_query_score < 0.2 and best_score > 1.2:
+        if query_score < 0.2 and best_score > 1.2:
             should_suggest = False  # Too irrelevant to suggest
             intent_level = 'none'
         
         logger.info(f"Enhanced relevance analysis - Best: {best_score:.4f}, Avg-5: {avg_top5_score:.4f}, Avg-10: {avg_top10_score:.4f}")
-        logger.info(f"Intent level: {intent_level}, Task score: {task_query_score:.4f}, Should suggest: {should_suggest}")
+        logger.info(f"Intent level: {intent_level}, Task score: {query_score:.4f}, Should suggest: {should_suggest}")
         
         return is_directly_relevant, best_score, should_suggest, intent_level
         
