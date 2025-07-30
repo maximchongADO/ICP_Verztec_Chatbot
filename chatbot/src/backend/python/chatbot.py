@@ -2346,23 +2346,23 @@ def generate_answer_histoy_retrieval(user_query: str, user_id:str, chat_id:str):
                 fallback_prompt = (
                     f'The user asked: "{clean_query}". '
                     'This question appears to be outside the scope of Verztec workplace assistance. '
-                    'As a Verztec helpdesk assistant, I can only help with work-related topics such as: '
+                    'As the Verztec helpdesk assistant, you must strictly respond with: '
+                    '"I’m sorry, I don’t know. This information is not referenced in the Verztec database, and I am unable to provide a clear answer." '
+                    'Do not attempt to guess, infer, or generate speculative answers. Respond only if the query directly relates to topics that are clearly documented in the internal database. '
+                    '\n\nYou are only authorized to assist with Verztec work-related topics such as: '
                     '\n• HR policies (leave, benefits, onboarding, offboarding)'
                     '\n• IT support (passwords, email, systems, equipment)'
                     '\n• Office procedures (meeting rooms, pantry rules, phone systems)'
                     '\n• Company policies and SOPs (workflows, guidelines, forms)'
-                    '\n\nPlease ask me about something related to your work at Verztec, and I\'ll be happy to help! '
-                    'For example, you could ask about leave applications, password resets, office policies, or company procedures. '
-                    f"Here is some information about the user: NAME: {user_name}, ROLE: {user_role}, COUNTRY: {user_country}, DEPARTMENT: {user_department}\n\n"
+                    '\n\nIf a query falls outside of these areas or lacks a direct match in the database, respond exactly with the fallback message above—do not elaborate or fabricate. '
+                    f"\n\nUser details for context: NAME: {user_name}, ROLE: {user_role}, COUNTRY: {user_country}, DEPARTMENT: {user_department}\n\n"
                 )
             elif should_suggest and suggestions:
                 fallback_prompt = (
-                    #f'The user asked: "{clean_query}". '
-                    'This seems to be workplace-related, but might need clarification to give the most helpful answer. '
-                    'As a HELPFUL Verztec helpdesk assistant, politely acknowledge the query and express your intent to assist. '
-                    'Let the user know that you have a few specific follow-up questions or suggestions that could help. '
-                    #f'here are some possible rephrases based on the query that the user might have meant: {", ".join(suggestions)}. '
-                    'Mention that these are based on relevant company policies or practices. '
+                    f'The user asked: "{clean_query}". '
+                    f'Did you mean: "{suggestions[0]}"? '
+                    'As a HELPFUL Verztec helpdesk assistant, politely suggest this clarification to help provide the most accurate answer. '
+                    'Ask the user to confirm if this is what they meant, or if they would like to rephrase their question. '
                     'Be encouraging and warm, and do NOT include any formal sign-offs like "Best regards" or your name at the end. '
                     f"Here is some information about the user: NAME: {user_name}, ROLE: {user_role}, COUNTRY: {user_country}, DEPARTMENT: {user_department}\n\n"
                 )
