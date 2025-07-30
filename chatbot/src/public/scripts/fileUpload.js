@@ -625,6 +625,95 @@ function getAdminUploadMode() {
     return uploadModeElement ? uploadModeElement.value : 'specific';
 }
 
+// Process admin bulk upload sequentially - one file at a time, fully processed to all indices before moving to next
+async function processAdminBulkUpload(files) {
+    if (!files || files.length === 0) return;
+    
+    showStatus('info', `🚀 Starting admin bulk upload for ${files.length} files to ALL indices...`);
+    
+    let successCount = 0;
+    let failCount = 0;
+    const results = [];
+    
+    // Process files one by one - each file gets fully uploaded to all indices before moving to next
+    for (let i = 0; i < files.length; i++) {
+        const file = files[i];
+        
+        try {
+            showStatus('info', `📤 Processing file ${i + 1}/${files.length}: ${file.name} - Uploading to all indices...`);
+            
+            // Upload this single file to all indices (admin master + all country/department combinations)
+            const result = await uploadSingleFileToAllIndices(file);
+            
+            if (result.success) {
+                successCount++;
+                results.push({ file: file.name, status: 'success', details: result });
+                showStatus('success', `✅ File ${i + 1}/${files.length} (${file.name}) uploaded successfully to all indices`);
+            } else {
+                throw new Error(result.message || 'Upload failed');
+            }
+            
+        } catch (error) {
+            console.error(`Failed to upload ${file.name} to all indices:`, error);
+            failCount++;
+            results.push({ file: file.name, status: 'failed', error: error.message });
+            showStatus('error', `❌ File ${i + 1}/${files.length} (${file.name}) failed to upload to all indices: ${error.message}`);
+        }
+        
+        // Small delay between files to prevent overwhelming the server
+        if (i < files.length - 1) {
+            await new Promise(resolve => setTimeout(resolve, 1500));
+        }
+    }
+    
+    // Show final results
+    const totalFiles = files.length;
+    if (failCount === 0) {
+        showStatus('success', `✅ Admin bulk upload completed! All ${totalFiles} files uploaded successfully to all indices.`);
+    } else if (successCount === 0) {
+        showStatus('error', `❌ Admin bulk upload failed! All ${totalFiles} files failed to upload.`);
+    } else {
+        showStatus('warning', `⚠️ Admin bulk upload completed with mixed results: ${successCount} succeeded, ${failCount} failed out of ${totalFiles} total files.`);
+    }
+    
+    console.log('Admin bulk upload results:', results);
+}
+
+// Upload a single file to all indices (admin master + all country/department combinations)
+async function uploadSingleFileToAllIndices(file) {
+    try {
+        const formData = new FormData();
+        formData.append('file', file);
+        formData.append('uploadMode', 'all'); // This triggers admin bulk upload mode
+        formData.append('country', 'admin');
+        formData.append('department', 'master');
+
+        const response = await fetch('/api/fileUpload/upload', {
+            method: 'POST',
+            headers: {
+                'Authorization': `Bearer ${localStorage.getItem('token')}`
+            },
+            body: formData
+        });
+
+        if (!response.ok) {
+            const errorData = await response.json();
+            throw new Error(errorData.message || `HTTP error! status: ${response.status}`);
+        }
+
+        const data = await response.json();
+        return data;
+
+    } catch (error) {
+        console.error('Error uploading file to all indices:', error);
+        return {
+            success: false,
+            message: error.message,
+            filename: file.name
+        };
+    }
+}
+
 // Initialize upload interface when DOM is loaded
 document.addEventListener('DOMContentLoaded', function() {
     // Initialize upload interface with user-based access control
@@ -692,6 +781,12 @@ if (fileInput) {
 function handleDrop(e) {
     const dt = e.dataTransfer;
     const files = dt.files;
+    
+    // Enhanced feedback for drag and drop
+    if (files.length > 1) {
+        console.log(`Bulk upload detected: ${files.length} files dropped`);
+    }
+    
     handleFiles(files);
 }
 
@@ -704,14 +799,43 @@ function handleFiles(files) {
     // Check if this is admin bulk upload mode
     const adminUploadMode = currentUser && currentUser.role === 'admin' ? getAdminUploadMode() : 'specific';
     
-    // For admin bulk uploads, skip country/department validation
+    // Show bulk upload indicator if multiple files
+    if (files.length > 1) {
+        showStatus('info', `🚀 Starting bulk upload of ${files.length} files...`);
+        
+        // Add bulk upload header to upload list
+        if (uploadList) {
+            const bulkHeader = document.createElement('div');
+            bulkHeader.className = 'bulk-upload-header';
+            bulkHeader.id = `bulk-header-${Date.now()}`;
+            bulkHeader.innerHTML = `
+                <div class="bulk-header-content">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+                        <polyline points="14,2 14,8 20,8"/>
+                        <path d="M16 13H8"/>
+                        <path d="M16 17H8"/>
+                        <path d="M10 9H8"/>
+                    </svg>
+                    <span class="bulk-title">Bulk Upload Progress</span>
+                    <span class="bulk-counter" id="bulk-counter-${Date.now()}">0 / ${files.length}</span>
+                </div>
+                <div class="bulk-progress-bar">
+                    <div class="bulk-progress-fill" id="bulk-progress-${Date.now()}" style="width: 0%"></div>
+                </div>
+            `;
+            uploadList.appendChild(bulkHeader);
+        }
+    }
+    
+    // For admin bulk uploads, process files sequentially to all indices
     if (adminUploadMode === 'all') {
         if (uploadWarning) {
             uploadWarning.style.display = 'none';
         }
         
-        // For bulk uploads, pass dummy values that will be handled by the backend
-        [...files].forEach(file => uploadFile(file, 'admin', 'master'));
+        // For bulk uploads to all indices, process files sequentially to avoid conflicts
+        processAdminBulkUpload([...files]);
         return;
     }
     
@@ -726,12 +850,107 @@ function handleFiles(files) {
         showStatus('error', 'Please select both country and department before uploading files');
         return;
     }
-    
+
     if (uploadWarning) {
         uploadWarning.style.display = 'none';
     }
+
+    // For multiple file uploads to specific index, process sequentially
+    if (files.length > 1) {
+        processSpecificBulkUpload([...files], country, department);
+    } else {
+        // Single file upload
+        uploadFile(files[0], country, department);
+    }
+}
+
+// Process bulk upload to specific index sequentially - one file at a time, fully processed before moving to next
+async function processSpecificBulkUpload(files, country, department) {
+    if (!files || files.length === 0) return;
     
-    [...files].forEach(file => uploadFile(file, country, department));
+    showStatus('info', `🚀 Starting bulk upload for ${files.length} files to ${country.toUpperCase()}/${department.toUpperCase()} (and admin master)...`);
+    
+    let successCount = 0;
+    let failCount = 0;
+    const results = [];
+    
+    // Process files one by one - each file gets fully uploaded to intended index + admin master before moving to next
+    for (let i = 0; i < files.length; i++) {
+        const file = files[i];
+        
+        try {
+            showStatus('info', `📤 Processing file ${i + 1}/${files.length}: ${file.name} - Uploading to ${country.toUpperCase()}/${department.toUpperCase()} and admin master...`);
+            
+            // Upload this single file to specific index + admin master
+            const result = await uploadSingleFileToSpecificIndex(file, country, department);
+            
+            if (result.success) {
+                successCount++;
+                results.push({ file: file.name, status: 'success', details: result });
+                showStatus('success', `✅ File ${i + 1}/${files.length} (${file.name}) uploaded successfully`);
+            } else {
+                throw new Error(result.message || 'Upload failed');
+            }
+            
+        } catch (error) {
+            console.error(`Failed to upload ${file.name}:`, error);
+            failCount++;
+            results.push({ file: file.name, status: 'failed', error: error.message });
+            showStatus('error', `❌ File ${i + 1}/${files.length} (${file.name}) failed to upload: ${error.message}`);
+        }
+        
+        // Small delay between files to prevent overwhelming the server
+        if (i < files.length - 1) {
+            await new Promise(resolve => setTimeout(resolve, 1500));
+        }
+    }
+    
+    // Show final results
+    const totalFiles = files.length;
+    if (failCount === 0) {
+        showStatus('success', `✅ Bulk upload completed! All ${totalFiles} files uploaded successfully to ${country.toUpperCase()}/${department.toUpperCase()} and admin master.`);
+    } else if (successCount === 0) {
+        showStatus('error', `❌ Bulk upload failed! All ${totalFiles} files failed to upload.`);
+    } else {
+        showStatus('warning', `⚠️ Bulk upload completed with mixed results: ${successCount} succeeded, ${failCount} failed out of ${totalFiles} total files.`);
+    }
+    
+    console.log('Bulk upload results:', results);
+}
+
+// Upload a single file to specific index + admin master
+async function uploadSingleFileToSpecificIndex(file, country, department) {
+    try {
+        const formData = new FormData();
+        formData.append('file', file);
+        formData.append('uploadMode', 'specific');
+        formData.append('country', country);
+        formData.append('department', department);
+
+        const response = await fetch('/api/fileUpload/upload', {
+            method: 'POST',
+            headers: {
+                'Authorization': `Bearer ${localStorage.getItem('token')}`
+            },
+            body: formData
+        });
+
+        if (!response.ok) {
+            const errorData = await response.json();
+            throw new Error(errorData.message || `HTTP error! status: ${response.status}`);
+        }
+
+        const data = await response.json();
+        return data;
+
+    } catch (error) {
+        console.error('Error uploading file to specific index:', error);
+        return {
+            success: false,
+            message: error.message,
+            filename: file.name
+        };
+    }
 }
 
 async function uploadFile(file, country, department) {
@@ -977,39 +1196,13 @@ async function loadFAISSData() {
     // Update loading message
     const loadingMessage = document.querySelector('#faissLoadingSpinner p');
     if (loadingMessage) {
-        loadingMessage.textContent = 'Loading knowledge base... This may take up to 2 minutes for the first load.';
+        loadingMessage.textContent = 'Loading knowledge base... This should be fast!';
     }
     
     try {
-        // First, try to warm up the model (this helps with subsequent calls)
-        try {
-            if (loadingMessage) {
-                loadingMessage.textContent = 'Warming up AI model... (1/2)';
-            }
-            
-            const warmupResponse = await fetch('/api/faiss/warmup', {
-                method: 'POST',
-                headers: {
-                    'Authorization': `Bearer ${token}`,
-                    'Content-Type': 'application/json'
-                }
-            });
-            
-            if (warmupResponse.ok) {
-                console.log('Model warmed up successfully');
-            }
-        } catch (warmupError) {
-            console.warn('Warmup failed, continuing with regular load:', warmupError);
-        }
-        
-        // Now load the actual data
-        if (loadingMessage) {
-            loadingMessage.textContent = 'Loading knowledge base data... (2/2)';
-        }
-        
         // Prepare request body with filters and user role information
         const requestBody = { 
-            command: 'list',
+            command: 'inspect',
             userRole: currentUser?.role,
             filters: {
                 country: viewCountry,
@@ -1028,9 +1221,9 @@ async function loadFAISSData() {
             }
         }
         
-        console.log('Loading FAISS data with request:', requestBody);
+        console.log('Loading FAISS data with fast inspector:', requestBody);
         
-        const response = await fetch('/api/faiss/extract', {
+        const response = await fetch('/api/faiss/inspect-fast', {
             method: 'POST',
             headers: {
                 'Authorization': `Bearer ${token}`,
@@ -1067,11 +1260,15 @@ async function loadFAISSData() {
         let errorMessage = error.message;
         let suggestion = '';
         
-        if (error.message.includes('timed out')) {
+        if (error.message.includes('not found')) {
             suggestion = `
-                <p><strong>This usually happens on the first load.</strong></p>
-                <p>The AI model needs to be downloaded and loaded, which can take 1-2 minutes.</p>
-                <p>Please try again - subsequent loads will be much faster.</p>
+                <p><strong>No knowledge base found for the selected filters.</strong></p>
+                <p>Try uploading some documents first, or select different country/department filters.</p>
+            `;
+        } else if (error.message.includes('timed out')) {
+            suggestion = `
+                <p><strong>The request timed out.</strong></p>
+                <p>Please check your network connection and try again.</p>
             `;
         }
         
@@ -1129,11 +1326,14 @@ function displayFAISSFiles(files) {
                     <h3>📄 ${escapeHtml(file.filename)}</h3>
                     <div class="file-card-meta">
                         <div class="meta-item">
-                            <span class="file-type-badge">${file.file_type}</span>
+                            <span class="file-type-badge">${getFileExtension(file.filename)}</span>
                         </div>
-                        ${file.created_at ? `
                         <div class="meta-item">
-                            📅 ${new Date(file.created_at).toLocaleDateString()}
+                            📁 ${escapeHtml(file.full_path)}
+                        </div>
+                        ${file.metadata && file.metadata.creation_date ? `
+                        <div class="meta-item">
+                            📅 ${new Date(file.metadata.creation_date).toLocaleDateString()}
                         </div>
                         ` : ''}
                     </div>
@@ -1142,28 +1342,25 @@ function displayFAISSFiles(files) {
             
             <div class="chunk-info">
                 <div class="chunk-stat">
-                    <span class="chunk-stat-number">${file.chunk_count}</span>
+                    <span class="chunk-stat-number">${file.chunks_count}</span>
                     <span class="chunk-stat-label">Chunks</span>
                 </div>
                 <div class="chunk-stat">
-                    <span class="chunk-stat-number">${formatFileSize(file.total_content_length)}</span>
+                    <span class="chunk-stat-number">${formatFileSize(file.content_length)}</span>
                     <span class="chunk-stat-label">Total Size</span>
                 </div>
                 <div class="chunk-stat">
-                    <span class="chunk-stat-number">${formatFileSize(file.avg_chunk_size)}</span>
+                    <span class="chunk-stat-number">${formatFileSize(Math.round(file.content_length / file.chunks_count))}</span>
                     <span class="chunk-stat-label">Avg Chunk</span>
                 </div>
             </div>
             
             <div class="file-actions-faiss">
-                <button class="btn btn-secondary btn-small" onclick="viewFileChunks('${escapeHtml(file.filename)}')">
+                <button class="btn btn-secondary btn-small" onclick="viewFileChunks('${escapeHtml(file.filename)}', ${JSON.stringify(file.chunks).replace(/"/g, '&quot;')})">
                     👁️ View Chunks
                 </button>
-                <button class="btn btn-secondary btn-small" onclick="searchInFile('${escapeHtml(file.filename)}')">
-                    🔍 Search Content
-                </button>
-                <button class="btn btn-danger btn-small" onclick="deleteFile('${escapeHtml(file.filename)}')">
-                    🗑️ Delete File
+                <button class="btn btn-secondary btn-small" onclick="searchInFileContent('${escapeHtml(file.filename)}', ${JSON.stringify(file.chunks).replace(/"/g, '&quot;')})">
+                    � Search Content
                 </button>
             </div>
         </div>
@@ -1176,6 +1373,135 @@ function escapeHtml(text) {
     const div = document.createElement('div');
     div.textContent = text;
     return div.innerHTML;
+}
+
+function getFileExtension(filename) {
+    const ext = filename.split('.').pop().toUpperCase();
+    return ext || 'FILE';
+}
+
+function viewFileChunks(filename, chunks) {
+    try {
+        // Parse chunks if it's a string
+        const chunksData = typeof chunks === 'string' ? JSON.parse(chunks) : chunks;
+        
+        if (!chunksData || chunksData.length === 0) {
+            alert('No chunks found for this file');
+            return;
+        }
+        
+        // Create modal to show chunks
+        const modal = document.createElement('div');
+        modal.className = 'modal-overlay';
+        modal.innerHTML = `
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h3>📄 Chunks in ${escapeHtml(filename)}</h3>
+                    <button class="modal-close" onclick="this.parentElement.parentElement.parentElement.remove()">×</button>
+                </div>
+                <div class="modal-body">
+                    <div class="chunks-summary">
+                        <p><strong>Total Chunks:</strong> ${chunksData.length}</p>
+                        <p><strong>Total Content:</strong> ${formatFileSize(chunksData.reduce((sum, chunk) => sum + chunk.length, 0))}</p>
+                    </div>
+                    ${chunksData.map((chunk, index) => `
+                        <div class="chunk-preview">
+                            <div class="chunk-header">
+                                <strong>Chunk ${index + 1}</strong>
+                                <span class="chunk-size">${formatFileSize(chunk.length)}</span>
+                            </div>
+                            <div class="chunk-content">${escapeHtml(chunk.content.substring(0, 500))}</div>
+                            ${chunk.content.length > 500 ? '<div class="chunk-note">Content truncated for display...</div>' : ''}
+                        </div>
+                    `).join('')}
+                </div>
+            </div>
+        `;
+        
+        document.body.appendChild(modal);
+        
+    } catch (error) {
+        console.error('Error viewing chunks:', error);
+        alert('Failed to load file chunks: ' + error.message);
+    }
+}
+
+function searchInFileContent(filename, chunks) {
+    const query = prompt(`Search in "${filename}":`);
+    if (!query) return;
+    
+    try {
+        // Parse chunks if it's a string
+        const chunksData = typeof chunks === 'string' ? JSON.parse(chunks) : chunks;
+        
+        if (!chunksData || chunksData.length === 0) {
+            alert('No content found to search');
+            return;
+        }
+        
+        // Search through chunks
+        const searchResults = [];
+        const queryLower = query.toLowerCase();
+        
+        chunksData.forEach((chunk, index) => {
+            const content = chunk.content.toLowerCase();
+            if (content.includes(queryLower)) {
+                // Find the position of the match
+                const matchIndex = content.indexOf(queryLower);
+                const start = Math.max(0, matchIndex - 100);
+                const end = Math.min(content.length, matchIndex + query.length + 100);
+                const contextContent = chunk.content.substring(start, end);
+                
+                searchResults.push({
+                    chunkIndex: index + 1,
+                    context: contextContent,
+                    matchIndex: matchIndex - start
+                });
+            }
+        });
+        
+        if (searchResults.length === 0) {
+            alert(`No matches found for "${query}" in ${filename}`);
+            return;
+        }
+        
+        // Create modal to show search results
+        const modal = document.createElement('div');
+        modal.className = 'modal-overlay';
+        modal.innerHTML = `
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h3>🔍 Search Results in ${escapeHtml(filename)}</h3>
+                    <button class="modal-close" onclick="this.parentElement.parentElement.parentElement.remove()">×</button>
+                </div>
+                <div class="modal-body">
+                    <div class="search-summary">
+                        <p><strong>Query:</strong> "${escapeHtml(query)}"</p>
+                        <p><strong>Results:</strong> ${searchResults.length} matches found</p>
+                    </div>
+                    ${searchResults.map((result, index) => `
+                        <div class="search-result">
+                            <div class="result-header">
+                                <strong>Match ${index + 1} - Chunk ${result.chunkIndex}</strong>
+                            </div>
+                            <div class="result-content">
+                                ${escapeHtml(result.context).replace(
+                                    new RegExp(escapeHtml(query), 'gi'),
+                                    `<mark>$&</mark>`
+                                )}
+                            </div>
+                        </div>
+                    `).join('')}
+                </div>
+            </div>
+        `;
+        
+        document.body.appendChild(modal);
+        
+    } catch (error) {
+        console.error('Error searching file content:', error);
+        alert('Failed to search file content: ' + error.message);
+    }
 }
 
 async function viewFileChunks(filename) {
