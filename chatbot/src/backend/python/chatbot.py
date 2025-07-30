@@ -2357,14 +2357,14 @@ def generate_answer_histoy_retrieval(user_query: str, user_id:str, chat_id:str):
             
             if should_suggest and not should_dismiss_completely:
                 # Extract what topic the user is likely asking about
-                likely_topic = extract_likely_topic(user_query, index, embedding_model)
+                likely_topic = extract_likely_topic(user_query, user_index, embedding_model)
                 logger.info(f"Identified likely topic: {likely_topic}")
                 
                 # Use enhanced intent-based suggestion generation
-                suggestions = analyze_user_intent_and_suggest(user_query, index, embedding_model)
+                suggestions = analyze_user_intent_and_suggest(user_query, user_index, embedding_model)
                 if not suggestions:
                     # Fallback to original method if enhanced method fails
-                    suggestions = generate_intelligent_query_suggestions(user_query, index, embedding_model)
+                    suggestions = generate_intelligent_query_suggestions(user_query, user_index, embedding_model)
                 logger.info(f"Generated enhanced suggestions for intent level '{intent_level}': {suggestions}")
             
             if should_dismiss_completely:
@@ -2395,7 +2395,7 @@ def generate_answer_histoy_retrieval(user_query: str, user_id:str, chat_id:str):
                     'This seems to be workplace-related, but might need clarification to give the most helpful answer. '
                     'As a HELPFUL Verztec helpdesk assistant, politely acknowledge the query and express your intent to assist. '
                     'Let the user know that you have a few specific follow-up questions or suggestions that could help. '
-                    #f'here are some possible rephrases based on the query that the user might have meant: {", ".join(suggestions)}. '
+                    f'here are some possible rephrases based on the query that the user might have meant: {", ".join(suggestions)}. '
                     'Mention that these are based on relevant company policies or practices. '
                     'Be encouraging and warm, and do NOT include any formal sign-offs like "Best regards" or your name at the end. '
                     f"Here is some information about the user: NAME: {user_name}, ROLE: {user_role}, COUNTRY: {user_country}, DEPARTMENT: {user_department}\n\n"
