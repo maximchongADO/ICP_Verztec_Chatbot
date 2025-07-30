@@ -618,411 +618,366 @@ def get_avg_score(index, embedding_model, query, k=10):
     return avg_score
 
 
-def generate_intelligent_query_suggestions(user_query: str, index, embedding_model, max_suggestions=1):
+# ========================================================================================
+# NEW ROBUST AI-DRIVEN SUGGESTION SYSTEM
+# ========================================================================================
+
+def extract_user_query_intent(user_query: str, user_index):
     """
-    Simplified query suggestion system that:
-    1. Finds the most relevant documents to the user's query
-    2. Extracts key topics and concepts from those documents
-    3. Reformulates queries based on document content
-    4. Returns one contextually relevant suggestion
+    Extract and clarify the intended meaning from a potentially misspelled or malformed user query.
+    Uses AI to ONLY extract what the user is trying to ask, without reformatting or changing the intent.
+    
+    Args:
+        user_query (str): The original user query that may contain typos or unclear phrasing
+        user_index: The FAISS index for context understanding
+        
+    Returns:
+        str: The extracted/clarified query with corrected spelling and grammar but same intent
     """
     try:
-        # Get top documents with scores - cast broader net initially
-        results = index.similarity_search_with_score(user_query, k=15)
+        # Get some relevant context from the knowledge base to help with extraction
+        results = user_index.similarity_search_with_score(user_query, k=8)
         
-        if not results:
-            logger.warning("No documents found for query suggestion generation")
-            return []
+        # Extract context from top relevant documents
+        context_docs = []
+        for doc, score in results[:5]:  # Use top 5 documents for context
+            if score < 1.5:  # Only include reasonably relevant context
+                context_docs.append({
+                    'content': doc.page_content[:300],  # Limit content length
+                    'source': doc.metadata.get('source', 'Unknown')
+                })
         
-        # Find the best matching document (lowest score = most similar)
-        best_doc, best_score = results[0]
-        logger.info(f"Best matching document has score: {best_score:.4f}")
+        # Build context string for AI
+        context_str = ""
+        if context_docs:
+            context_str = "Relevant workplace context for reference:\n"
+            for i, doc in enumerate(context_docs[:3], 1):  # Limit to 3 docs
+                context_str += f"Context {i}: {doc['content'][:200]}...\n"
         
-        # Extract key information from the best document
-        document_content = best_doc.page_content
-        document_source = best_doc.metadata.get("source", "")
-        
-        # Use LLM to analyze the document and generate relevant queries
-        analysis_prompt = f"""
-        Analyze this document content and the user's original query to generate 1 highly relevant, specific question that would help the user find the information they're looking for.
+        # Create extraction prompt - focused ONLY on extraction, not reformation
+        extraction_prompt = f"""You are a text extraction specialist. Your ONLY job is to extract and clarify what the user is trying to ask, correcting spelling and grammar errors while preserving the original intent exactly.
 
-        User's Original Query: "{user_query}"
-        
-        Document Content: "{document_content[:800]}"  # Limit content to avoid token limits
-        
-        Document Source: "{document_source}"
+CRITICAL RULES:
+1. DO NOT rephrase or reformat the question
+2. DO NOT change the user's intended meaning or scope
+3. ONLY fix spelling, grammar, and clarity issues
+4. Keep the same question structure and style
+5. If the query is already clear, return it unchanged
+6. DO NOT add workplace terminology unless it was clearly intended
 
-        Requirements:
-        1. Generate exactly 1 question that is directly related to the document content
-        2. Question should be natural, specific, and likely to retrieve good information
-        3. Focus on practical, actionable queries that employees would ask
-        4. Question should be complete and standalone
-        5. Return ONLY the 1 question, without numbering or bullet points
-        6. Question should be based on what information is actually available in the document
+Original user query: "{user_query}"
+
+{context_str}
+
+Task: Extract what the user is trying to ask by correcting only spelling and grammar errors. Return ONLY the corrected query, nothing else.
+
+Examples:
+- "how do i aply for anual leave?" → "How do I apply for annual leave?"
+- "wat is the panty rules?" → "What are the pantry rules?"
+- "can i get my pasword reset?" → "Can I get my password reset?"
+- "helo how are you" → "Hello how are you"
+
+Corrected query:"""
         
-        Examples of good questions:
-        - "How do I apply for annual leave?"
-        - "What are the pantry usage guidelines?"
-        - "How do I set up my company email autoresponder?"
-        """
+        # Use the decision layer model for deterministic extraction
+        response = decisionlayer_model.predict(extraction_prompt)
         
-        try:
-            # Use the decision layer model for analysis (it's more deterministic)
-            response = decisionlayer_model.predict(analysis_prompt)
-            
-            # Clean the response and extract questions
-            clean_response = re.sub(r"<think>.*?</think>", "", response, flags=re.DOTALL).strip()
-            
-            # Split into individual questions and clean them
-            lines = clean_response.split('\n')
-            for line in lines:
-                line = line.strip()
-                # Remove numbering, bullets, or other formatting
-                line = re.sub(r'^[\d\.\-\*\•]\s*', '', line)
-                if line and len(line) > 10:  # Ensure it's a substantial question
-                    suggestions = [line]  # Take only the first valid suggestion
-                    break
-            
-            # If we don't have a good suggestion, add fallback based on document source
-            if not suggestions:
-                fallback_suggestions = generate_fallback_suggestions(document_source, document_content)
-                suggestions = fallback_suggestions[:1]  # Take only first fallback
-            
-            logger.info(f"Generated {len(suggestions)} intelligent query suggestion: {suggestions}")
-            return suggestions
-            
-        except Exception as e:
-            logger.error(f"Error in LLM-based suggestion generation: {str(e)}")
-            # Fallback to rule-based suggestions
-            return generate_fallback_suggestions(document_source, document_content)[:1]
+        # Clean the response
+        extracted_query = re.sub(r"<think>.*?</think>", "", response, flags=re.DOTALL).strip()
+        
+        # Remove any quotation marks that might have been added
+        extracted_query = extracted_query.strip('"\'')
+        
+        # Basic validation - ensure we still have a meaningful query
+        if len(extracted_query.strip()) < 3:
+            logger.warning(f"Extracted query too short: '{extracted_query}', using original")
+            return user_query
+        
+        # If extraction made the query significantly longer, it might have added unwanted content
+        if len(extracted_query) > len(user_query) * 2:
+            logger.warning(f"Extracted query significantly longer than original, using original")
+            return user_query
+        
+        logger.info(f"Query extraction: '{user_query}' → '{extracted_query}'")
+        return extracted_query
         
     except Exception as e:
-        logger.error(f"Error in intelligent query suggestion generation: {str(e)}")
-        return []
+        logger.error(f"Error in query intent extraction: {str(e)}")
+        return user_query  # Return original query on error
 
 
-def generate_fallback_suggestions(document_source: str, document_content: str):
+def check_query_relevance_to_verztec(query: str, user_index):
     """
-    Generate fallback suggestions based on document source and content analysis
-    """
-    suggestions = []
-    source_lower = document_source.lower()
-    content_lower = document_content.lower()
+    Determine whether the corrected query is relevant to internal Verztec topics 
+    (HR, IT support, SOPs, workplace policies, etc.).
     
-    # Topic-based suggestions based on document analysis
-    topic_patterns = {
-        "leave": [
-            "How do I apply for annual leave?",
-            "What is the leave application process?",
-            "How many leave days am I entitled to?"
-        ],
-        "policy": [
-            "What are the key company policies I should know?",
-            "Where can I find the complete policy documents?",
-            "What are the consequences of policy violations?"
-        ],
-        "pantry": [
-            "What are the pantry usage rules?",
-            "How should I maintain cleanliness in the pantry?",
-            "What kitchen facilities are available?"
-        ],
-        "laptop": [
-            "What is the laptop usage policy?",
-            "How do I request a company laptop?",
-            "What are my responsibilities for company equipment?"
-        ],
-        "meeting": [
-            "What are the meeting etiquette guidelines?",
-            "How do I schedule a meeting room?",
-            "What should I prepare before a meeting?"
-        ],
-        "email": [
-            "How do I set up my company email?",
-            "How do I configure email autoresponder?",
-            "What are the email usage guidelines?"
-        ],
-        "phone": [
-            "What are the telephone usage guidelines?",
-            "How do I use the office phone system?",
-            "What is proper phone etiquette?"
-        ],
-        "offboarding": [
-            "What is the employee offboarding process?",
-            "What do I need to do when leaving the company?",
-            "What is the clean desk policy?"
-        ],
-        "transcription": [
-            "What is the transcription project workflow?",
-            "How do I handle transcription assignments?",
-            "What are the quality standards for transcription?"
-        ]
-    }
-    
-    # Check which topics appear in the source or content
-    for topic, topic_suggestions in topic_patterns.items():
-        if topic in source_lower or topic in content_lower:
-            suggestions.extend(topic_suggestions)
-    
-    # If no specific topics found, generate generic workplace questions
-    if not suggestions:
-        suggestions = [
-            "What company policies should I be aware of?"
-        ]
-    
-    return [suggestions[0]] if suggestions else []  # Return only one suggestion
-
-
-def extract_likely_topic(user_query: str, index, embedding_model):
-    """
-    Analyze the user query and determine what topic they're most likely asking about
+    Args:
+        query (str): The extracted/corrected query
+        user_index: The FAISS index containing Verztec knowledge
+        
+    Returns:
+        bool: True if relevant to Verztec topics, False otherwise
     """
     try:
-        # Get top relevant documents
-        results = index.similarity_search_with_score(user_query, k=5)
+        # First, check for obviously irrelevant queries
+        if is_obviously_irrelevant(query):
+            logger.info(f"Query '{query}' detected as obviously irrelevant")
+            return False
+        
+        # Get similarity scores with the knowledge base
+        results = user_index.similarity_search_with_score(query, k=10)
         
         if not results:
-            return "general workplace topics"
+            logger.info(f"No similar documents found for query: '{query}'")
+            return False
         
-        # Analyze the sources and content to determine likely topic
-        sources = [doc.metadata.get("source", "") for doc, _ in results]
-        contents = [doc.page_content[:200] for doc, _ in results]
+        # Analyze the similarity scores
+        best_score = results[0][1]
+        avg_top5_score = np.mean([score for _, score in results[:5]])
         
-        # Combine sources and content for topic analysis
-        combined_text = " ".join(sources + contents).lower()
+        # Get the task query score to filter out casual/irrelevant queries
+        task_query_score = is_query_score(query)
         
-        # Topic detection based on keywords
-        topic_keywords = {
-            "leave and vacation": ["leave", "annual", "vacation", "holiday", "absence"],
-            "IT and equipment": ["laptop", "computer", "equipment", "password", "login", "technical"],
-            "email and communication": ["email", "outlook", "autoresponder", "webmail", "communication"],
-            "meetings and scheduling": ["meeting", "conference", "room", "schedule", "calendar"],
-            "office facilities": ["pantry", "kitchen", "office", "facilities", "cleaning"],
-            "HR and policies": ["hr", "human resources", "policy", "procedure", "benefits"],
-            "phone and telecommunications": ["phone", "telephone", "call", "extension"],
-            "work processes": ["transcription", "project", "workflow", "assignment", "procedure"],
-            "employee lifecycle": ["onboarding", "offboarding", "leaving", "joining", "orientation"]
-        }
+        logger.info(f"Relevance check for '{query}': best_score={best_score:.3f}, avg_top5={avg_top5_score:.3f}, task_score={task_query_score:.3f}")
         
-        # Find the most matching topic
-        best_topic = "workplace procedures"
-        max_matches = 0
+        # Define stricter relevance thresholds
+        RELEVANT_THRESHOLD = 0.8      # Lower score = more similar = more relevant (made stricter)
+        TASK_SCORE_THRESHOLD = 0.4    # Minimum task-like score (increased)
         
-        for topic, keywords in topic_keywords.items():
-            matches = sum(1 for keyword in keywords if keyword in combined_text)
-            if matches > max_matches:
-                max_matches = matches
-                best_topic = topic
+        # Check basic relevance criteria
+        is_similar_to_docs = best_score < RELEVANT_THRESHOLD
+        is_task_like = task_query_score >= TASK_SCORE_THRESHOLD
         
-        return best_topic if max_matches > 0 else "workplace procedures"
+        # Additional content-based relevance check
+        is_workplace_related = check_workplace_keywords(query)
         
-    except Exception as e:
-        logger.error(f"Error in topic extraction: {str(e)}")
-        return "workplace topics"
-
-
-def analyze_user_intent_and_suggest(user_query: str, index, embedding_model, max_suggestions=1):
-    """
-    Simplified function to analyze user intent and find the most relevant topic they might be asking about.
-    Returns one suggestion based on semantic similarity and content analysis.
-    """
-    try:
-        # Get a broader range of documents to analyze
-        results = index.similarity_search_with_score(user_query, k=20)
+        # Stricter criteria - need both similarity AND (task-like OR workplace keywords)
+        is_relevant = is_similar_to_docs and (is_task_like or is_workplace_related)
         
-        if not results:
-            logger.warning("No documents found for intent analysis")
-            return []
+        # Additional check: if the query has very poor similarity scores, dismiss it
+        if best_score > 1.2 and not is_workplace_related:
+            logger.info(f"Query '{query}' has poor similarity ({best_score:.3f}) and no workplace keywords - dismissing")
+            return False
         
-        # Group documents by similarity score ranges to understand intent distribution
-        very_relevant = [(doc, score) for doc, score in results if score < 0.6]  # Very similar
-        somewhat_relevant = [(doc, score) for doc, score in results if 0.6 <= score < 1.0]  # Somewhat similar
-        loosely_relevant = [(doc, score) for doc, score in results if 1.0 <= score < 1.3]  # Loosely related
-        
-        logger.info(f"Intent analysis - Very relevant: {len(very_relevant)}, Somewhat relevant: {len(somewhat_relevant)}, Loosely relevant: {len(loosely_relevant)}")
-        
-        # Determine the best documents to use for suggestion generation
-        target_docs = []
-        if very_relevant:
-            target_docs = very_relevant[:8]  # Use top very relevant docs
-            intent_confidence = "high"
-        elif somewhat_relevant:
-            target_docs = somewhat_relevant[:10]  # Use somewhat relevant docs
-            intent_confidence = "medium"
-        elif loosely_relevant:
-            target_docs = loosely_relevant[:12]  # Cast wider net for loose matches
-            intent_confidence = "low"
+        # Analyze document sources for additional context
+        if is_relevant:
+            relevant_sources = [doc.metadata.get('source', '') for doc, score in results[:3] if score < 1.0]
+            logger.info(f"Query relevant to Verztec topics. Related sources: {relevant_sources}")
         else:
-            return []
+            logger.info(f"Query not relevant to Verztec topics. Scores: similarity={best_score:.3f}, task={task_query_score:.3f}, workplace_keywords={is_workplace_related}")
         
-        # Extract key topics and concepts from the target documents
-        document_contents = []
-        document_sources = []
-        for doc, score in target_docs:
-            document_contents.append(doc.page_content[:400])  # Limit content length
-            document_sources.append(doc.metadata.get("source", ""))
-        
-        # Use LLM to analyze the documents and understand what the user might be asking about
-        intent_analysis_prompt = f"""
-        Analyze the user's query and the related company documents to understand what the user might be trying to ask about.
-
-        User's Query: "{user_query}"
-        Intent Confidence: {intent_confidence}
-
-        Related Company Documents:
-        {chr(10).join([f"Document {i+1} (Source: {source}): {content}" for i, (content, source) in enumerate(zip(document_contents[:5], document_sources[:5]))])}
-
-        Based on the query and these documents, determine:
-        1. What workplace topic is the user most likely asking about?
-        2. What specific aspect of that topic might they need help with?
-        3. Generate 3 specific, helpful questions that would get them the information they need.
-
-        Requirements:
-        - Focus on the most relevant workplace topics from the documents
-        - Make questions specific and actionable
-        - Ensure questions are based on actual available information
-        - Questions should be natural and employee-friendly
-        - Return ONLY the 3 questions, one per line, without numbering
-
-        Example good questions:
-        - "How do I submit my timesheet by the deadline?"
-        - "What documents do I need for my leave application?"
-        - "How do I access the company VPN from home?"
-        """
-        
-        try:
-            # Use the decision layer model for more deterministic results
-            response = decisionlayer_model.predict(intent_analysis_prompt)
-            
-            # Clean the response
-            clean_response = re.sub(r"<think>.*?</think>", "", response, flags=re.DOTALL).strip()
-            
-            # Extract questions
-            questions = []
-            for line in clean_response.split('\n'):
-                line = line.strip()
-                # Remove numbering, bullets, or other formatting
-                line = re.sub(r'^[\d\.\-\*\•]\s*', '', line)
-                if line and len(line) > 15 and '?' in line:  # Ensure it's a substantial question
-                    questions.append(line)
-            
-            # Limit to max_suggestions
-            suggestions = questions[:max_suggestions]
-            
-            # If we don't have enough good suggestions, add topic-based fallbacks
-            if len(suggestions) < max_suggestions:
-                topic_suggestions = extract_topic_based_suggestions(document_sources, document_contents)
-                suggestions.extend(topic_suggestions[:max_suggestions - len(suggestions)])
-            
-            logger.info(f"Generated {len(suggestions)} intent-based suggestions with {intent_confidence} confidence: {suggestions}")
-            return suggestions
-            
-        except Exception as e:
-            logger.error(f"Error in LLM-based intent analysis: {str(e)}")
-            # Fallback to topic-based suggestions
-            return extract_topic_based_suggestions(document_sources, document_contents)[:max_suggestions]
+        return is_relevant
         
     except Exception as e:
-        logger.error(f"Error in user intent analysis: {str(e)}")
-        return []
+        logger.error(f"Error checking query relevance: {str(e)}")
+        return False
 
 
-def extract_topic_based_suggestions(document_sources, document_contents):
+def is_obviously_irrelevant(query: str) -> bool:
     """
-    Extract suggestions based on document topics and content analysis
+    Check if a query is obviously irrelevant to workplace/Verztec topics.
+    This catches common non-work queries that should be immediately dismissed.
+    
+    Args:
+        query (str): The query to check
+        
+    Returns:
+        bool: True if obviously irrelevant, False otherwise
     """
-    suggestions = []
+    query_lower = query.lower().strip()
     
-    # Combine all sources and contents for analysis
-    all_text = " ".join(document_sources + document_contents).lower()
+    # Define patterns for obviously irrelevant queries
+    irrelevant_patterns = [
+        # Animals and pets
+        r'why.*cat.*cool',
+        r'why.*dog.*cute', 
+        r'why.*animal.*cool',
+        r'cat.*cool',
+        r'dog.*cute',
+        r'pet.*funny',
+        
+        # Entertainment and media
+        r'movie|film|song|music|game|tv show|series|anime|book|novel',
+        r'netflix|youtube|tiktok|instagram|facebook|twitter',
+        
+        # General knowledge/trivia
+        r'what.*color|what.*colour|what.*capital|what.*population',
+        r'who.*president|who.*prime minister|who.*celebrity|who.*famous',
+        r'when.*world war|when.*independence|when.*discovered',
+        
+        # Food and cooking (unless workplace pantry related)
+        r'recipe|cooking(?!.*pantry)|restaurant|meal(?!.*office)',
+        
+        # Weather and environment
+        r'weather|temperature|rain|sun|snow|climate',
+        
+        # Sports and hobbies
+        r'sport|football|basketball|tennis|golf|hobby|exercise|workout',
+        
+        # Personal life questions
+        r'what.*do.*weekend|what.*do.*evening|what.*do.*free time',
+        
+        # Technology (unless work-related)
+        r'smartphone|iphone|android(?!.*work)|gaming|video game',
+        
+        # Random facts and trivia
+        r'fun fact|interesting fact|did you know|random.*fact',
+        
+        # Philosophy and abstract concepts
+        r'meaning.*life|purpose.*life|what.*existence',
+    ]
     
-    # Enhanced topic patterns with more specific suggestions
-    topic_patterns = {
-        ("leave", "annual", "vacation", "holiday"): [
-            "How do I apply for annual leave?",
-            "What is the leave approval process?",
-            "How many leave days am I entitled to?",
-            "Can I check my remaining leave balance?"
-        ],
-        ("laptop", "computer", "equipment", "hardware"): [
-            "What is the company laptop usage policy?",
-            "How do I request IT equipment?",
-            "What are my responsibilities for company devices?",
-            "How do I report equipment issues?"
-        ],
-        ("email", "outlook", "autoresponder", "webmail"): [
-            "How do I set up my company email?",
-            "How do I configure my email autoresponder?",
-            "What are the email usage guidelines?",
-            "How do I access webmail remotely?"
-        ],
-        ("meeting", "conference", "room", "schedule"): [
-            "How do I book a meeting room?",
-            "What are the meeting etiquette guidelines?",
-            "How do I schedule a team meeting?",
-            "What equipment is available in meeting rooms?"
-        ],
-        ("pantry", "kitchen", "food", "cleaning"): [
-            "What are the pantry usage rules?",
-            "How should I maintain pantry cleanliness?",
-            "What kitchen facilities are available?",
-            "What are the food storage guidelines?"
-        ],
-        ("policy", "procedure", "guideline", "rule"): [
-            "Where can I find company policies?",
-            "What are the key workplace policies?",
-            "How do I report policy violations?",
-            "What are the consequences of policy breaches?"
-        ],
-        ("phone", "telephone", "call", "extension"): [
-            "How do I use the office phone system?",
-            "What is proper telephone etiquette?",
-            "How do I transfer calls?",
-            "How do I set up voicemail?"
-        ],
-        ("transcription", "project", "assignment", "workflow"): [
-            "What is the transcription project process?",
-            "How do I handle transcription assignments?",
-            "What are the quality standards for transcription?",
-            "How do I submit completed transcription work?"
-        ],
-        ("offboarding", "leaving", "resignation", "clean desk"): [
-            "What is the employee offboarding process?",
-            "What do I need to do when leaving the company?",
-            "What is the clean desk policy?",
-            "How do I return company property?"
-        ],
-        ("hr", "human resources", "benefits", "payroll"): [
-            "How do I contact HR for assistance?",
-            "What employee benefits are available?",
-            "How do I update my personal information?",
-            "Who do I speak to about payroll questions?"
-        ]
+    # Check against irrelevant patterns
+    for pattern in irrelevant_patterns:
+        if re.search(pattern, query_lower):
+            logger.info(f"Query '{query}' matches irrelevant pattern: {pattern}")
+            return True
+    
+    # Additional check for very generic questions that are clearly not work-related
+    generic_irrelevant = [
+        'why cats are cool',
+        'why dogs are cute',
+        'what is love',
+        'how to cook',
+        'best movie',
+        'favorite song',
+        'what is the weather',
+        'tell me a joke',
+        'random fact',
+        'interesting story',
+        'fun fact',
+        'did you know',
+    ]
+    
+    for irrelevant_phrase in generic_irrelevant:
+        if irrelevant_phrase in query_lower:
+            logger.info(f"Query '{query}' matches generic irrelevant phrase: {irrelevant_phrase}")
+            return True
+    
+    return False
+
+
+def check_workplace_keywords(query: str) -> bool:
+    """
+    Check if the query contains workplace-related keywords that indicate it's relevant to Verztec topics.
+    
+    Args:
+        query (str): The query to check
+        
+    Returns:
+        bool: True if contains workplace keywords, False otherwise
+    """
+    # Convert to lowercase for case-insensitive matching
+    query_lower = query.lower()
+    
+    # Define comprehensive workplace keywords
+    workplace_keywords = {
+        # HR and employee lifecycle
+        'leave', 'annual', 'vacation', 'holiday', 'sick', 'mc', 'medical', 'certificate',
+        'hr', 'human resources', 'onboarding', 'offboarding', 'resignation', 'benefits',
+        'payroll', 'salary', 'bonus', 'allowance', 'claim', 'reimbursement',
+        
+        # IT and technical
+        'laptop', 'computer', 'password', 'login', 'system', 'software', 'hardware',
+        'email', 'outlook', 'autoresponder', 'webmail', 'vpn', 'wifi', 'network',
+        'printer', 'scanner', 'equipment', 'technical', 'support', 'helpdesk',
+        
+        # Office and facilities
+        'office', 'pantry', 'kitchen', 'meeting', 'room', 'conference', 'booking',
+        'telephone', 'phone', 'extension', 'clean', 'desk', 'policy', 'procedure',
+        
+        # Work processes
+        'project', 'assignment', 'workflow', 'process', 'sop', 'standard', 'operating',
+        'transcription', 'quality', 'deadline', 'submission', 'approval', 'escalation',
+        
+        # Company specific
+        'verztec', 'company', 'management', 'supervisor', 'manager', 'department',
+        'guideline', 'rule', 'policy', 'document', 'form', 'application'
     }
     
-    # Find matching topics and add their suggestions
-    for keywords, topic_suggestions in topic_patterns.items():
-        if any(keyword in all_text for keyword in keywords):
-            suggestions.extend(topic_suggestions)
+    # Check for any workplace keyword matches
+    matches = [keyword for keyword in workplace_keywords if keyword in query_lower]
     
-    # If no specific topics found, provide general workplace suggestions
-    if not suggestions:
-        suggestions = [
-            "What company policies should I be aware of?",
-            "How do I access common workplace resources?",
-            "What are the standard office procedures?",
-            "Who should I contact for workplace questions?"
-        ]
+    if matches:
+        logger.info(f"Found workplace keywords in query '{query}': {matches}")
+        return True
     
-    # Remove duplicates while preserving order
-    seen = set()
-    unique_suggestions = []
-    for suggestion in suggestions:
-        if suggestion not in seen:
-            seen.add(suggestion)
-            unique_suggestions.append(suggestion)
+    # Additional pattern-based checks for common workplace phrases
+    workplace_patterns = [
+        r'\bhow (do|can) i\b',      # "how do I", "how can I"
+        r'\bwhat (is|are) the\b',   # "what is the", "what are the"
+        r'\bwhere (can|do) i\b',    # "where can I", "where do I"
+        r'\bwho should i\b',        # "who should I"
+        r'\bcan i (get|have|use)\b', # "can I get", "can I have", etc.
+    ]
     
-    # Return only the first suggestion to simplify the process
-    return [unique_suggestions[0]] if unique_suggestions else []
+    for pattern in workplace_patterns:
+        if re.search(pattern, query_lower):
+            logger.info(f"Found workplace pattern in query '{query}': {pattern}")
+            return True
+    
+    return False
+
+
+def generate_intelligent_query_suggestions(user_query: str, user_index, embedding_model):
+    """
+    Main function that orchestrates the robust AI-driven suggestion feature.
+    
+    Process:
+    1. Extract user intent from potentially malformed query
+    2. Check if the extracted query is relevant to Verztec topics
+    3. Return suggestion in "Did you mean: ..." format if relevant
+    4. Return None if irrelevant (query should be dismissed)
+    
+    Args:
+        user_query (str): Original user query
+        user_index: FAISS index for the user
+        embedding_model: Embedding model for similarity search
+        
+    Returns:
+        dict: Suggestion data with corrected query and metadata, or None if irrelevant
+    """
+    try:
+        logger.info(f"Starting robust suggestion analysis for: '{user_query}'")
+        
+        # Early check: if the original query is obviously irrelevant, skip processing
+        if is_obviously_irrelevant(user_query):
+            logger.info(f"Original query '{user_query}' is obviously irrelevant - skipping suggestion generation")
+            return None
+        
+        # Step 1: Extract user intent (correct spelling/grammar only)
+        extracted_query = extract_user_query_intent(user_query, user_index)
+        
+        # Step 2: Check if the extracted query is relevant to Verztec topics
+        is_relevant = check_query_relevance_to_verztec(extracted_query, user_index)
+        
+        # Step 3: Generate suggestion if relevant and different from original
+        if is_relevant and extracted_query.strip().lower() != user_query.strip().lower():
+            suggestion_data = {
+                'original_query': user_query,
+                'suggested_query': extracted_query,
+                'is_relevant': True,
+                'confidence': 'high',
+                'suggestion_type': 'query_correction'
+            }
+            
+            logger.info(f"Generated suggestion: '{user_query}' → '{extracted_query}'")
+            return suggestion_data
+            
+        elif is_relevant and extracted_query.strip().lower() == user_query.strip().lower():
+            # Query is relevant but doesn't need correction
+            logger.info(f"Query is relevant but doesn't need correction: '{user_query}'")
+            return None
+            
+        else:
+            # Query is not relevant to Verztec topics
+            logger.info(f"Query not relevant to Verztec topics, dismissing: '{user_query}'")
+            return None
+            
+    except Exception as e:
+        logger.error(f"Error in intelligent query suggestions: {str(e)}")
+        return None
+
 
 
 def analyze_query_relevance(user_query: str, index, embedding_model, relevance_threshold=0.8):
@@ -2356,21 +2311,25 @@ def generate_answer_histoy_retrieval(user_query: str, user_id:str, chat_id:str):
             likely_topic = None
             
             if should_suggest and not should_dismiss_completely:
-                # Extract what topic the user is likely asking about
-                likely_topic = extract_likely_topic(user_query, index, embedding_model)
-                logger.info(f"Identified likely topic: {likely_topic}")
+                # Use new robust AI-driven suggestion system
+                suggestion_data = generate_intelligent_query_suggestions(user_query, user_index, embedding_model)
                 
-                # Use enhanced intent-based suggestion generation
-                suggestions = analyze_user_intent_and_suggest(user_query, index, embedding_model)
-                if not suggestions:
-                    # Fallback to original method if enhanced method fails
-                    suggestions = generate_intelligent_query_suggestions(user_query, index, embedding_model)
-                logger.info(f"Generated enhanced suggestions for intent level '{intent_level}': {suggestions}")
+                if suggestion_data and suggestion_data.get('suggested_query'):
+                    suggestions = [suggestion_data['suggested_query']]
+                    logger.info(f"Generated AI-driven suggestion: {suggestion_data['suggested_query']}")
+                else:
+                    # If no suggestion generated, check if we should dismiss instead
+                    is_irrelevant_query = not check_query_relevance_to_verztec(user_query, user_index)
+                    if is_irrelevant_query:
+                        should_dismiss_completely = True
+                        logger.info("No suggestion generated and query is irrelevant - switching to dismissal mode")
+                    suggestions = []
+                    logger.info("No relevant suggestion generated or query unchanged")
             
             if should_dismiss_completely:
                 logger.info("[DISMISS_COMPLETELY] Query is entirely irrelevant to knowledge base")
             elif should_suggest and suggestions:
-                logger.info(f"[PROVIDE_INTELLIGENT_SUGGESTIONS] Query needs clarification, providing document-based suggestions")
+                logger.info(f"[PROVIDE_INTELLIGENT_SUGGESTIONS] Query needs clarification, providing AI-driven suggestion")
             else:
                 # Fallback for edge cases
                 logger.info("[STANDARD_FALLBACK] Could not generate suggestions or determine dismissal")
@@ -2380,23 +2339,23 @@ def generate_answer_histoy_retrieval(user_query: str, user_id:str, chat_id:str):
             # Handle different prompt types based on relevance analysis
             if should_dismiss_completely:
                 fallback_prompt = (
-                   # f'The user said: "{clean_query}". '
-                    'As a HELPFUL and FRIENDLY Verztec helpdesk assistant, respond with a warm, light-hearted, or polite reply — '
-                    'even if the message is small talk or clearly out of scope (e.g., "how are you", "do you like pizza"). '
-                    'Do not greet the user unless they greeted you first. '
-                    'After your brief response, gently guide the user back to Verztec-related helpdesk topics. '
-                    'Keep the tone human, kind, and professional — like a friendly colleague. '
-                    'Do NOT include any formal sign-offs like "Best regards" or your name at the end. '
+                    f'The user asked: "{clean_query}". '
+                    'This question appears to be outside the scope of Verztec workplace assistance. '
+                    'As a Verztec helpdesk assistant, I can only help with work-related topics such as: '
+                    '\n• HR policies (leave, benefits, onboarding, offboarding)'
+                    '\n• IT support (passwords, email, systems, equipment)'
+                    '\n• Office procedures (meeting rooms, pantry rules, phone systems)'
+                    '\n• Company policies and SOPs (workflows, guidelines, forms)'
+                    '\n\nPlease ask me about something related to your work at Verztec, and I\'ll be happy to help! '
+                    'For example, you could ask about leave applications, password resets, office policies, or company procedures. '
                     f"Here is some information about the user: NAME: {user_name}, ROLE: {user_role}, COUNTRY: {user_country}, DEPARTMENT: {user_department}\n\n"
                 )
             elif should_suggest and suggestions:
                 fallback_prompt = (
-                    #f'The user asked: "{clean_query}". '
-                    'This seems to be workplace-related, but might need clarification to give the most helpful answer. '
-                    'As a HELPFUL Verztec helpdesk assistant, politely acknowledge the query and express your intent to assist. '
-                    'Let the user know that you have a few specific follow-up questions or suggestions that could help. '
-                    #f'here are some possible rephrases based on the query that the user might have meant: {", ".join(suggestions)}. '
-                    'Mention that these are based on relevant company policies or practices. '
+                    f'The user asked: "{clean_query}". '
+                    f'Did you mean: "{suggestions[0]}"? '
+                    'As a HELPFUL Verztec helpdesk assistant, politely suggest this clarification to help provide the most accurate answer. '
+                    'Ask the user to confirm if this is what they meant, or if they would like to rephrase their question. '
                     'Be encouraging and warm, and do NOT include any formal sign-offs like "Best regards" or your name at the end. '
                     f"Here is some information about the user: NAME: {user_name}, ROLE: {user_role}, COUNTRY: {user_country}, DEPARTMENT: {user_department}\n\n"
                 )
@@ -2778,7 +2737,12 @@ def generate_answer_histoy_retrieval(user_query: str, user_id:str, chat_id:str):
                 'sources': source_docs,
                 'tool_used': tool_used,
                 'tool_identified': tool_identified,
-                'tool_confidence': tool_confidence
+                'tool_confidence': tool_confidence,
+                'suggestions': [],  # No suggestions for successful queries
+                'has_suggestions': False,
+                'suggestion_type': 'none',
+                'likely_topic': None,
+                'intent_level': 'high'  # Successful queries have high intent
             }
             
             # Defer memory pruning until after response (non-blocking optimization)
