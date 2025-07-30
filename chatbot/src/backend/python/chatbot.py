@@ -90,38 +90,110 @@ DB_CONFIG = {
     'autocommit': True
 }
 
-# Load FAISS index
+# Load all FAISS indices
+faiss_indices = {}
+regional_indices = {}
+
 try:
     script_dir = os.path.dirname(os.path.abspath(__file__))
-    faiss_index_path = os.path.join(script_dir, "faiss_master_index3")
-    faiss_index_path2=os.path.join(script_dir, "faiss_GK_index")
     
-    if not os.path.exists(faiss_index_path):
-        raise FileNotFoundError(f"FAISS index not found at {faiss_index_path}")
-    
+    # Initialize embedding model once for all indices
     embedding_model = HuggingFaceEmbeddings(
         model_name="BAAI/bge-large-en-v1.5",
         encode_kwargs={'normalize_embeddings': True},
         model_kwargs={'device': 'cpu'}  # Explicitly set device to CPU
     )
     
-    index = FAISS.load_local(
-        faiss_index_path,
-        embedding_model,
-        allow_dangerous_deserialization=True
-    )
+    # Load existing master indices
+    faiss_index_path = os.path.join(script_dir, "faiss_master_index3")
+    faiss_index_path2 = os.path.join(script_dir, "faiss_GK_index")
     
-    index2=  FAISS.load_local(
-        faiss_index_path2,
-        embedding_model,
-        allow_dangerous_deserialization=True
-    )
-    logger.info("FAISS index loaded successfully on CPU")
+    if os.path.exists(faiss_index_path):
+        index = FAISS.load_local(
+            faiss_index_path,
+            embedding_model,
+            allow_dangerous_deserialization=True
+        )
+        faiss_indices['master_index3'] = index
+        logger.info("Loaded faiss_master_index3 successfully")
+    
+    if os.path.exists(faiss_index_path2):
+        index2 = FAISS.load_local(
+            faiss_index_path2,
+            embedding_model,
+            allow_dangerous_deserialization=True
+        )
+        faiss_indices['gk_index'] = index2
+        logger.info("Loaded faiss_GK_index successfully")
+    
+    # Load regional FAISS indices
+    faiss_indices_dir = os.path.join(script_dir, "faiss_indices")
+    
+    if os.path.exists(faiss_indices_dir):
+        # Load admin master index
+        admin_path = os.path.join(faiss_indices_dir, "admin_master", "faiss_index")
+        if os.path.exists(admin_path):
+            try:
+                admin_index = FAISS.load_local(
+                    admin_path,
+                    embedding_model,
+                    allow_dangerous_deserialization=True
+                )
+                regional_indices['admin_master'] = admin_index
+                faiss_indices['admin_master'] = admin_index
+                logger.info("Loaded admin_master FAISS index successfully")
+            except Exception as e:
+                logger.error(f"Failed to load admin_master index: {str(e)}")
+        
+        # Load regional indices (Singapore and China)
+        regions = ['singapore', 'china']
+        departments = ['hr', 'it']
+        
+        for region in regions:
+            regional_indices[region] = {}
+            for dept in departments:
+                dept_path = os.path.join(faiss_indices_dir, region, dept, "faiss_index")
+                if os.path.exists(dept_path):
+                    try:
+                        dept_index = FAISS.load_local(
+                            dept_path,
+                            embedding_model,
+                            allow_dangerous_deserialization=True
+                        )
+                        regional_indices[region][dept] = dept_index
+                        faiss_indices[f'{region}_{dept}'] = dept_index
+                        logger.info(f"Loaded {region} {dept} FAISS index successfully")
+                    except Exception as e:
+                        logger.error(f"Failed to load {region} {dept} index: {str(e)}")
+    
+    # Log summary of loaded indices
+    logger.info(f"Successfully loaded {len(faiss_indices)} total FAISS indices:")
+    for name, idx in faiss_indices.items():
+        doc_count = idx.index.ntotal if hasattr(idx, 'index') else 'unknown'
+        logger.info(f"  - {name}: {doc_count} documents")
+    
+    # Maintain backward compatibility - set primary indices
+    if 'master_index3' in faiss_indices:
+        index = faiss_indices['master_index3']
+    elif faiss_indices:
+        index = list(faiss_indices.values())[0]  # Use first available index
+        logger.warning("faiss_master_index3 not found, using first available index as primary")
+    else:
+        index = None
+        logger.error("No FAISS indices could be loaded")
+    
+    if 'gk_index' in faiss_indices:
+        index2 = faiss_indices['gk_index']
+    else:
+        index2 = None
+        logger.warning("faiss_GK_index not found")
     
 except Exception as e:
-    logger.error(f"Failed to load FAISS index: {str(e)}", exc_info=True)
+    logger.error(f"Failed to load FAISS indices: {str(e)}", exc_info=True)
     index = None
-    metadata = None
+    index2 = None
+    faiss_indices = {}
+    regional_indices = {}
     
     
     
@@ -345,6 +417,98 @@ def get_user_info(user_id: str):
     except pymysql.Error as e:
         logger.error(f"Error fetching user info for {user_id}: {str(e)}")
         return None
+
+
+def get_user_specific_index(user_id: str):
+    """
+    Get the appropriate FAISS index for a user based on their role, country, and department.
+    
+    Priority:
+    1. Admin role -> admin_master index
+    2. Regional index (country + department) -> singapore_hr, china_it, etc.
+    3. Fallback to master_index3
+    
+    Args:
+        user_id (str): User identifier
+        
+    Returns:
+        FAISS index object or None if no suitable index found
+    """
+    try:
+        # Get user information
+        user_info = get_user_info(user_id)
+        if not user_info:
+            logger.warning(f"No user info found for {user_id}, using default master index")
+            return faiss_indices.get('master_index3', index)
+        
+        role = user_info.get('role', '').lower() if user_info.get('role') else ''
+        country = user_info.get('country', '').lower() if user_info.get('country') else ''
+        department = user_info.get('department', '').lower() if user_info.get('department') else ''
+        
+        logger.info(f"User {user_id} profile: role={role}, country={country}, department={department}")
+        
+        # 1. Admin override - use admin_master index
+        if role in ['admin', 'administrator', 'super_admin', 'superadmin']:
+            if 'admin_master' in faiss_indices:
+                logger.info(f"Using admin_master index for admin user {user_id}")
+                return faiss_indices['admin_master']
+            else:
+                logger.warning("Admin user detected but admin_master index not available, using master index")
+        
+        # 2. Try regional index (country + department)
+        if country and department:
+            # Map department variations to standard names
+            dept_mapping = {
+                'hr': 'hr',
+                'human resources': 'hr', 
+                'human_resources': 'hr',
+                'it': 'it',
+                'information technology': 'it',
+                'information_technology': 'it',
+                'tech': 'it',
+                'technology': 'it'
+            }
+            
+            # Map country variations to standard names
+            country_mapping = {
+                'singapore': 'singapore',
+                'sg': 'singapore',
+                'china': 'china',
+                'cn': 'china',
+                'prc': 'china'
+            }
+            
+            mapped_country = country_mapping.get(country, country)
+            mapped_dept = dept_mapping.get(department, department)
+            
+            # Try exact regional match
+            regional_key = f"{mapped_country}_{mapped_dept}"
+            if regional_key in faiss_indices:
+                logger.info(f"Using regional index {regional_key} for user {user_id}")
+                return faiss_indices[regional_key]
+            
+            # Try hierarchical access via regional_indices
+            if mapped_country in regional_indices and mapped_dept in regional_indices[mapped_country]:
+                logger.info(f"Using hierarchical regional index {mapped_country}/{mapped_dept} for user {user_id}")
+                return regional_indices[mapped_country][mapped_dept]
+            
+            logger.info(f"No regional index found for {mapped_country}/{mapped_dept}")
+        
+        # 3. Fallback to master index
+        if 'master_index3' in faiss_indices:
+            logger.info(f"Using fallback master_index3 for user {user_id}")
+            return faiss_indices['master_index3']
+        elif index:  # Global fallback
+            logger.info(f"Using global fallback index for user {user_id}")
+            return index
+        else:
+            logger.error(f"No suitable index found for user {user_id}")
+            return None
+            
+    except Exception as e:
+        logger.error(f"Error getting user-specific index for {user_id}: {str(e)}")
+        # Return default index as fallback
+        return faiss_indices.get('master_index3', index)
     
     
     
@@ -1776,7 +1940,14 @@ def generate_answer_histoy_retrieval(user_query: str, user_id:str, chat_id:str):
         from langchain.prompts import PromptTemplate
         from langchain.retrievers import ContextualCompressionRetriever
         from langchain.retrievers.document_compressors import LLMChainFilter
-        base = index.as_retriever(
+        
+        # Get user-specific index based on role, country, and department
+        user_index = get_user_specific_index(user_id)
+        if user_index is None:
+            logger.error(f"No index available for user {user_id}, using default")
+            user_index = index  # fallback to global default
+        
+        base = user_index.as_retriever(
             search_type="similarity",
             search_kwargs={"k": 15}
         )
@@ -1785,7 +1956,7 @@ def generate_answer_histoy_retrieval(user_query: str, user_id:str, chat_id:str):
         logger.info(f"Cleaned user query: {user_query}")
 
 
-        avg_score = get_avg_score(index, embedding_model, user_query)    
+        avg_score = get_avg_score(user_index, embedding_model, user_query)    
       
         
         
@@ -1877,9 +2048,9 @@ def generate_answer_histoy_retrieval(user_query: str, user_id:str, chat_id:str):
            
         
        
-        # Step 3: Search BOTH FAISS indices for context 
+        # Step 3: Search user-specific FAISS index for context 
         # for images, as well as for context relevance checks 
-        results = index.similarity_search_with_score(clean_query, k=10)
+        results = user_index.similarity_search_with_score(clean_query, k=10)
         #results2 = index2.similarity_search_with_score(clean_query, k=5)  # Search second index too
         
         # Combine results from both indices
@@ -1893,7 +2064,7 @@ def generate_answer_histoy_retrieval(user_query: str, user_id:str, chat_id:str):
                 
         if prev_query:
             logger.info(f"Previous query: {prev_query}")
-            prev_results = index.similarity_search_with_score(prev_query, k=10)
+            prev_results = user_index.similarity_search_with_score(prev_query, k=10)
             prev_scores = [score for _, score in prev_results]
             prev_score = float(np.mean(prev_scores)) if prev_scores else 1.0
             formatted_prev_docs = "\n".join([f"- {doc.page_content}..." for doc, _ in prev_results[:3]])
@@ -1970,7 +2141,7 @@ def generate_answer_histoy_retrieval(user_query: str, user_id:str, chat_id:str):
         logger.info(f"Average Score: {avg_score}")
         
         # Use enhanced intelligent query analysis system
-        is_relevant, best_doc_score, should_suggest, intent_level = analyze_query_relevance(user_query, index, embedding_model)
+        is_relevant, best_doc_score, should_suggest, intent_level = analyze_query_relevance(user_query, user_index, embedding_model)
         
         # Updated logic: Use relevance analysis + task query score for better decisions
         STRICT_QUERY_THRESHOLD = 0.2
