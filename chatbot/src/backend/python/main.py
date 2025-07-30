@@ -69,6 +69,9 @@ class MeetingConfirmationRequest(BaseModel):
     chat_id: str
     original_details: dict
 
+class FrequentRequest(BaseModel):
+    user_id: Optional[str] = None
+
 @app.exception_handler(Exception)
 async def global_exception_handler(request: Request, exc: Exception):
     logger.error(f"Global error handler: {str(exc)}", exc_info=True)
@@ -490,37 +493,41 @@ async def chat_endpoint(request: ChatRequest):
         }
         
 @app.post("/frequent")
-async def get_frequent_queries():
-    logger.info("Received request for frequent queries")
+async def get_frequent_queries(request: FrequentRequest):
+    logger.info(f"Received request for frequent queries from user: {request.user_id}")
 
     try:
         if index is None:
             logger.warning("Search index is not available")
             return JSONResponse(content=[], status_code=200)
 
-        top_queries = get_suggestions()
-        logger.info(f"Top frequent queries: {top_queries}")
+        # Pass user_id to get_suggestions for regional filtering
+        top_queries = get_suggestions(user_id=request.user_id)
+        logger.info(f"Top frequent queries for user {request.user_id}: {top_queries}")
 
-        # Fallback if no queries
-        fallback = [
-            "What are the pantry rules?",
-            "What is the leave policy?",
-            "How do I upload e-invoices?"
-        ]
+        # Regional fallbacks based on user info if available
+        fallback = get_regional_fallback(request.user_id)
+        
         if not isinstance(top_queries, list) or not top_queries:
             top_queries = fallback
 
         return JSONResponse(content=top_queries, status_code=200)
 
     except Exception as e:
-        logger.error(f"Error retrieving frequent queries: {str(e)}")
+        logger.error(f"Error retrieving frequent queries for user {request.user_id}: {str(e)}")
         # Also fallback on error
-        fallback = [
-            "What are the pantry rules?",
-            "What is the leave policy?",
-            "How do I upload e-invoices?"
-        ]
+        fallback = get_regional_fallback(request.user_id)
         return JSONResponse(content=fallback, status_code=200)
+
+
+def get_regional_fallback(user_id: Optional[str]) -> List[str]:
+    """Get fallback suggestions - always returns generic suggestions since we can't predict FAISS content"""
+    return [
+        "What are the pantry rules?",
+        "What is the leave policy?",
+        "How do I upload e-invoices?",
+        "How do I use the phone system?"
+    ]
 
 @app.delete("/history")
 async def clear_chat_history():

@@ -542,11 +542,18 @@ async function get_frequentmsg() {
   ];
 
   try {
+    // Get user_id for regional filtering
+    const user_id = localStorage.getItem("userId") || "defaultUser";
+    
     const response = await fetch("http://localhost:3000/frequent", {
       method: "POST",
       headers: {
+        "Content-Type": "application/json",
         Authorization: `Bearer ${token}`,
       },
+      body: JSON.stringify({
+        user_id: user_id
+      })
     });
 
     if (!response.ok) {
@@ -554,7 +561,7 @@ async function get_frequentmsg() {
     }
 
     const data = await response.json();
-    console.log("Frequent Messages:", data);
+    console.log("Frequent Messages for user", user_id, ":", data);
 
     if (Array.isArray(data) && data.length > 2) {
       updateSuggestions(data);
