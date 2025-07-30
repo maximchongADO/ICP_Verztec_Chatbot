@@ -3,12 +3,13 @@ const FormData = require('form-data');
 const { Readable } = require('stream');
 const FileUpload = require('../models/fileUpload.js');
 
-// Admin bulk upload function
-const handleAdminBulkUpload = async (req, res) => {
+// Admin single file upload to all indices function
+const handleAdminSingleFileToAllIndices = async (req, res) => {
     try {
         const results = {
             success: true,
-            message: 'Admin bulk upload completed',
+            message: 'Admin file upload to all indices completed',
+            filename: req.file.originalname,
             uploadResults: [],
             errors: [],
             totalUploads: 0,
@@ -24,9 +25,60 @@ const handleAdminBulkUpload = async (req, res) => {
             { country: 'singapore', department: 'it' }
         ];
 
-        console.log(`Admin bulk upload: Processing file ${req.file.originalname} for ${combinations.length} indices`);
+        console.log(`Admin single file upload: Processing file ${req.file.originalname} for ${combinations.length + 1} indices (including admin master)`);
 
-        // Upload to each combination
+        // First upload to admin master index
+        try {
+            const fileBuffer = Buffer.from(req.file.buffer);
+            const formData = new FormData();
+            const stream = Readable.from(fileBuffer);
+            formData.append('file', stream, {
+                filename: req.file.originalname,
+                contentType: req.file.mimetype
+            });
+            formData.append('country', 'admin');
+            formData.append('department', 'master');
+            formData.append('replaceIfExists', 'true');
+
+            console.log('Uploading to admin master index first...');
+
+            const response = await axios.post(
+                'http://localhost:3000/internal/upload',
+                formData,
+                {
+                    headers: {
+                        ...formData.getHeaders(),
+                        'Authorization': `Bearer ${process.env.INTERNAL_API_KEY || 'default-key'}`
+                    }
+                }
+            );
+
+            if (response.data.success) {
+                results.uploadResults.push({
+                    country: 'admin',
+                    department: 'master',
+                    success: true,
+                    message: 'Successfully uploaded to ADMIN MASTER index'
+                });
+                results.successfulUploads++;
+            } else {
+                throw new Error(response.data.error || 'FastAPI processing failed');
+            }
+        } catch (error) {
+            console.error('Error uploading to admin master:', error.message);
+            results.uploadResults.push({
+                country: 'admin',
+                department: 'master',
+                success: false,
+                error: error.message,
+                message: 'Failed to upload to ADMIN MASTER index'
+            });
+            results.errors.push(`admin/master: ${error.message}`);
+            results.failedUploads++;
+        }
+        results.totalUploads++;
+
+        // Then upload to each specific combination
         for (const combo of combinations) {
             try {
                 // Create a fresh buffer for each upload
@@ -81,7 +133,46 @@ const handleAdminBulkUpload = async (req, res) => {
             results.totalUploads++;
         }
 
-        // Also upload to admin master index
+        // Update overall success status
+        results.success = results.failedUploads === 0;
+        if (results.failedUploads > 0) {
+            results.message = `Admin file upload completed with ${results.failedUploads} failures out of ${results.totalUploads} total uploads`;
+        }
+
+        return res.status(results.success ? 200 : 207).json(results); // 207 = Multi-Status
+
+    } catch (error) {
+        console.error('Error in admin single file upload:', error);
+        return res.status(500).json({
+            success: false,
+            message: 'Admin file upload failed',
+            error: error.message,
+            filename: req.file ? req.file.originalname : 'unknown'
+        });
+    }
+};
+
+// Handle single file upload to specific index with admin master replication
+const handleSpecificIndexUpload = async (req, res) => {
+    try {
+        const results = {
+            success: true,
+            message: 'File uploaded successfully',
+            filename: req.file.originalname,
+            uploadResults: [],
+            errors: [],
+            totalUploads: 0,
+            successfulUploads: 0,
+            failedUploads: 0
+        };
+
+        const country = req.body.country;
+        const department = req.body.department;
+        const userRole = req.user.user_type;
+
+        console.log(`Specific index upload: Processing file ${req.file.originalname} for ${country}/${department}`);
+
+        // First upload to the intended index
         try {
             const fileBuffer = Buffer.from(req.file.buffer);
             const formData = new FormData();
@@ -90,11 +181,11 @@ const handleAdminBulkUpload = async (req, res) => {
                 filename: req.file.originalname,
                 contentType: req.file.mimetype
             });
-            formData.append('country', 'admin');
-            formData.append('department', 'master');
-            formData.append('replaceIfExists', 'true');
+            formData.append('country', country);
+            formData.append('department', department);
+            formData.append('replaceIfExists', userRole === 'admin' ? 'true' : 'false');
 
-            console.log('Uploading to admin master index...');
+            console.log(`Uploading to ${country}/${department}...`);
 
             const response = await axios.post(
                 'http://localhost:3000/internal/upload',
@@ -109,41 +200,97 @@ const handleAdminBulkUpload = async (req, res) => {
 
             if (response.data.success) {
                 results.uploadResults.push({
-                    country: 'admin',
-                    department: 'master',
+                    country: country,
+                    department: department,
                     success: true,
-                    message: 'Successfully uploaded to ADMIN MASTER index'
+                    message: `Successfully uploaded to ${country.toUpperCase()}/${department.toUpperCase()}`
                 });
                 results.successfulUploads++;
+            } else {
+                throw new Error(response.data.error || 'FastAPI processing failed');
             }
         } catch (error) {
-            console.error('Error uploading to admin master:', error.message);
+            console.error(`Error uploading to ${country}/${department}:`, error.message);
             results.uploadResults.push({
-                country: 'admin',
-                department: 'master',
+                country: country,
+                department: department,
                 success: false,
                 error: error.message,
-                message: 'Failed to upload to ADMIN MASTER index'
+                message: `Failed to upload to ${country.toUpperCase()}/${department.toUpperCase()}`
             });
-            results.errors.push(`admin/master: ${error.message}`);
+            results.errors.push(`${country}/${department}: ${error.message}`);
             results.failedUploads++;
         }
         results.totalUploads++;
 
+        // Then upload to admin master index (unless it's already admin/master)
+        if (!(country === 'admin' && department === 'master')) {
+            try {
+                const fileBuffer = Buffer.from(req.file.buffer);
+                const formData = new FormData();
+                const stream = Readable.from(fileBuffer);
+                formData.append('file', stream, {
+                    filename: req.file.originalname,
+                    contentType: req.file.mimetype
+                });
+                formData.append('country', 'admin');
+                formData.append('department', 'master');
+                formData.append('replaceIfExists', 'true');
+
+                console.log('Also uploading to admin master index...');
+
+                const response = await axios.post(
+                    'http://localhost:3000/internal/upload',
+                    formData,
+                    {
+                        headers: {
+                            ...formData.getHeaders(),
+                            'Authorization': `Bearer ${process.env.INTERNAL_API_KEY || 'default-key'}`
+                        }
+                    }
+                );
+
+                if (response.data.success) {
+                    results.uploadResults.push({
+                        country: 'admin',
+                        department: 'master',
+                        success: true,
+                        message: 'Successfully uploaded to ADMIN MASTER index'
+                    });
+                    results.successfulUploads++;
+                } else {
+                    throw new Error(response.data.error || 'FastAPI processing failed');
+                }
+            } catch (error) {
+                console.error('Error uploading to admin master:', error.message);
+                results.uploadResults.push({
+                    country: 'admin',
+                    department: 'master',
+                    success: false,
+                    error: error.message,
+                    message: 'Failed to upload to ADMIN MASTER index'
+                });
+                results.errors.push(`admin/master: ${error.message}`);
+                results.failedUploads++;
+            }
+            results.totalUploads++;
+        }
+
         // Update overall success status
         results.success = results.failedUploads === 0;
         if (results.failedUploads > 0) {
-            results.message = `Admin bulk upload completed with ${results.failedUploads} failures out of ${results.totalUploads} total uploads`;
+            results.message = `File upload completed with ${results.failedUploads} failures out of ${results.totalUploads} total uploads`;
         }
 
         return res.status(results.success ? 200 : 207).json(results); // 207 = Multi-Status
 
     } catch (error) {
-        console.error('Error in admin bulk upload:', error);
+        console.error('Error in specific index upload:', error);
         return res.status(500).json({
             success: false,
-            message: 'Admin bulk upload failed',
-            error: error.message
+            message: 'File upload failed',
+            error: error.message,
+            filename: req.file ? req.file.originalname : 'unknown'
         });
     }
 };
@@ -164,7 +311,6 @@ const uploadFile = async (req, res) => {
             });
         }
 
-
         // Check if this is an admin bulk upload
         const uploadMode = req.body.uploadMode;
         const userRole = req.user.user_type;
@@ -175,7 +321,12 @@ const uploadFile = async (req, res) => {
 
         // For admin bulk uploads: upload to all indices (including admin master)
         if (uploadMode === 'all' && userRole === 'admin') {
-            return await handleAdminBulkUpload(req, res);
+            return await handleAdminSingleFileToAllIndices(req, res);
+        }
+
+        // For specific uploads: upload to intended index + admin master
+        if (uploadMode === 'specific') {
+            return await handleSpecificIndexUpload(req, res);
         }
 
         if (!country || !department) {
@@ -343,7 +494,8 @@ const getAvailableIndices = async (req, res) => {
 
 module.exports = {
     uploadFile,
-    handleAdminBulkUpload,
+    handleAdminSingleFileToAllIndices,
+    handleSpecificIndexUpload,
     getFile,
     deleteFile,
     getUploadConfig,

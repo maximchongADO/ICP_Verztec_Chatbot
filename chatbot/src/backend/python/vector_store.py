@@ -53,7 +53,7 @@ load_dotenv()
 nlp = spacy.load("en_core_web_sm")
 
 # Initialize models
-api_key = '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'  # Set in your .env file
+api_key = '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'  # Set in your .env file
 model = "deepseek-r1-distill-llama-70b"
 deepseek = ChatGroq(api_key=api_key, model_name=model)
 deepseek_chain = deepseek | StrOutputParser()
@@ -207,16 +207,36 @@ def load_single_file(file_path, embedding_model, faiss_index_path=None, country=
             metadata=chunk_metadata
         ))
 
-    # Check if FAISS index exists
-    if faiss_index_path and os.path.exists(faiss_index_path):
+    # Check if FAISS index exists by looking for the actual FAISS files
+    faiss_files_exist = False
+    if faiss_index_path:
+        # FAISS save_local() creates a directory with index.faiss and index.pkl inside
+        faiss_file = os.path.join(faiss_index_path, "index.faiss")
+        pkl_file = os.path.join(faiss_index_path, "index.pkl")
+        faiss_files_exist = os.path.exists(faiss_file) and os.path.exists(pkl_file)
+        
+        print(f"[DEBUG] Checking FAISS files:")
+        print(f"[DEBUG] FAISS file path: {faiss_file}")
+        print(f"[DEBUG] PKL file path: {pkl_file}")
+        print(f"[DEBUG] FAISS file exists: {os.path.exists(faiss_file)}")
+        print(f"[DEBUG] PKL file exists: {os.path.exists(pkl_file)}")
+        print(f"[DEBUG] Both files exist: {faiss_files_exist}")
+    
+    if faiss_files_exist:
         print(f"[INFO] Loading existing FAISS index from {faiss_index_path}")
-        faiss_db = FAISS.load_local(
-            faiss_index_path, 
-            embeddings=embedding_model,
-            allow_dangerous_deserialization=True  # Add this parameter
-        )
-        # Add the new chunks to the existing FAISS index
-        faiss_db.add_documents(all_chunks)
+        try:
+            faiss_db = FAISS.load_local(
+                faiss_index_path, 
+                embeddings=embedding_model,
+                allow_dangerous_deserialization=True
+            )
+            # Add the new chunks to the existing FAISS index
+            faiss_db.add_documents(all_chunks)
+            print(f"[INFO] Added {len(all_chunks)} new chunks to existing FAISS index")
+        except Exception as e:
+            print(f"[WARNING] Failed to load existing FAISS index: {e}")
+            print(f"[INFO] Creating new FAISS index instead")
+            faiss_db = FAISS.from_documents(all_chunks, embedding_model)
     else:
         # Create a new FAISS index
         print(f"[INFO] Creating new FAISS index at {faiss_index_path or f'faiss_index_{base_name}'}")
@@ -328,8 +348,13 @@ def list_available_indices():
             indices[country] = []
             
             for dept_dir in country_dir.iterdir():
-                if dept_dir.is_dir() and (dept_dir / "faiss_index.index").exists():
-                    indices[country].append(dept_dir.name)
+                if dept_dir.is_dir():
+                    # Check if FAISS files exist in the subdirectory
+                    faiss_index_dir = dept_dir / "faiss_index"
+                    faiss_file = faiss_index_dir / "index.faiss"
+                    pkl_file = faiss_index_dir / "index.pkl"
+                    if faiss_file.exists() and pkl_file.exists():
+                        indices[country].append(dept_dir.name)
     
     return indices
 
@@ -340,7 +365,10 @@ def get_faiss_db_for_query(country=None, department=None, embedding_model=embedd
     """
     if country and department:
         faiss_path = get_faiss_index_path(country, department)
-        if os.path.exists(faiss_path):
+        # Check if FAISS files exist in the subdirectory
+        faiss_file = os.path.join(faiss_path, "index.faiss")
+        pkl_file = os.path.join(faiss_path, "index.pkl")
+        if os.path.exists(faiss_file) and os.path.exists(pkl_file):
             try:
                 return FAISS.load_local(
                     faiss_path, 

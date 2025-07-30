@@ -3,6 +3,122 @@ const { spawn } = require('child_process');
 const path = require('path');
 const router = express.Router();
 
+// Fast FAISS inspection endpoint (no embedding model required)
+router.post('/inspect-fast', async (req, res) => {
+    try {
+        const { command = 'inspect', filters, userRole, adminMaster } = req.body;
+        
+        console.log('Fast FAISS Route - Received request body:', JSON.stringify(req.body, null, 2));
+        console.log('Fast FAISS Route - User role:', userRole);
+        console.log('Fast FAISS Route - Admin master:', adminMaster);
+        console.log('Fast FAISS Route - Extracted filters:', filters);
+        
+        const pythonScriptPath = path.join(__dirname, '../python/faiss_inspector_fast.py');
+        
+        // Build command arguments for fast inspector
+        const args = [pythonScriptPath, command || 'inspect'];
+        
+        // Add user role if provided
+        if (userRole) {
+            args.push('--user-role', userRole);
+        }
+        
+        // Add admin master flag if requested
+        if (adminMaster && userRole === 'admin') {
+            args.push('--admin-master');
+        }
+        
+        // Add filter arguments if provided
+        if (filters) {
+            if (filters.country) {
+                args.push('--country', filters.country);
+            }
+            if (filters.department) {
+                args.push('--department', filters.department);
+            }
+        }
+        
+        console.log('Fast FAISS Route - Final command args:', args);
+        
+        // Execute Python script
+        const pythonProcess = spawn('python', args);
+        
+        let output = '';
+        let errorOutput = '';
+        let responseSent = false;
+        
+        pythonProcess.stdout.on('data', (data) => {
+            output += data.toString();
+        });
+        
+        pythonProcess.stderr.on('data', (data) => {
+            errorOutput += data.toString();
+        });
+        
+        pythonProcess.on('close', (code) => {
+            if (responseSent) return;
+            responseSent = true;
+            
+            if (code === 0) {
+                try {
+                    const result = JSON.parse(output);
+                    res.json(result);
+                } catch (parseError) {
+                    console.error('Failed to parse Python output:', parseError);
+                    res.status(500).json({
+                        error: 'Failed to parse FAISS inspection results',
+                        details: parseError.message,
+                        output: output
+                    });
+                }
+            } else {
+                console.error('Python script failed:', errorOutput);
+                res.status(500).json({
+                    error: 'FAISS inspection failed',
+                    details: errorOutput,
+                    code: code
+                });
+            }
+        });
+        
+        pythonProcess.on('error', (error) => {
+            if (responseSent) return;
+            responseSent = true;
+            
+            console.error('Failed to start Python process:', error);
+            res.status(500).json({
+                error: 'Failed to start FAISS inspection process',
+                details: error.message
+            });
+        });
+        
+        // Set timeout for the process - much shorter since no model loading required
+        const timeoutDuration = 15000; // 15 seconds should be plenty
+        const timeoutId = setTimeout(() => {
+            if (responseSent) return;
+            responseSent = true;
+            
+            pythonProcess.kill();
+            res.status(408).json({
+                error: 'FAISS inspection timed out',
+                suggestion: 'The fast inspection should complete quickly. Check server logs.'
+            });
+        }, timeoutDuration);
+        
+        // Clear timeout if process completes normally
+        pythonProcess.on('close', () => {
+            clearTimeout(timeoutId);
+        });
+        
+    } catch (error) {
+        console.error('Error in fast FAISS inspection endpoint:', error);
+        res.status(500).json({
+            error: 'Internal server error',
+            details: error.message
+        });
+    }
+});
+
 // FAISS extraction endpoint
 router.post('/extract', async (req, res) => {
     try {
