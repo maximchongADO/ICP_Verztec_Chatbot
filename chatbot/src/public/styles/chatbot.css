@@ -2785,3 +2785,107 @@ body.dark-theme .source-item.error .source-action {
   opacity: 0.6;
   cursor: not-allowed;
 }
+
+/* Mute Button Styles */
+.mute-btn {
+  background: #f8fafd;
+  border: 1px solid #e0e6ef;
+  border-radius: 6px;
+  padding: 8px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 36px;
+  height: 36px;
+}
+
+.mute-btn:hover {
+  background: #e8f0fe;
+  border-color: #3a7bd5;
+}
+
+.mute-btn:active {
+  transform: scale(0.95);
+}
+
+.mute-btn svg {
+  width: 16px;
+  height: 16px;
+  stroke: #555;
+}
+
+.mute-btn:hover svg {
+  stroke: #3a7bd5;
+}
+
+/* Muted state - red cross */
+.mute-btn.muted {
+  background: #fef2f2;
+  border-color: #fecaca;
+}
+
+.mute-btn.muted:hover {
+  background: #fee2e2;
+  border-color: #ef4444;
+}
+
+.mute-btn.muted svg {
+  stroke: #dc2626;
+}
+
+/* Stop TTS Button */
+.stop-tts-btn {
+  background: linear-gradient(135deg, #ef4444, #dc2626);
+  border: 1px solid #dc2626;
+  border-radius: 6px;
+  padding: 8px 12px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  color: white;
+  font-size: 0.9rem;
+  font-weight: 600;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
+  box-shadow: 0 2px 4px rgba(239, 68, 68, 0.2);
+  animation: pulse-subtle 2s ease-in-out infinite;
+}
+
+.stop-tts-btn:hover {
+  background: linear-gradient(135deg, #dc2626, #b91c1c);
+  border-color: #b91c1c;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 8px rgba(239, 68, 68, 0.3);
+}
+
+.stop-tts-btn:active {
+  transform: translateY(0) scale(0.98);
+  box-shadow: 0 2px 4px rgba(239, 68, 68, 0.2);
+}
+
+.stop-tts-btn svg {
+  width: 14px;
+  height: 14px;
+  fill: white;
+}
+
+@keyframes pulse-subtle {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.9; }
+}
+
+/* Dark theme adjustments for stop TTS button */
+[data-theme="dark"] .stop-tts-btn {
+  background: linear-gradient(135deg, #dc2626, #b91c1c);
+  border-color: #991b1b;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+}
+
+[data-theme="dark"] .stop-tts-btn:hover {
+  background: linear-gradient(135deg, #b91c1c, #991b1b);
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.4);
+}

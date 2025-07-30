@@ -208,6 +208,9 @@ function handleKeyPress(event) {
     event.preventDefault();
     sendMessage();
   }
+  
+  // Update button state after any key press
+  setTimeout(updateActionButton, 0);
 }
 
 // Add these new variables at the top of the file with other global variables
@@ -264,9 +267,9 @@ function sendMessage() {
   // Clear welcome message on first message
   clearWelcomeContent();
 
-  // Disable send button
-  const sendButton = document.getElementById("sendButton");
-  sendButton.disabled = true;
+  // Disable action button
+  const actionButton = document.getElementById("actionButton");
+  if (actionButton) actionButton.disabled = true;
   // const fullMessage = `${message} YABABDODD`;
 
   // Add user message to chat
@@ -275,6 +278,9 @@ function sendMessage() {
   // Clear input and reset height
   input.value = "";
   input.style.height = "auto";
+  
+  // Update action button state after clearing input
+  updateActionButton();
 
   // Show typing indicator with realistic staged status updates
   showTypingIndicator("Retrieving relevant documents...");
@@ -333,8 +339,9 @@ function sendMessage() {
       );
     })
     .finally(() => {
-      // Re-enable send button
-      sendButton.disabled = false;
+      // Re-enable action button
+      const actionButton = document.getElementById("actionButton");
+      if (actionButton) actionButton.disabled = false;
     });
 }
 
@@ -929,34 +936,83 @@ function addMessage(textOrResponse, sender, isHistorical = false) {
 }
 
   if (sender === "bot" && text && !tool_used && !isHistorical) {
+    console.log('🤖 ========== BOT MESSAGE TTS CHECK ==========');
+    console.log('🤖 Bot message detected, checking TTS status...');
+    console.log('🤖 isMuted status:', typeof isMuted !== 'undefined' ? isMuted : 'undefined');
+    console.log('🤖 localStorage tts_muted:', localStorage.getItem('tts_muted'));
+    
+    // Check if there's a mute state preventing TTS
+    if (typeof isMuted !== 'undefined' && isMuted) {
+        console.error('🤖 ❌ TTS is muted! Bot message will not generate TTS.');
+        console.error('🤖 ❌ This is likely why TTS stopped working after first stop.');
+        return; // Don't continue with TTS if muted
+    }
+    
     // Check if avatar is available and active
     const avatarActive = isAvatarActive();
-    console.log('🤖 Bot message detected, avatar active:', avatarActive);
+    console.log('🤖 Avatar active:', avatarActive);
     console.log('🤖 Message text:', text.substring(0, 50) + '...');
     
     if (avatarActive) {
-      // Send bot response text to avatar for TTS generation
-      console.log('🎭 Sending bot response text to avatar for TTS');
-      setTimeout(() => {
-        if (typeof sendMessageToAvatar === 'function') {
-          console.log('🎭 Sending text to avatar for TTS generation');
-          
-          // Send only the text - let avatar handle TTS generation
-          sendMessageToAvatar({
-            type: 'bot_response_for_tts',
-            payload: { 
-              text: text,
-              isNewMessage: true,
-              timestamp: Date.now()
+      // Generate TTS first, then send audio to avatar (no duplication)
+      console.log('🎭 Generating TTS for avatar (single source)');
+      
+      // Show stop button when starting TTS generation
+      showStopTTSButton();
+      isTTSPlaying = true;
+      
+      try {
+        // Generate TTS with lipsync for avatar
+        const token = localStorage.getItem("token");
+        fetch("/api/tts/synthesize-enhanced", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({
+            text: text,
+            voice: 'en-GB-Standard-A',
+            languageCode: 'en-GB',
+            generateLipSyncData: true,
+            facialExpression: 'default',
+            animation: 'Talking_1'
+          }),
+        })
+        .then(response => response.json())
+        .then(data => {
+          if (data.success) {
+            console.log('🎭 TTS generated successfully, sending to avatar');
+            // Send the generated audio and lipsync to avatar
+            if (typeof sendMessageToAvatar === 'function') {
+              sendMessageToAvatar({
+                type: 'tts_with_lipsync',
+                text: text,
+                audio: data.audio,
+                lipsync: data.lipSyncData
+              });
             }
-          });
-        } else {
-          console.error('❌ sendMessageToAvatar function not found');
-        }
-      }, 100);
+          } else {
+            console.error('🎭 TTS generation failed, falling back to local TTS');
+            // Fallback to local TTS
+            speakMessage(text);
+          }
+        })
+        .catch(error => {
+          console.error('🎭 TTS generation error, falling back to local TTS:', error);
+          // Fallback to local TTS
+          speakMessage(text);
+        });
+      } catch (error) {
+        console.error('🎭 TTS setup error, falling back to local TTS:', error);
+        speakMessage(text);
+      }
     } else {
       // Fallback to local TTS if no avatar is active
       console.log('🔊 Using local TTS (no avatar active)');
+      // Show stop button for local TTS too
+      showStopTTSButton();
+      isTTSPlaying = true;
       setTimeout(() => speakMessage(text), 100);
     }
 
@@ -1343,46 +1399,227 @@ window.addEventListener("resize", function () {
   }
 });
 
-// Add mute toggle functionality
-let isMuted = false;
+// Add stop TTS functionality
+let currentTTSAudio = null;
+let isTTSPlaying = false;
 
-function toggleMute() {
-    isMuted = !isMuted;
-    const toggleButton = document.getElementById('toggleSpeechButton');
-    const avatar = document.getElementById('chatbotAvatar');
-    
-    if (isMuted) {
-        window.googleTTS?.pause();
-        if (avatar) avatar.classList.add('muted');
-        if (toggleButton) {
-            toggleButton.classList.add('muted');
-            toggleButton.innerHTML = '<i class="fas fa-volume-mute"></i> Muted';
-        }
+function showStopTTSButton() {
+    const stopButton = document.getElementById('stopTtsButton');
+    console.log('STOP-TTS: Attempting to show button. Button found:', !!stopButton);
+    if (stopButton) {
+        stopButton.style.display = 'flex';
+        console.log('STOP-TTS: Button display set to flex');
+        console.log('STOP-TTS: Button current style:', stopButton.style.display);
+        console.log('STOP-TTS: Button visible:', stopButton.offsetWidth > 0 && stopButton.offsetHeight > 0);
     } else {
-        window.googleTTS?.resume();
-        if (avatar) avatar.classList.remove('muted');
-        if (toggleButton) {
-            toggleButton.classList.remove('muted');
-            toggleButton.innerHTML = '<i class="fas fa-volume-up"></i> Unmuted';
-        }
+        console.error('STOP-TTS: Button element not found!');
     }
 }
+
+function hideStopTTSButton() {
+    const stopButton = document.getElementById('stopTtsButton');
+    console.log('STOP-TTS: Attempting to hide button. Button found:', !!stopButton);
+    if (stopButton) {
+        stopButton.style.display = 'none';
+        console.log('STOP-TTS: Button hidden');
+    }
+}
+
+function stopCurrentTTS() {
+    console.log('STOP-TTS: Stopping current TTS...');
+    console.log('STOP-TTS: isMuted before stop:', typeof isMuted !== 'undefined' ? isMuted : 'undefined');
+    
+    // Stop Google TTS
+    if (window.googleTTS) {
+        window.googleTTS.pause();
+        console.log('STOP-TTS: Stopped Google TTS');
+    }
+    
+    // Stop HTML5 audio elements
+    const audioElements = document.querySelectorAll('audio');
+    audioElements.forEach(audio => {
+        if (!audio.paused) {
+            audio.pause();
+            audio.currentTime = 0;
+        }
+    });
+    console.log('STOP-TTS: Stopped HTML5 audio elements');
+    
+    // Send stop command to avatar (stops current audio without persistent mute)
+    if (typeof sendMessageToAvatar === 'function') {
+        sendMessageToAvatar({ type: 'mute_immediate' });
+        console.log('STOP-TTS: Sent stop command to avatar');
+    }
+    
+    // Reset TTS state
+    isTTSPlaying = false;
+    currentTTSAudio = null;
+    
+    // Hide the stop button
+    hideStopTTSButton();
+    
+    // Make sure isMuted is not accidentally set
+    if (typeof isMuted !== 'undefined') {
+        console.log('STOP-TTS: isMuted after stop:', isMuted);
+        if (isMuted) {
+            console.warn('STOP-TTS: ⚠️ isMuted is true - this might prevent future TTS!');
+        }
+    }
+    
+    console.log('STOP-TTS: Current TTS stopped successfully');
+}
+
+function toggleMute() {
+    console.log('=== TOGGLE MUTE CALLED ===');
+    console.log('Before toggle - isMuted:', isMuted);
+    
+    // Toggle the state
+    isMuted = !isMuted;
+    
+    console.log('After toggle - isMuted:', isMuted);
+    
+    // Get UI elements
+    const muteButton = document.getElementById('muteButton');
+    const muteIcon = document.getElementById('muteIcon');
+    const mutedIcon = document.getElementById('mutedIcon');
+    
+    if (!muteButton || !muteIcon || !mutedIcon) {
+        console.error('MISSING UI ELEMENTS:', {
+            muteButton: !!muteButton,
+            muteIcon: !!muteIcon, 
+            mutedIcon: !!mutedIcon
+        });
+        return;
+    }
+    
+    if (isMuted) {
+        console.log('APPLYING MUTE STATE');
+        
+        // Stop any current audio
+        if (window.googleTTS) {
+            window.googleTTS.pause();
+        }
+        
+        const audioElements = document.querySelectorAll('audio');
+        audioElements.forEach(audio => {
+            if (!audio.paused) {
+                audio.pause();
+                audio.currentTime = 0;
+            }
+        });
+        
+        // Send mute command to avatar
+        sendMessageToAvatar({
+            type: 'mute_immediate'
+        });
+        
+        // Update UI for muted state
+        muteButton.classList.add('muted');
+        muteIcon.style.display = 'none';
+        mutedIcon.style.display = 'block';
+        muteButton.title = 'Unmute TTS';
+        
+        console.log('MUTE STATE APPLIED');
+        
+    } else {
+        // UNMUTE - Allow new audio to play
+        console.log('🔊 Applying unmute...');
+        
+        // Resume Google TTS
+        if (window.googleTTS) {
+            window.googleTTS.resume();
+            console.log('  ✓ Google TTS resumed');
+        }
+        
+        // Send unmute command to avatar to allow audio
+        sendMessageToAvatar({
+            type: 'unmute'
+        });
+        console.log('  ✓ Unmute command sent to avatar');
+        
+        // Update UI for unmuted state
+        muteButton.classList.remove('muted');
+        muteIcon.style.display = 'block';
+        mutedIcon.style.display = 'none';
+        muteButton.title = 'Mute TTS';
+        
+        console.log('UNMUTE STATE APPLIED');
+    }
+    
+    // Save state to localStorage
+    localStorage.setItem('tts_muted', isMuted.toString());
+    console.log('Saved to localStorage:', localStorage.getItem('tts_muted'));
+    console.log('=== TOGGLE COMPLETE ===');
+    console.log('� Mute state saved to localStorage:', isMuted.toString());
+    
+    // Verify the save worked
+    const verification = localStorage.getItem('tts_muted');
+    console.log('✓ Verification - localStorage now contains:', verification);
+}
+
+// Initialize stop TTS button as hidden
+document.addEventListener('DOMContentLoaded', function() {
+    hideStopTTSButton();
+    console.log('STOP-TTS: Initialized with button hidden');
+    
+    // Listen for avatar TTS end events
+    window.addEventListener('message', function(event) {
+        if (event.data && event.data.type === 'avatar_tts_ended') {
+            console.log('STOP-TTS: ✅ Received avatar TTS ended event');
+            console.log('STOP-TTS: Resetting TTS state and hiding button');
+            isTTSPlaying = false;
+            hideStopTTSButton();
+        }
+    });
+    
+    // Test function to manually show button (for debugging)
+    window.testShowStopButton = function() {
+        console.log('TEST: Manually showing stop button');
+        showStopTTSButton();
+    };
+    
+    window.testHideStopButton = function() {
+        console.log('TEST: Manually hiding stop button');
+        hideStopTTSButton();
+    };
+    
+    console.log('STOP-TTS: Test functions available - testShowStopButton() and testHideStopButton()');
+});
 
 let currentMouthInterval = null; // Add this at the top level of your file
 
 async function speakMessage(text) {
-    if (!text || !text.trim()) return;
+    console.log('TTS: ========== speakMessage CALLED ==========');
+    console.log('TTS: Text to speak:', text ? text.substring(0, 50) + '...' : 'null');
+    console.log('TTS: isMuted status:', typeof isMuted !== 'undefined' ? isMuted : 'undefined');
+    console.log('TTS: isTTSPlaying status:', isTTSPlaying);
     
-    console.log('🗣️ Speaking message:', text.substring(0, 50) + '...');
+    if (!text || !text.trim()) {
+        console.log('TTS: No text provided, returning');
+        return;
+    }
+    
+    // Check if there's a mute state that's preventing TTS
+    if (typeof isMuted !== 'undefined' && isMuted) {
+        console.error('TTS: ❌ TTS is muted! This is why audio is not playing.');
+        console.error('TTS: ❌ isMuted =', isMuted, 'localStorage tts_muted =', localStorage.getItem('tts_muted'));
+        return;
+    }
+    
+    console.log('TTS: About to check if should show stop button');
     
     // Check if avatar is available and active
     const avatarActive = isAvatarActive();
-    console.log('🎭 Avatar active:', avatarActive);
+    console.log('TTS: Avatar active:', avatarActive);
     
     if (avatarActive) {
-        console.log('🎭 Avatar is active, sending message with TTS and lip sync');
-        // Send to avatar with enhanced TTS request
+        console.log('TTS: Avatar is active, sending message with TTS and lip sync');
+        // Always generate TTS for avatar so lipsync works
         try {
+            // Show stop button when generating TTS for avatar
+            showStopTTSButton();
+            isTTSPlaying = true;
+            
             const token = localStorage.getItem("token");
             const response = await fetch("/api/tts/synthesize-enhanced", {
                 method: "POST",
@@ -1403,47 +1640,62 @@ async function speakMessage(text) {
             if (response.ok) {
                 const data = await response.json();
                 if (data.success) {
-                    console.log('✅ TTS generated, sending to avatar');
+                    console.log('TTS: TTS generated, sending to avatar');
                     sendMessageToAvatar({
                         type: 'tts_with_lipsync',
                         text: text,
                         audio: data.audio,
                         lipsync: data.lipSyncData
                     });
-                    return; // Don't play locally
+                    return; // Don't play locally when avatar is active
                 }
             }
         } catch (error) {
-            console.error('❌ Failed to generate TTS for avatar:', error);
+            console.error('TTS: Failed to generate TTS for avatar:', error);
+            // Reset state on error
+            isTTSPlaying = false;
+            hideStopTTSButton();
         }
     }
     
     // Fallback to local TTS if avatar is not available or TTS failed
-    console.log('🔊 Playing TTS locally');
+    console.log('TTS: Playing TTS locally');
+    
     const avatar = document.getElementById('chatbotAvatar');
     
     try {
         if (avatar) avatar.classList.add('speaking');
         isCurrentlySpeaking = true;
+        isTTSPlaying = true;
+        
+        // Show stop button when TTS starts
+        showStopTTSButton();
         
         if (window.googleTTS) {
           await window.googleTTS.speak(text, {
             voice: 'en-GB-Standard-A',
             languageCode: 'en-GB',
-            volume: isMuted ? 0 : 1,
+            volume: 1,
             generateLipSync: false, // Don't need lip sync for local playback
             onend: () => {
               currentSpeechText = null;
               isCurrentlySpeaking = false;
+              isTTSPlaying = false;
+              hideStopTTSButton(); // Hide stop button when TTS ends
               stopAvatarAnimation();
+              console.log('TTS: Local TTS ended');
             },
             onstart: () => {
               isCurrentlySpeaking = true;
+              isTTSPlaying = true;
               if (avatar) avatar.classList.add('speaking');
+              console.log('TTS: Local TTS started');
             }
           });
         } else {
           console.warn('Google TTS not loaded');
+          isTTSPlaying = false;
+          hideStopTTSButton();
           stopAvatarAnimation();
         }
         
@@ -2351,5 +2603,259 @@ document.addEventListener('click', function(event) {
 
 // ==========================================
 // END THEME CUSTOMIZATION FUNCTIONALITY
+// ==========================================
+
+// ==========================================
+// SPEECH-TO-TEXT FUNCTIONALITY
+// ==========================================
+
+let speechToText = null;
+let isRecording = false;
+
+// Initialize speech recognition when DOM is loaded
+document.addEventListener('DOMContentLoaded', function() {
+  // Initialize SpeechToText (preferring browser API for faster response)
+  if (typeof SpeechToText !== 'undefined') {
+    speechToText = new SpeechToText(false); // false = prefer browser API over Google Cloud
+    
+    // Set up event listeners
+    speechToText.onResult = function(transcript, isFinal) {
+      console.log('Speech recognized:', transcript, 'Final:', isFinal);
+      
+      // Insert the transcript into the input field
+      const messageInput = document.getElementById('messageInput');
+      if (messageInput && isFinal) {
+        const currentValue = messageInput.value.trim();
+        const newValue = currentValue ? currentValue + ' ' + transcript : transcript;
+        messageInput.value = newValue;
+        
+        // Trigger input event to resize textarea if needed
+        messageInput.dispatchEvent(new Event('input'));
+        
+        // Update button state after adding text
+        updateActionButton();
+        
+        // Focus the input field
+        messageInput.focus();
+        
+        // Auto-stop recording after getting final result
+        stopSpeechRecognition();
+      }
+    };
+    
+    speechToText.onEnd = function() {
+      console.log('Speech recognition ended');
+      stopSpeechRecognition();
+    };
+    
+    speechToText.onError = function(error) {
+      console.error('Speech recognition error:', error);
+      showSpeechError(error);
+      stopSpeechRecognition();
+    };
+    
+    speechToText.onStart = function() {
+      console.log('Speech recognition started');
+      showSpeechStatus('Listening... Speak now');
+    };
+    
+    console.log('Speech-to-Text initialized with service:', speechToText.getServiceType());
+  } else {
+    console.warn('SpeechToText class not available');
+  }
+
+  // Initialize button state
+  updateActionButton();
+});
+
+// Handle the unified action button (mic/send)
+function handleActionButton() {
+  const messageInput = document.getElementById('messageInput');
+  const inputText = messageInput ? messageInput.value.trim() : '';
+  
+  console.log('Action button clicked:', { inputText, isRecording });
+  
+  if (isRecording) {
+    // If recording, stop it
+    console.log('Stopping speech recognition');
+    stopSpeechRecognition();
+  } else if (inputText) {
+    // If there's text, send message
+    console.log('Sending message:', inputText);
+    sendMessage();
+  } else {
+    // If no text, start speech recognition
+    console.log('Starting speech recognition');
+    startSpeechRecognition();
+  }
+}
+
+// Update action button based on input state
+function updateActionButton() {
+  const messageInput = document.getElementById('messageInput');
+  const actionButton = document.getElementById('actionButton');
+  const micIcon = document.getElementById('micIcon');
+  const recordingIcon = document.getElementById('recordingIcon');
+  const sendIcon = document.getElementById('sendIcon');
+  
+  if (!messageInput || !actionButton || !micIcon || !recordingIcon || !sendIcon) return;
+  
+  const inputText = messageInput.value.trim();
+  
+  if (isRecording) {
+    // Recording state
+    actionButton.classList.add('recording');
+    actionButton.classList.remove('send-mode');
+    actionButton.title = 'Click to stop recording';
+    micIcon.style.display = 'none';
+    recordingIcon.style.display = 'block';
+    sendIcon.style.display = 'none';
+  } else if (inputText) {
+    // Send mode
+    actionButton.classList.remove('recording');
+    actionButton.classList.add('send-mode');
+    actionButton.title = 'Send message';
+    micIcon.style.display = 'none';
+    recordingIcon.style.display = 'none';
+    sendIcon.style.display = 'block';
+  } else {
+    // Microphone mode
+    actionButton.classList.remove('recording', 'send-mode');
+    actionButton.title = 'Click to speak';
+    micIcon.style.display = 'block';
+    recordingIcon.style.display = 'none';
+    sendIcon.style.display = 'none';
+  }
+}
+
+// Toggle speech recognition (legacy function for keyboard shortcuts)
+function toggleSpeechRecognition() {
+  if (!speechToText || !speechToText.isSupported()) {
+    showSpeechError('Speech recognition not available in this browser');
+    return;
+  }
+  
+  if (isRecording) {
+    stopSpeechRecognition();
+  } else {
+    startSpeechRecognition();
+  }
+}
+
+// Start speech recognition
+function startSpeechRecognition() {
+  if (!speechToText || isRecording) return;
+  
+  try {
+    speechToText.startListening('en-GB');
+    isRecording = true;
+    updateActionButton();
+    showSpeechStatus('Listening... Speak now');
+    console.log('Started speech recognition');
+  } catch (error) {
+    console.error('Failed to start speech recognition:', error);
+    showSpeechError('Failed to start speech recognition: ' + error.message);
+  }
+}
+
+// Stop speech recognition
+function stopSpeechRecognition() {
+  if (!speechToText || !isRecording) return;
+  
+  try {
+    speechToText.stopListening();
+    isRecording = false;
+    updateActionButton();
+    hideSpeechStatus();
+    console.log('Stopped speech recognition');
+  } catch (error) {
+    console.error('Failed to stop speech recognition:', error);
+  }
+}
+
+// Update microphone button appearance (legacy function - now handled by updateActionButton)
+function updateMicrophoneButton(recording) {
+  updateActionButton();
+}
+
+// Show speech recognition status
+function showSpeechStatus(message) {
+  const speechStatus = document.getElementById('speechStatus');
+  const statusText = document.getElementById('statusText');
+  
+  if (speechStatus && statusText) {
+    statusText.textContent = message;
+    speechStatus.style.display = 'flex';
+  }
+}
+
+// Hide speech recognition status
+function hideSpeechStatus() {
+  const speechStatus = document.getElementById('speechStatus');
+  if (speechStatus) {
+    speechStatus.style.display = 'none';
+  }
+}
+
+// Show speech recognition error
+function showSpeechError(error) {
+  let errorMessage = 'Speech recognition error';
+  
+  if (typeof error === 'string') {
+    errorMessage = error;
+  } else if (error && error.error) {
+    switch (error.error) {
+      case 'no-speech':
+        errorMessage = 'No speech detected. Please try again.';
+        break;
+      case 'audio-capture':
+        errorMessage = 'Microphone not accessible. Please check permissions.';
+        break;
+      case 'not-allowed':
+        errorMessage = 'Microphone access denied. Please allow microphone access.';
+        break;
+      case 'network':
+        errorMessage = 'Network error. Please check your connection.';
+        break;
+      case 'service-not-allowed':
+        errorMessage = 'Speech recognition service not allowed.';
+        break;
+      default:
+        errorMessage = `Speech recognition error: ${error.error}`;
+    }
+  }
+  
+  console.error('Speech recognition error:', errorMessage);
+  
+  // Show error message temporarily
+  showSpeechStatus(errorMessage);
+  setTimeout(() => {
+    hideSpeechStatus();
+  }, 3000);
+}
+
+// Handle keyboard shortcuts for speech recognition
+document.addEventListener('keydown', function(event) {
+  // Ctrl + Shift + M or Cmd + Shift + M to toggle speech recognition
+  if ((event.ctrlKey || event.metaKey) && event.shiftKey && event.key === 'M') {
+    event.preventDefault();
+    const messageInput = document.getElementById('messageInput');
+    const inputText = messageInput ? messageInput.value.trim() : '';
+    
+    // Only start speech recognition if there's no text
+    if (!inputText) {
+      toggleSpeechRecognition();
+    }
+  }
+  
+  // Escape key to stop speech recognition
+  if (event.key === 'Escape' && isRecording) {
+    event.preventDefault();
+    stopSpeechRecognition();
+  }
+});
+
+// ==========================================
+// END SPEECH-TO-TEXT FUNCTIONALITY
 // ==========================================
 

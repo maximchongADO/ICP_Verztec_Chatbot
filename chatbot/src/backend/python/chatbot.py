@@ -17,7 +17,7 @@ from datetime import datetime
 from time import sleep
 from spacy.matcher import PhraseMatcher
 from langchain.prompts import ChatPromptTemplate, SystemMessagePromptTemplate, HumanMessagePromptTemplate
-
+from langchain.chains import ConversationChain 
 from typing import List
 from dotenv import load_dotenv
 from sentence_transformers import SentenceTransformer
@@ -57,7 +57,7 @@ logger = logging.getLogger(__name__)
 # Initialize models and clients
 embedding_model = SentenceTransformer('BAAI/bge-large-en-v1.5')
 load_dotenv()
-api_key='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'
+api_key='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'
 # i love api keyyy
 model = "deepseek-r1-distill-llama-70b" 
 deepseek = ChatGroq(api_key=api_key, model=model, temperature = 0) # type: ignore
@@ -197,7 +197,63 @@ def store_chat_log_updated(user_message, bot_response, query_score, relevance_sc
         return chat_name  # handy if caller wants to know what was used
     finally:
         conn.close()
+def store_chat_log_updated(user_message, bot_response, query_score, relevance_score,
+                           chat_id, user_id, chat_name=None):
+    # Check for invalid float values
+    def is_invalid(val):
+        return val is None or np.isnan(val) or np.isinf(val)
 
+    # Log if any invalid values exist
+    if is_invalid(query_score) or is_invalid(relevance_score):
+        full_row = {
+            "user_message": user_message,
+            "bot_response": bot_response,
+            "query_score": query_score,
+            "relevance_score": relevance_score,
+            "chat_id": chat_id,
+            "user_id": user_id,
+            "chat_name": chat_name
+        }
+        logger.warning("❗ Invalid score detected in chat log entry:\n%s", full_row)
+        print("❗ Invalid score detected:\n", full_row)
+        return None  # Optionally skip insertion entirely
+
+    # Proceed with DB write
+    conn = pymysql.connect(**DB_CONFIG)
+    try:
+        with conn.cursor() as cursor:
+            # Reuse earliest name if not supplied
+            if not chat_name or not chat_name.strip():
+                select_query = """
+                    SELECT chat_name
+                    FROM chat_logs
+                    WHERE user_id = %s AND chat_id = %s
+                    ORDER BY timestamp ASC
+                    LIMIT 1;
+                """
+                cursor.execute(select_query, (user_id, chat_id))
+                row = cursor.fetchone()
+                if row and row[0] and row[0].strip():
+                    chat_name = row[0].strip()
+
+            insert_query = """
+                INSERT INTO chat_logs
+                    (timestamp, user_message, bot_response, feedback,
+                     query_score, relevance_score, user_id, chat_id, chat_name)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+            """
+            timestamp = datetime.utcnow()
+            feedback = None
+
+            cursor.execute(insert_query, (
+                timestamp, user_message, bot_response, feedback,
+                query_score, relevance_score, user_id, chat_id, chat_name
+            ))
+        conn.commit()
+        logger.info("Stored chat log for session %s %s at %s", user_id, chat_id, timestamp)
+        return chat_name
+    finally:
+        conn.close()
 
 def store_hr_escalation(escalation_id, user_id, chat_id, user_message, issue_summary, status="PENDING", priority="NORMAL", user_description=None):
     """
@@ -398,13 +454,13 @@ def get_avg_score(index, embedding_model, query, k=10):
     return avg_score
 
 
-def generate_intelligent_query_suggestions(user_query: str, index, embedding_model, max_suggestions=3):
+def generate_intelligent_query_suggestions(user_query: str, index, embedding_model, max_suggestions=1):
     """
-    Advanced query suggestion system that:
+    Simplified query suggestion system that:
     1. Finds the most relevant documents to the user's query
     2. Extracts key topics and concepts from those documents
     3. Reformulates queries based on document content
-    4. Returns contextually relevant, clickable query suggestions
+    4. Returns one contextually relevant suggestion
     """
     try:
         # Get top documents with scores - cast broader net initially
@@ -424,7 +480,7 @@ def generate_intelligent_query_suggestions(user_query: str, index, embedding_mod
         
         # Use LLM to analyze the document and generate relevant queries
         analysis_prompt = f"""
-        Analyze this document content and the user's original query to generate 3 highly relevant, specific questions that would help the user find the information they're looking for.
+        Analyze this document content and the user's original query to generate 1 highly relevant, specific question that would help the user find the information they're looking for.
 
         User's Original Query: "{user_query}"
         
@@ -433,12 +489,12 @@ def generate_intelligent_query_suggestions(user_query: str, index, embedding_mod
         Document Source: "{document_source}"
 
         Requirements:
-        1. Generate exactly 3 questions that are directly related to the document content
-        2. Questions should be natural, specific, and likely to retrieve good information
+        1. Generate exactly 1 question that is directly related to the document content
+        2. Question should be natural, specific, and likely to retrieve good information
         3. Focus on practical, actionable queries that employees would ask
-        4. Each question should be complete and standalone
-        5. Return ONLY the 3 questions, one per line, without numbering or bullet points
-        6. Questions should be based on what information is actually available in the document
+        4. Question should be complete and standalone
+        5. Return ONLY the 1 question, without numbering or bullet points
+        6. Question should be based on what information is actually available in the document
         
         Examples of good questions:
         - "How do I apply for annual leave?"
@@ -454,29 +510,27 @@ def generate_intelligent_query_suggestions(user_query: str, index, embedding_mod
             clean_response = re.sub(r"<think>.*?</think>", "", response, flags=re.DOTALL).strip()
             
             # Split into individual questions and clean them
-            questions = []
-            for line in clean_response.split('\n'):
+            lines = clean_response.split('\n')
+            for line in lines:
                 line = line.strip()
                 # Remove numbering, bullets, or other formatting
                 line = re.sub(r'^[\d\.\-\*\•]\s*', '', line)
                 if line and len(line) > 10:  # Ensure it's a substantial question
-                    questions.append(line)
+                    suggestions = [line]  # Take only the first valid suggestion
+                    break
             
-            # Limit to max_suggestions
-            suggestions = questions[:max_suggestions]
-            
-            # If we don't have enough good suggestions, add some fallback based on document source
-            if len(suggestions) < max_suggestions:
+            # If we don't have a good suggestion, add fallback based on document source
+            if not suggestions:
                 fallback_suggestions = generate_fallback_suggestions(document_source, document_content)
-                suggestions.extend(fallback_suggestions[:max_suggestions - len(suggestions)])
+                suggestions = fallback_suggestions[:1]  # Take only first fallback
             
-            logger.info(f"Generated {len(suggestions)} intelligent query suggestions: {suggestions}")
+            logger.info(f"Generated {len(suggestions)} intelligent query suggestion: {suggestions}")
             return suggestions
             
         except Exception as e:
             logger.error(f"Error in LLM-based suggestion generation: {str(e)}")
             # Fallback to rule-based suggestions
-            return generate_fallback_suggestions(document_source, document_content)[:max_suggestions]
+            return generate_fallback_suggestions(document_source, document_content)[:1]
         
     except Exception as e:
         logger.error(f"Error in intelligent query suggestion generation: {str(e)}")
@@ -548,12 +602,10 @@ def generate_fallback_suggestions(document_source: str, document_content: str):
     # If no specific topics found, generate generic workplace questions
     if not suggestions:
         suggestions = [
-            "What company policies should I be aware of?",
-            "How do I access company resources and facilities?",
-            "What are the standard workplace procedures?"
+            "What company policies should I be aware of?"
         ]
     
-    return list(set(suggestions))  # Remove duplicates
+    return [suggestions[0]] if suggestions else []  # Return only one suggestion
 
 
 def extract_likely_topic(user_query: str, index, embedding_model):
@@ -604,10 +656,10 @@ def extract_likely_topic(user_query: str, index, embedding_model):
         return "workplace topics"
 
 
-def analyze_user_intent_and_suggest(user_query: str, index, embedding_model, max_suggestions=3):
+def analyze_user_intent_and_suggest(user_query: str, index, embedding_model, max_suggestions=1):
     """
-    Enhanced function to analyze user intent and find the most relevant topics they might be asking about.
-    Returns suggestions based on semantic similarity and content analysis.
+    Simplified function to analyze user intent and find the most relevant topic they might be asking about.
+    Returns one suggestion based on semantic similarity and content analysis.
     """
     try:
         # Get a broader range of documents to analyze
@@ -805,20 +857,30 @@ def extract_topic_based_suggestions(document_sources, document_contents):
             seen.add(suggestion)
             unique_suggestions.append(suggestion)
     
-    return unique_suggestions
+    # Return only the first suggestion to simplify the process
+    return [unique_suggestions[0]] if unique_suggestions else []
 
 
 def analyze_query_relevance(user_query: str, index, embedding_model, relevance_threshold=0.8):
     """
     Enhanced analysis to better identify what users might be asking about.
+    Treats general queries (greetings, casual phrases) as completely irrelevant.
     Returns: (is_relevant, best_doc_score, should_suggest, intent_level)
     """
     try:
+        # First check if this is a general/casual query using is_query_score
+        query_score = is_query_score(user_query)
+        
+        # If query score is very low (casual/general queries), treat as completely irrelevant
+        if query_score <= 0.0:
+            logger.info(f"General/casual query detected (score: {query_score:.4f}) - treating as completely irrelevant")
+            return False, 2, False, 'none'
+        
         # Get top documents to analyze relevance with broader scope
         results = index.similarity_search_with_score(user_query, k=10)
         
         if not results:
-            return False, float('inf'), False, 'none'
+            return False, 2, False, 'none'
         
         best_score = results[0][1]  # Get the best (lowest) score
         avg_top5_score = np.mean([score for _, score in results[:5]])
@@ -843,16 +905,14 @@ def analyze_query_relevance(user_query: str, index, embedding_model, relevance_t
             intent_level = 'none'
             should_suggest = False  # Completely irrelevant - dismiss
         
-        # Additional check using task query score
-        task_query_score = is_query_score(user_query)
-        
+        # Additional check using task query score for enhanced filtering
         # Override suggestion decision if task query score is very low
-        if task_query_score < 0.2 and best_score > 1.2:
+        if query_score < 0.2 and best_score > 1.2:
             should_suggest = False  # Too irrelevant to suggest
             intent_level = 'none'
         
         logger.info(f"Enhanced relevance analysis - Best: {best_score:.4f}, Avg-5: {avg_top5_score:.4f}, Avg-10: {avg_top10_score:.4f}")
-        logger.info(f"Intent level: {intent_level}, Task score: {task_query_score:.4f}, Should suggest: {should_suggest}")
+        logger.info(f"Intent level: {intent_level}, Task score: {query_score:.4f}, Should suggest: {should_suggest}")
         
         return is_directly_relevant, best_score, should_suggest, intent_level
         
@@ -1273,382 +1333,6 @@ hybrid_retriever_obj = HybridRetriever(
                 top_k_final=5
             )
 
-## legacy   
-def generate_answer(user_query: str, chat_history: ConversationBufferMemory ):
-    """
-    Returns a tuple: (answer_text, image_list)
-    """
-    session_id = str(uuid.uuid4())
-    cleaned_answer = ""  # Ensure cleaned_answer is always defined
-    try:
-        total_start_time = time.time()  # Start timing for the whole query
-
-        parser = StrOutputParser()
-    
-        # Chain the Groq model with the parser
-        deepseek_chain = deepseek | parser
-        
-        
-        
-        ## INCASE HAVE TO SWITCH BACK TO SINGLE RETRIEVER 
-        #  THIS HAS NO GENERAL KNOWLEDGE RETRIEVER
-        retriever = index.as_retriever(
-            search_type="similarity",
-            search_kwargs={"k": 10}
-        )
-        
-        
-        
-        
-        avg_score = get_avg_score(index, embedding_model, user_query)
-        avg_score_gk = get_avg_score(index2, embedding_model, user_query)
-        
-        
-        
-        
-        ## QA chain setup with mrmory 
-        qa_chain = ConversationalRetrievalChain.from_llm(
-            llm=deepseek_chain,
-            retriever=hybrid_retriever_obj,
-            memory=chat_history,
-            return_source_documents=True,
-            output_key="answer"
-        )
-        logger.info(memory)
-    
-        
-        # Refine query
-       
-        clean_query = clean_with_grammar_model(user_query)
-       
-        # Step 3: Search FAISS for context 
-        # for images, as well as for context relevance checks 
-        results = index.similarity_search_with_score(clean_query, k=5)
-        scores = [score for _, score in results]
-        avg_score = float(np.mean(scores)) if scores else 1.0
-        
-        
-        results_gk = index2.similarity_search_with_score(clean_query, k=5)
-        scores_gk = [score for _, score in results_gk]
-        avg_score_gk = float(np.mean(scores_gk)) if scores_gk else 1.0
-        logger.info(f"Average score for GK index: {avg_score_gk:.4f}")
-        
-        
-        
-        seen = set()
-        unique_docs = []
-
-        for doc, _ in results:
-            content = doc.page_content
-            if content not in seen:
-                seen.add(content)
-                unique_docs.append(doc)
-
-        logger.info(f"Retrieved {len(unique_docs)} documents with average score: {avg_score:.4f}")
-    
-        
-        ## retrieving images from top 3 chunks (if any)
-        # Retrieve images from top 3 chunks (if any)
-        THRESHOLD      = 0.70          # keep docs whose score < threshold   (lower L2 → more similar)
-        MAX_IMAGES     = 3             # cap images
-        sources_set    = set()         # remember unique source filenames
-        sources_list   = []            # ordered list of unique sources
-        seen_contents  = set()         # avoid duplicate page_content
-        top_docs       = []            # docs we actually keep
-        top_3_img      = []            # up to 3 image paths / URLs
-
-        for doc, score in results:
-            if score >= THRESHOLD:      # skip weak matches
-                continue
-
-            # ---- source handling ------------------------------------
-            src = doc.metadata.get("source")
-            if src and src not in sources_set:
-                sources_set.add(src)
-                sources_list.append(src)
-
-            # ---- unique doc content ---------------------------------
-            if doc.page_content not in seen_contents:
-                seen_contents.add(doc.page_content)
-                top_docs.append(doc)
-
-            # ---- gather up to 3 images ------------------------------
-            if len(top_3_img) < MAX_IMAGES:
-                for img in doc.metadata.get("images", []):
-                    top_3_img.append(img)
-                    if len(top_3_img) >= MAX_IMAGES:
-                        break
-
-                    
-
-
-            # Ensures a flat list of strings
-        top_3_img = list(set(top_3_img))  # Remove duplicates
-        logger.info(f"Top 3 images: {top_3_img}")
-
-
-       
-        is_task_query = is_query_score(user_query)
-        logger.info(f"Query Score: {is_task_query}")
-        logger.info(f"Average Score: {avg_score}")
-        
-        # Use enhanced intelligent query analysis system
-        is_relevant, best_doc_score, should_suggest, intent_level = analyze_query_relevance(user_query, index, embedding_model)
-        
-        # Updated logic: Use relevance analysis + task query score for better decisions
-        STRICT_QUERY_THRESHOLD = 0.2
-        COMPLETE_DISMISSAL_THRESHOLD = 1.3  # Slightly higher threshold for dismissal
-        
-        should_dismiss_completely = (
-            intent_level == 'none' or
-            (is_task_query < STRICT_QUERY_THRESHOLD and best_doc_score >= COMPLETE_DISMISSAL_THRESHOLD)
-        )
-        
-        #handle irrelevant query or provide intelligent suggestions
-        logger.info(f"Clean Query at qa chain: {clean_query}")
-        logger.info(f"Enhanced Analysis - Relevant: {is_relevant}, Intent: {intent_level}, Should suggest: {should_suggest}, Should dismiss: {should_dismiss_completely}")
-        
-        if should_dismiss_completely or should_suggest:
-            suggestions = []
-            likely_topic = None
-            
-            if should_suggest and not should_dismiss_completely:
-                # Extract what topic the user is likely asking about
-                likely_topic = extract_likely_topic(user_query, index, embedding_model)
-                logger.info(f"Identified likely topic: {likely_topic}")
-                
-                # Use enhanced intent-based suggestion generation
-                suggestions = analyze_user_intent_and_suggest(user_query, index, embedding_model)
-                if not suggestions:
-                    # Fallback to original method if enhanced method fails
-                    suggestions = generate_intelligent_query_suggestions(user_query, index, embedding_model)
-                logger.info(f"Generated enhanced suggestions for intent level '{intent_level}': {suggestions}")
-            
-            if should_dismiss_completely:
-                logger.info("[DISMISS_COMPLETELY] Query is entirely irrelevant to knowledge base")
-            elif should_suggest and suggestions:
-                logger.info(f"[PROVIDE_INTELLIGENT_SUGGESTIONS] Query needs clarification, providing document-based suggestions")
-            else:
-                # Fallback for edge cases
-                logger.info("[STANDARD_FALLBACK] Could not generate suggestions or determine dismissal")
-            
-            # Handle different prompt types based on enhanced relevance analysis
-            if should_dismiss_completely:
-                fallback_prompt = (
-                    f'The user said: "{clean_query}". '
-                    'As a HELPFUL and FRIENDLY VERZTEC helpdesk assistant, respond with a light-hearted or polite reply — '
-                    'even if the message is small talk or out of scope (e.g., "how are you", "do you like pizza"). '
-                    'Keep it human and warm (e.g., "I\'m doing great, thanks for asking!"), then ***gently guide the user back to Verztec-related helpdesk topics***. '
-                    'Do not answer any questions that are not related to Verztec helpdesk topics, and do not use any of the provided documents in your response.'
-                )
-            elif should_suggest and suggestions:
-                if intent_level == 'medium':
-                    topic_context = f" related to {likely_topic}" if likely_topic else ""
-                    fallback_prompt = (
-                        f'The user asked: "{clean_query}". '
-                        f'This query appears to be workplace-related{topic_context} and I want to make sure I provide the most helpful information. '
-                        'As a HELPFUL VERZTEC helpdesk assistant, politely acknowledge that you understand they\'re looking for workplace assistance, '
-                        'and explain that you have some specific questions that should help them find exactly what they need. '
-                        'Be encouraging and mention that these suggestions are based on relevant company resources.'
-                    )
-                elif intent_level == 'low':
-                    topic_context = f" It seems like you might be asking about {likely_topic}." if likely_topic else ""
-                    fallback_prompt = (
-                        f'The user asked: "{clean_query}". '
-                        f'This query might be related to workplace topics, though it needs some clarification.{topic_context} '
-                        'As a HELPFUL VERZTEC helpdesk assistant, politely acknowledge their question and explain that you\'ve found some '
-                        'related topics that might be what they\'re looking for. Be encouraging and mention that these suggestions '
-                        'are based on company information that might be relevant to their needs.'
-                    )
-                else:
-                    topic_context = f" about {likely_topic}" if likely_topic else ""
-                    fallback_prompt = (
-                        f'The user asked: "{clean_query}". '
-                        f'This query seems to be workplace-related{topic_context} but might need some clarification to provide the most helpful information. '
-                        'As a HELPFUL VERZTEC helpdesk assistant, politely acknowledge that you want to make sure you understand their needs correctly, '
-                        'and explain that you have some specific questions that might help them find exactly what they\'re looking for. '
-                        'Be encouraging and mention that these suggestions are based on relevant company information.'
-                    )
-            else:
-                fallback_prompt = (
-                    f'The user said: "{clean_query}". '
-                    'As a HELPFUL and FRIENDLY VERZTEC helpdesk assistant, respond with a polite reply acknowledging their query. '
-                    'Explain that you might not have specific information about their request, but encourage them to try rephrasing their question '
-                    'or ask about specific Verztec policies, procedures, or workplace topics.'
-                )
-            
-            fallback_prompt_original = (
-                f'The user said: "{clean_query}". '
-                'As a HELPFUL and FRIENDLY VERZTEC helpdesk assistant, respond with a light-hearted or polite reply — '
-                'even if the message is small talk or out of scope (e.g., "how are you", "do you like pizza"). '
-                'Keep it human and warm (e.g., "I’m doing great, thanks for asking!"), then ***gently guide the user back to Verztec-related helpdesk topics***.'
-                'Do not answer any questions that are not related to Verztec helpdesk topics, and do not use any of the provided documents in your response. '
-            )
-
-            #modified_query = "You are a verztec helpdesk assistant. You will only use the provided documents in your response. If the query is out of scope, say so.\n\n" + clean_query
-            #messages = [HumanMessage(content=fallback_prompt)]
-            messages = build_memory_prompt(memory, fallback_prompt)
-            response = deepseek.generate([messages])
-
-            raw_fallback = response.generations[0][0].text.strip()
-
-            # Remove <think> block if present
-            think_block_pattern = re.compile(r"<think>.*?</think>", flags=re.DOTALL)
-            cleaned_fallback = think_block_pattern.sub("", raw_fallback).strip()
-            top_3_img = []  # No images for fallback response
-            # Store the fallback response in chat memory
-         
-            memory.chat_memory.add_user_message(fallback_prompt)
-            memory.chat_memory.add_ai_message(cleaned_fallback) 
-            # Clean up chat memory to keep it manageable
-            # Limit chat memory to last 4 turns (8 messages)
-            MAX_TURNS = 4
-            if len(memory.chat_memory.messages) > 2 * MAX_TURNS:
-                memory.chat_memory.messages = memory.chat_memory.messages[-2 * MAX_TURNS:]
-            # For the fallback response, we need dummy user_id and chat_id since they're not available in this function
-            dummy_user_id = "anonymous"
-            dummy_chat_id = session_id
-            store_chat_log_updated(user_message=user_query, bot_response=cleaned_fallback, query_score=is_task_query, relevance_score=best_doc_score, user_id=dummy_user_id, chat_id=dummy_chat_id)
-            #store_chat_log_updated(user_message=user_query, bot_response=cleaned_fallback, query_score=is_task_query, relevance_score=avg_score, user_id=user_id, chat_id=chat_id)
-    
-            return {
-                'text': cleaned_fallback,
-                'images': top_3_img,
-                'sources': [],
-                'suggestions': suggestions if should_suggest else [],  # Include intelligent suggestions
-                'has_suggestions': bool(suggestions and should_suggest),
-                'suggestion_type': 'intelligent' if suggestions else 'none',
-                'likely_topic': likely_topic if should_suggest and likely_topic else None,
-                'intent_level': intent_level
-            }
-        
-        
-        
-        
-        logger.info("QA chain activated for query processing.")
-        # Step 4: Prepare full prompt and return LLM output
-        modified_query = "You are a  HELPFUL AND NICE verztec helpdesk assistant. You will only use the provided documents in your response. If the query is out of scope, say so.\n\n" + clean_query
-        modified_query = (
-            "You are a HELPFUL AND NICE Verztec helpdesk assistant. "
-            "You will only use the provided documents in your response. "
-            "If the query is out of scope, say so. "
-            "If there are any image tags or screenshots mentioned in the documents, "
-            "IF QUERY SHOULD BE ESCALATED TO HR, RESPOND WITH <ESCALATE> "
-            "please reference them in your response where appropriate, such as 'See Screenshot 1' or 'Refer to the image above'.\n\n"
-            + clean_query
-        )
-
-        qa_start_time = time.time()
-        response = qa_chain.invoke({"question": modified_query})
-        qa_elapsed_time = time.time() - qa_start_time
-        raw_answer = response['answer']
-        source_docs = response['source_documents']
-        logger.info(f"Source docs from QA chain: {source_docs}")
-        logger.info(f"Full response before cleanup: {raw_answer} (QA chain time taken: {qa_elapsed_time:.2f}s)")
-        
-        # Clean the chat memory to keep it manageable
-        # Limit chat memory to last 4 turns (8 messages)
-        MAX_TURNS = 4
-        if len(memory.chat_memory.messages) > 2 * MAX_TURNS:
-            memory.chat_memory.messages = memory.chat_memory.messages[-2 * MAX_TURNS:]
-
-        # Define regex pattern to match full <think>...</think> block
-        think_block_pattern = re.compile(r"<think>.*?</think>", flags=re.DOTALL)
-       
-        
-
-        # Check if full <think> block exists
-        has_think_block = bool(think_block_pattern.search(raw_answer))
-
-        # Clean the <think> block regardless
-        cleaned_answer = think_block_pattern.sub("", raw_answer).strip()
-        has_tag = False
-        import concurrent.futures
-
-        # Timeout logic for retry
-        def retry_qa_chain():
-            return qa_chain.invoke({"question": clean_query})['answer']
-
-        i = 1  # Ensure i is defined
-        while has_tag and i == 1:
-            if not has_think_block:
-                logger.warning("Missing full <think> block — retrying query once...")
-                try:
-                    retry_start = time.time()
-                    with concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor:
-                        future = executor.submit(retry_qa_chain)
-                        raw_answer_retry = future.result(timeout=30)
-                    retry_elapsed = time.time() - retry_start
-                    logger.info(f"Retry response: {raw_answer_retry} (Retry time taken: {retry_elapsed:.2f}s)")
-                    sleep(1)  # Optional: wait a bit before retrying
-                    cleaned_answer = think_block_pattern.sub("", raw_answer_retry).strip()
-                except concurrent.futures.TimeoutError:
-                    logger.error("QA chain retry timed out after 30 seconds.")
-                    cleaned_answer = "Sorry, the system took too long to generate a response. Please try again in a moment."
-                    break
-                except Exception as e:
-                    logger.error(f"Error during QA chain retry: {e}")
-                    cleaned_answer = f"Sorry, an error occurred while generating a response: {e}"
-                    break
-            else:
-                logger.info("Full <think> block found and removed successfully")
-            block_tag_pattern = re.compile(r"<([a-zA-Z0-9_]+)>.*?</\1>", flags=re.DOTALL)
-
-            # Check if there are any block tags at all
-            has_any_block_tag = bool(block_tag_pattern.search(raw_answer))
-            if has_any_block_tag:
-                logger.info("Block tags found in response, cleaning them up")
-
-            # Remove all block tags
-            cleaned_answer = block_tag_pattern.sub("", raw_answer).strip()
-            cleaned_answer = re.sub(r"^\s+", "", cleaned_answer)
-            has_any_block_tag = bool(block_tag_pattern.search(raw_answer))
-            if not has_any_block_tag:
-                has_tag = False
-            i += 1
-        ## one last cleanup to ensure no <think> tags remain
-        # Remove any remaining <think> tagsbetter have NO MOR NO MORE NO MO NO MOMRE 
-        cleaned_answer = re.sub(r"</?think>", "", cleaned_answer).strip()
-        cleaned_answer = re.sub(r"</?think>", "", cleaned_answer).strip()
-        cleaned_answer = re.sub(r'[\*#]+', '', cleaned_answer).strip()
-
-    
-        # For the main response, we need dummy user_id and chat_id since they're not available in this function
-        dummy_user_id = "anonymous"
-        dummy_chat_id = session_id
-        store_chat_log_updated(user_message=user_query, bot_response=cleaned_answer, query_score=is_task_query, relevance_score=avg_score, user_id=dummy_user_id, chat_id=dummy_chat_id)
-        # After generating the bot's response
-        final_response, source_docs = append_sources_with_links(cleaned_answer, top_docs)
-        print(final_response)
-        
-        # Log source documents for debugging
-        logger.info(f"Source documents data: {source_docs}")
-        
-        # Also append clickable links to text for backwards compatibility
-        for doc in source_docs:
-            if doc['is_clickable'] and doc['file_path']:
-                final_response += f"\n\n[Source: {doc['name']}]({doc['file_path']})"
-                logger.info(f"Added clickable source: {doc['name']} -> {doc['file_path']}")
-            else:
-                final_response += f"\n\n[Source: {doc['name']}]"
-                logger.info(f"Added non-clickable source: {doc['name']}")
-
-        total_elapsed_time = time.time() - total_start_time
-        logger.info(f"Total time taken for query processing: {total_elapsed_time:.2f}s")
-
-        # Return structured data for frontend
-        return {
-            'text': final_response,
-            'images': top_3_img,
-            'sources': source_docs  # Include source file data for frontend
-        }
-    except Exception as e:
-        return {
-            'error': f"I encountered an error while processing your request: {str(e)}", 
-            'text': f"I encountered an error while processing your request: {str(e)}", 
-            'images': [], 
-            'sources': []
-        }
 
 memory_store = {}
 global_tools = {
@@ -2036,6 +1720,13 @@ def clean_q_3(org_query):
             found_matchabss = True
 
     return found_match, found_matchabss
+
+
+
+
+
+
+
 def generate_answer_histoy_retrieval(user_query: str, user_id:str, chat_id:str):
     """
     Returns a tuple: (answer_text, image_list)
@@ -2325,7 +2016,7 @@ def generate_answer_histoy_retrieval(user_query: str, user_id:str, chat_id:str):
             # Handle different prompt types based on relevance analysis
             if should_dismiss_completely:
                 fallback_prompt = (
-                    f'The user said: "{clean_query}". '
+                   # f'The user said: "{clean_query}". '
                     'As a HELPFUL and FRIENDLY Verztec helpdesk assistant, respond with a warm, light-hearted, or polite reply — '
                     'even if the message is small talk or clearly out of scope (e.g., "how are you", "do you like pizza"). '
                     'Do not greet the user unless they greeted you first. '
@@ -2336,17 +2027,33 @@ def generate_answer_histoy_retrieval(user_query: str, user_id:str, chat_id:str):
                 )
             elif should_suggest and suggestions:
                 fallback_prompt = (
-                    f'The user asked: "{clean_query}". '
+                    #f'The user asked: "{clean_query}". '
                     'This seems to be workplace-related, but might need clarification to give the most helpful answer. '
                     'As a HELPFUL Verztec helpdesk assistant, politely acknowledge the query and express your intent to assist. '
                     'Let the user know that you have a few specific follow-up questions or suggestions that could help. '
+                    #f'here are some possible rephrases based on the query that the user might have meant: {", ".join(suggestions)}. '
                     'Mention that these are based on relevant company policies or practices. '
                     'Be encouraging and warm, and do NOT include any formal sign-offs like "Best regards" or your name at the end. '
                     f"Here is some information about the user: NAME: {user_name}, ROLE: {user_role}, COUNTRY: {user_country}, DEPARTMENT: {user_department}\n\n"
                 )
+                
+                return {
+                'text': "Did you mean to ask about one of these topics? " + ", ".join(suggestions) + "?",
+                'images': top_3_img,
+                'sources': [],
+                'tool_used': tool_used,
+                'tool_identified': tool_identified,
+                'tool_confidence': tool_confidence,
+                'suggestions': suggestions if should_suggest else [],  # Include intelligent suggestions
+                'has_suggestions': bool(suggestions and should_suggest),
+                'suggestion_type': 'intelligent' if suggestions else 'none',
+                'likely_topic': likely_topic if should_suggest and likely_topic else None,
+                'intent_level': intent_level
+                }
+        
             else:
                 fallback_prompt = (
-                    f'The user said: "{clean_query}". '
+                    #f'The user said: "{clean_query}". '
                     'As a HELPFUL and FRIENDLY Verztec helpdesk assistant, respond with a polite and understanding reply. '
                     'Explain that you might not have the exact information for this request, but encourage the user to try rephrasing '
                     'or ask about specific Verztec policies, procedures, or workplace-related topics. '
@@ -2356,7 +2063,7 @@ def generate_answer_histoy_retrieval(user_query: str, user_id:str, chat_id:str):
 
             
             fallback_prompt_original = (
-                f'The user said: "{clean_query}". '
+                #f'The user said: "{clean_query}". '
                 'As a HELPFUL and FRIENDLY VERZTEC helpdesk assistant, respond with a light-hearted or polite reply — '
                 'even if the message is small talk or out of scope (e.g., "how are you", "do you like pizza"). '
                 'You do not need to greet the user, unless they greeted you first. '
@@ -2364,20 +2071,62 @@ def generate_answer_histoy_retrieval(user_query: str, user_id:str, chat_id:str):
                 'Do not answer any questions that are not related to Verztec helpdesk topics'
                 f"Here is some information about the user, NAME:{user_name}, ROLE: {user_role}, COUNTRY: {user_country}, DEPARTMENT: {user_department}\n\n"
                 )
+            hi = False
             if formatted_prev_docs: 
                 fallback_prompt += (
                     "To help you stay conversational, here are a few bits of previous Verztec-related context retrieved from earlier:\n"
                     f"{formatted_prev_docs}\n\n"
                     "These documents were retrieved to attempt to answer the previous query. YOU MAY USE THEM TO ATTEMPT AN ACCURATE ANSWER\n"
-                    f'The previous query was: "{prev_query}"\n\n'
-                    f'The response to the previous query was you may use this for context: "{glast_bot_message}"\n\n'
+                   # f'The previous query was: "{prev_query}"\n\n'
+                   # f'The response to the previous query was you may use this for context: "{glast_bot_message}"\n\n'
                 )
             logger.info("=+" * 20)
             logger.info(f"Fallback prompt: {fallback_prompt}")
-            #modified_query = "You are a verztec helpdesk assistant. You will only use
+            
             logger.info("=+" * 20)
+            
+            #######################################################################
+            
+            from langchain.chains import LLMChain
 
-           
+            
+
+            # Create answer prompt that matches your memory
+            answer_prompt = PromptTemplate(
+                template=f"""{fallback_prompt}
+                {{chat_history}}
+                
+                Question: {{question}}
+                
+                Answer:""",
+                input_variables=["chat_history", "question"]
+            )
+
+            # Use LLMChain instead of ConversationChain
+            qa_chain = LLMChain(
+                llm=deepseek_chain,
+                prompt=answer_prompt
+            )
+
+            # Get chat history from memory and invoke
+            chat_history_str = chat_history.chat_memory.messages if hasattr(chat_history, 'chat_memory') else ""
+            raw_fallback = qa_chain.invoke({
+                "chat_history": chat_history_str,
+                "question": SUPER_CLEAN_QUERY
+            })
+
+            # Manually save to memory
+            memory.save_context({"question": SUPER_CLEAN_QUERY}, {"answer": raw_fallback["text"]})
+
+            # Remove <think> block if present
+            think_block_pattern = re.compile(r"<think>.*?</think>", flags=re.DOTALL)
+            cleaned_fallback = think_block_pattern.sub("", raw_fallback["text"]).strip()
+        
+                                    
+            
+            ################################################################
+
+            '''
             messages = build_memory_prompt(memory, fallback_prompt)
             response = deepseek.generate([messages])
             raw_fallback = response.generations[0][0].text.strip()
@@ -2389,14 +2138,15 @@ def generate_answer_histoy_retrieval(user_query: str, user_id:str, chat_id:str):
             # Store the fallback response in chat memory
             memory.chat_memory.add_user_message(fallback_prompt)
             memory.chat_memory.add_ai_message(cleaned_fallback) 
+            '''
             
             
             # Clean up chat memory to keep it manageable
             # Limit chat memory to last 4 turns (8 messages)
             
             MAX_TURNS = 4
-            if len(memory.chat_memory.messages) > 2 * MAX_TURNS:
-                memory.chat_memory.messages = memory.chat_memory.messages[-2 * MAX_TURNS:]
+            if len(chat_history.chat_memory.messages) > 2 * MAX_TURNS:
+                chat_history.chat_memory.messages = chat_history.chat_memory.messages[-2 * MAX_TURNS:]
             if tool_used:
                 is_task_query = 0  # Force task query for fallback response
                 avg_score = 2  # Force average score for fallback response

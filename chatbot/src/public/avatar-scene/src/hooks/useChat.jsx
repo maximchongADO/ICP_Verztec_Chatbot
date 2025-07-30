@@ -90,7 +90,7 @@ export const ChatProvider = ({ children }) => {
 
     // Handle pre-generated TTS with lipsync data
     if (event.data?.type === 'tts_with_lipsync') {
-      const { text, audio, lipsync } = event.data;
+      const { text, audio, lipsync, muted } = event.data;
       console.log('✅ Avatar received pre-generated TTS:', text?.substring(0, 50) + '...');
       
       const newMessage = {
@@ -98,38 +98,19 @@ export const ChatProvider = ({ children }) => {
         type: "bot",
         text,
         audio,
-        lipsync
+        lipsync,
+        muted: muted || false  // Pass mute state to message
       };
       console.log('✅ Adding ready TTS message to queue:', newMessage.id);
       setMessages((messages) => [...messages, newMessage]);
       return;
     }
 
-    // Handle bot response that needs TTS generation
+    // Handle bot response that needs TTS generation (DEPRECATED - now handled by main chatbot)
     if (event.data?.type === 'bot_response_for_tts') {
-      const { text, timestamp, isNewMessage } = event.data.payload || event.data;
-      console.log('🎤 Avatar received bot response for TTS:', text?.substring(0, 50) + '...');
-      
-      if (!text) {
-        console.error('❌ No text provided in bot_response_for_tts message');
-        return;
-      }
-
-      // Only generate TTS for new messages, not historical ones
-      const now = Date.now();
-      const messageTime = timestamp || now;
-      const timeDiff = now - messageTime;
-      
-      // If message is older than 5 seconds or explicitly marked as old, skip TTS
-      if (timeDiff > 5000 || isNewMessage === false) {
-        console.log('🚫 Skipping TTS for old message (age:', timeDiff, 'ms)');
-        return;
-      }
-
-      console.log('✅ Processing fresh message for TTS (age:', timeDiff, 'ms)');
-      // Generate TTS + lipsync for the provided text
-      await generateTTSWithLipsync(text);
-      return;
+      console.log('⚠️ Received bot_response_for_tts - this should now be handled by main chatbot');
+      console.log('⚠️ Use tts_with_lipsync instead for pre-generated audio');
+      return; // Don't generate TTS here anymore
     }
 
     // Log unhandled message types for debugging

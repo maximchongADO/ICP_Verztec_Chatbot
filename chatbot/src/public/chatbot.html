@@ -14,6 +14,7 @@
       rel="stylesheet"
     />
     <script src="/scripts/google-tts.js"></script>
+    <script src="/scripts/speech-to-text.js"></script>
   </head>
   <body>
     <div class="app-container">
@@ -89,6 +90,13 @@
           </button>
           <div class="chat-title">Chat Session</div>
           <div class="header-buttons">
+            <button class="header-btn stop-tts-btn" id="stopTtsButton" onclick="stopCurrentTTS()" title="Stop TTS" style="display: none;">
+              <svg viewBox="0 0 24 24" width="16" height="16">
+                <rect x="6" y="4" width="4" height="16" fill="currentColor"/>
+                <rect x="14" y="4" width="4" height="16" fill="currentColor"/>
+              </svg>
+              Stop TTS
+            </button>
             <button class="header-btn new-chat-btn" onclick="exportChat()">Export Chat</button>
             <button class="header-btn clear-chat-btn" onclick="triggerClearChat()">Clear Chat</button>
           </div>
@@ -108,19 +116,37 @@
         </div>
         <div class="chat-input-container">
           <div class="input-wrapper">
-            <textarea
-              class="chat-input"
-              id="messageInput"
-              placeholder="Type your message here..."
-              rows="1"
-              onkeydown="handleKeyPress(event)"
-              oninput="autoResize(this)"
-            ></textarea>
-            <button class="send-button" id="sendButton" onclick="sendMessage()">
-              <svg class="send-icon" viewBox="0 0 24 24">
-                <path d="M5 12l14-7-7 14v-5H5v-2h7V5z"/>
-              </svg>
-            </button>
+            <div class="input-with-button">
+              <textarea
+                class="chat-input"
+                id="messageInput"
+                placeholder="Type your message here or click the microphone to speak..."
+                rows="1"
+                onkeydown="handleKeyPress(event)"
+                oninput="autoResize(this); updateActionButton()"
+              ></textarea>
+              <button class="action-button" id="actionButton" onclick="handleActionButton()" title="Click to speak">
+                <!-- Microphone Icon -->
+                <svg class="mic-icon" id="micIcon" viewBox="0 0 24 24">
+                  <path d="M12 14c1.66 0 2.99-1.34 2.99-3L15 5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3zm5.3-3c0 3-2.54 5.1-5.3 5.1S6.7 14 6.7 11H5c0 3.41 2.72 6.23 6 6.72V21h2v-3.28c3.28-.48 6-3.3 6-6.72h-1.7z"/>
+                </svg>
+                <!-- Recording Icon -->
+                <svg class="recording-icon" id="recordingIcon" viewBox="0 0 24 24" style="display: none;">
+                  <circle cx="12" cy="12" r="3" fill="currentColor"/>
+                  <path d="M12 1v6M12 17v6M23 12h-6M7 12H1"/>
+                </svg>
+                <!-- Send Icon -->
+                <svg class="send-icon" id="sendIcon" viewBox="0 0 24 24" style="display: none;">
+                  <path d="M5 12l14-7-7 14v-5H5v-2h7V5z"/>
+                </svg>
+              </button>
+            </div>
+          </div>
+          <div class="speech-status" id="speechStatus" style="display: none;">
+            <div class="recording-indicator">
+              <div class="pulse"></div>
+            </div>
+            <span class="status-text" id="statusText">Listening...</span>
           </div>
         </div>
       </div>
@@ -677,28 +703,29 @@
       function sendMessageToAvatar(message) {
         let messageSent = false;
         
-        // Cancel main chatbot TTS when sending to avatar
-        if (window.googleTTS) {
-          window.googleTTS.cancel();
-          console.log('Cancelled main chatbot TTS for avatar message');
-        }
+        console.log('� Sending message to avatar without TTS cancellation');
         
         // Handle different message types
-        const messageToSend = typeof message === 'string' ? {
-          type: 'chat_message',
-          payload: message
-        } : {
-          type: message.type || 'chat_message',
-          payload: message.text || message.payload || message
-        };
+        let messageToSend;
         
-        // If it's a TTS message with lip sync, format it properly
-        if (message.type === 'tts_with_lipsync') {
-          messageToSend.type = 'chat_message';
-          messageToSend.payload = {
+        if (typeof message === 'string') {
+          messageToSend = {
+            type: 'chat_message',
+            payload: message
+          };
+        } else if (message.type === 'tts_with_lipsync') {
+          // Preserve tts_with_lipsync type for pre-generated audio
+          messageToSend = {
+            type: 'tts_with_lipsync',
             text: message.text,
             audio: message.audio,
             lipsync: message.lipsync
+          };
+          console.log('📤 Sending pre-generated TTS to avatar');
+        } else {
+          messageToSend = {
+            type: message.type || 'chat_message',
+            payload: message.text || message.payload || message
           };
         }
         
@@ -1311,6 +1338,218 @@
 
       .nav-item {
         font-size: calc(0.9rem * var(--font-scale));
+      }
+
+      /* Speech-to-Text Input Styles */
+      .input-with-button {
+        position: relative;
+        display: flex;
+        align-items: flex-end;
+        width: 100%;
+      }
+
+      .chat-input {
+        width: 100%;
+        padding-right: 55px !important; /* Make room for action button */
+        resize: none;
+      }
+
+      .action-button {
+        position: absolute;
+        right: 12px;
+        bottom: 50%;
+        transform: translateY(50%);
+        width: 36px;
+        height: 36px;
+        border: none;
+        border-radius: 50%;
+        background: linear-gradient(135deg, #64748b 0%, #475569 100%);
+        color: white;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        transition: all 0.3s ease;
+        z-index: 10;
+        box-shadow: 0 2px 8px rgba(100, 116, 139, 0.3);
+      }
+
+      .action-button:hover {
+        background: linear-gradient(135deg, #475569 0%, #334155 100%);
+        box-shadow: 0 4px 12px rgba(100, 116, 139, 0.4);
+      }
+
+      .action-button.send-mode {
+        background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
+        box-shadow: 0 2px 8px rgba(59, 130, 246, 0.3);
+      }
+
+      .action-button.send-mode:hover {
+        background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%);
+        box-shadow: 0 4px 12px rgba(59, 130, 246, 0.4);
+      }
+
+      .action-button.recording {
+        background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
+        animation: pulse-recording 1.5s infinite;
+        box-shadow: 0 4px 16px rgba(239, 68, 68, 0.6);
+      }
+
+      .action-button.recording:hover {
+        background: linear-gradient(135deg, #dc2626 0%, #b91c1c 100%);
+      }
+
+      .action-button:disabled {
+        opacity: 0.6;
+        cursor: not-allowed;
+        transform: translateY(50%) !important;
+      }
+
+      .action-button:disabled:hover {
+        background: linear-gradient(135deg, #64748b 0%, #475569 100%);
+        box-shadow: 0 2px 8px rgba(100, 116, 139, 0.3);
+      }
+
+      .mic-icon, .recording-icon, .send-icon {
+        width: 18px;
+        height: 18px;
+        fill: currentColor;
+        transition: all 0.2s ease;
+      }
+
+      .speech-status {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        padding: 12px 16px;
+        background: rgba(239, 68, 68, 0.1);
+        border: 1px solid rgba(239, 68, 68, 0.3);
+        border-radius: 12px;
+        margin-top: 8px;
+        animation: slideInUp 0.3s ease;
+      }
+
+      .recording-indicator {
+        width: 24px;
+        height: 24px;
+        position: relative;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+      }
+
+      .pulse {
+        width: 12px;
+        height: 12px;
+        background: #ef4444;
+        border-radius: 50%;
+        animation: pulse-dot 1.5s infinite;
+      }
+
+      .pulse::before {
+        content: '';
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        width: 12px;
+        height: 12px;
+        background: rgba(239, 68, 68, 0.6);
+        border-radius: 50%;
+        transform: translate(-50%, -50%);
+        animation: pulse-ring 1.5s infinite;
+      }
+
+      .status-text {
+        color: #ef4444;
+        font-weight: 600;
+        font-size: 0.9rem;
+      }
+
+      @keyframes pulse-recording {
+        0%, 100% {
+          transform: scale(1);
+          box-shadow: 0 4px 16px rgba(239, 68, 68, 0.6);
+        }
+        50% {
+          transform: scale(1.05);
+          box-shadow: 0 6px 24px rgba(239, 68, 68, 0.8);
+        }
+      }
+
+      @keyframes pulse-dot {
+        0%, 100% {
+          transform: scale(1);
+          opacity: 1;
+        }
+        50% {
+          transform: scale(1.2);
+          opacity: 0.8;
+        }
+      }
+
+      @keyframes pulse-ring {
+        0% {
+          transform: translate(-50%, -50%) scale(1);
+          opacity: 0.6;
+        }
+        100% {
+          transform: translate(-50%, -50%) scale(2.5);
+          opacity: 0;
+        }
+      }
+
+      @keyframes slideInUp {
+        from {
+          opacity: 0;
+          transform: translateY(10px);
+        }
+        to {
+          opacity: 1;
+          transform: translateY(0);
+        }
+      }
+
+      /* Dark theme support */
+      [data-theme="dark"] .action-button {
+        background: linear-gradient(135deg, #4b5563 0%, #374151 100%);
+        box-shadow: 0 2px 8px rgba(75, 85, 99, 0.3);
+      }
+
+      [data-theme="dark"] .action-button:hover {
+        background: linear-gradient(135deg, #374151 0%, #1f2937 100%);
+        box-shadow: 0 4px 12px rgba(75, 85, 99, 0.4);
+      }
+
+      [data-theme="dark"] .speech-status {
+        background: rgba(239, 68, 68, 0.15);
+        border-color: rgba(239, 68, 68, 0.4);
+      }
+
+      [data-theme="dark"] .status-text {
+        color: #f87171;
+      }
+
+      [data-theme="dark"] .pulse {
+        background: #f87171;
+      }
+
+      [data-theme="dark"] .pulse::before {
+        background: rgba(248, 113, 113, 0.6);
+      }
+
+      /* Responsive adjustments */
+      @media (max-width: 768px) {
+        .action-button {
+          width: 40px;
+          height: 40px;
+          right: 10px;
+          bottom: 50%;
+          transform: translateY(50%);
+        }
+        
+        .chat-input {
+          padding-right: 60px !important;
+        }
       }
     </style>
   </body>

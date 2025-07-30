@@ -17,7 +17,7 @@ import os
 import uvicorn
 import uuid
 from chatbot import (
-    generate_answer,
+   # generate_answer,
     generate_answer_histoy_retrieval,
     memory, 
     logger, 
