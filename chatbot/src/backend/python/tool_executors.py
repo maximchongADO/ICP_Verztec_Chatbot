@@ -25,6 +25,7 @@ Note: To enable actual email sending in production:
 """
 
 import csv
+import json
 import logging
 import os
 import re
@@ -573,15 +574,61 @@ def execute_hr_escalation_tool(
         logger.info(f"HR Escalation initiated - ID: {escalation_id}, User: {user_id}, Chat: {chat_id}")
         if user_description:
             logger.info(f"User provided detailed description: {user_description[:200]}...")
-        email_list = [
-            os.getenv('HR_EMAIL', 'jwwl6424@gmail.com'),
-            os.getenv('HR_EMAIL2', ''),
-            os.getenv('HR_EMAIL3', ''),
-            os.getenv('HR_EMAIL4', '')  # Note: You had HR_EMAIL_3 twice
-        ]
-
-        # Filter out any empty or duplicate emails
-        unique_emails = list(set([email.strip() for email in email_list if email.strip()]))
+        
+        # Read mailing list from database
+        try:
+            import mysql.connector
+            from mysql.connector import Error
+            
+            # Database configuration - using same config as userController.js
+            db_config = {
+                'host': 'localhost',
+                'user': 'chatbot_user',
+                'password': 'strong_password',
+                'database': 'chatbot_db'
+            }
+            
+            connection = mysql.connector.connect(**db_config)
+            cursor = connection.cursor()
+            
+            # Query mailing list table
+            cursor.execute("SELECT id, name, email FROM mailing_list")
+            mailing_list_records = cursor.fetchall()
+            
+            # Extract emails and log all found entries
+            email_list = []
+            logger.info(f"Found {len(mailing_list_records)} entries in mailing_list table:")
+            for record in mailing_list_records:
+                record_id, name, email = record
+                if email and email.strip():
+                    email_list.append(email.strip())
+                    logger.info(f"Mailing list entry - ID: {record_id}, Name: {name}, Email: {email}")
+                else:
+                    logger.warning(f"Mailing list entry with empty email - ID: {record_id}, Name: {name}")
+            
+            connection.close()
+            
+            # Filter out duplicates
+            unique_emails = list(set(email_list))
+            logger.info(f"Total unique emails for HR escalation: {len(unique_emails)} - {unique_emails}")
+            
+        except Error as e:
+            logger.error(f"Database error while fetching mailing list: {e}")
+            # Fallback to environment variables if database fails
+            logger.warning("Falling back to environment variable email configuration")
+            email_list = [
+                os.getenv('HR_EMAIL', 'jwwl6424@gmail.com'),
+                os.getenv('HR_EMAIL2', ''),
+                os.getenv('HR_EMAIL3', ''),
+                os.getenv('HR_EMAIL4', '')
+            ]
+            unique_emails = list(set([email.strip() for email in email_list if email.strip()]))
+            logger.info(f"Fallback emails: {unique_emails}")
+        except Exception as e:
+            logger.error(f"Unexpected error while fetching mailing list: {e}")
+            # Fallback to environment variables
+            unique_emails = [os.getenv('HR_EMAIL', 'jwwl6424@gmail.com')]
+            logger.info(f"Emergency fallback to single email: {unique_emails}")
 
         # Send email notification to each HR contact
         

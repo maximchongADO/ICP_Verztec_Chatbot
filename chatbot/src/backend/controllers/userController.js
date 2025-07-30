@@ -150,6 +150,20 @@ const adminCreateUser = async (req, res) => {
     }
 };
 
+const getMailingList = async (req, res) => {
+    try {
+        const connection = await mysql.createConnection(dbConfig);
+        const [rows] = await connection.execute(
+            'SELECT id, name, email FROM mailing_list'
+        );
+        await connection.end();
+        res.json(rows); // returns an array of {id, name, email}
+    } catch (error) {
+        console.error('Error fetching mailing list:', error);
+        res.status(500).json({ message: 'Internal server error' });
+    }
+};
+
 // Admin-only: update user profile
 const adminUpdateUser = async (req, res) => {
     if (!req.user || req.user.role !== 'admin') {
@@ -769,5 +783,6 @@ module.exports = {
     getUserChats,
     getUserFeedback,
     getCompanyAnalytics,
-    getAllUsersAnalytics
+    getAllUsersAnalytics,
+    getMailingList
 };

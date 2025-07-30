@@ -52,7 +52,14 @@ const createTablesSQL = {
       role_id INT AUTO_INCREMENT PRIMARY KEY,
       role_name VARCHAR(50) UNIQUE NOT NULL
     )`,
-    
+  
+  mailing_list: `
+    CREATE TABLE IF NOT EXISTS mailing_list (
+      email VARCHAR(255) PRIMARY KEY,
+      id INT NOT NULL, 
+      name VARCHAR(100)
+    )`,
+
   users: `
     CREATE TABLE IF NOT EXISTS Users (
       id INT AUTO_INCREMENT,
@@ -102,7 +109,7 @@ const createTablesSQL = {
 async function createTables(connection) {
   try {
     // Create tables in order (roles first, then users due to foreign key)
-    const tableOrder = ['documents', 'knowledge_chunks', 'chat_logs', 'extracted_texts', 'roles', 'users', 'cleaned_texts', 'hr_escalations'];
+    const tableOrder = ['documents', 'knowledge_chunks', 'chat_logs', 'extracted_texts', 'roles', 'users', 'cleaned_texts', 'hr_escalations', 'mailing_list'];
     
     for (const tableName of tableOrder) {
       await connection.execute(createTablesSQL[tableName]);

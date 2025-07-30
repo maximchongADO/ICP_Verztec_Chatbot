@@ -28,6 +28,15 @@ const userRoute = (app) => {
     authenticateToken.requireAdmin,
     userController.adminUpdateUser
   );
+
+
+
+  app.get(
+    "/api/mailing-list",
+    authenticateToken,
+    authenticateToken.requireAdmin,
+    userController.getMailingList
+  );
   // Admin-only: delete user (DELETE /api/users/:id)
   app.delete(
     "/api/users/:id",
@@ -35,6 +44,7 @@ const userRoute = (app) => {
     authenticateToken.requireAdmin,
     userController.adminDeleteUser
   );
+
   
   // Manager-only: get users in same department/country (GET /api/manager/users)
   app.get(
