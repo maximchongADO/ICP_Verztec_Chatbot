@@ -986,6 +986,11 @@ def analyze_query_relevance(user_query: str, index, embedding_model, relevance_t
     Treats general queries (greetings, casual phrases) as completely irrelevant.
     Returns: (is_relevant, best_doc_score, should_suggest, intent_level)
     """
+    found_match, found_matchabss=clean_q_3(user_query)
+    if found_match:
+        user_query+= "(offboarding policy,offboarding policy)"
+    elif found_matchabss:
+        user_query+= "(ABSS UPLOAD ABSS UPLOAD FILES )"
     try:
         # First check if this is a general/casual query using is_query_score
         query_score = is_query_score(user_query)
@@ -2352,10 +2357,12 @@ def generate_answer_histoy_retrieval(user_query: str, user_id:str, chat_id:str):
                 )
             elif should_suggest and suggestions:
                 fallback_prompt = (
-                    f'The user asked: "{clean_query}". '
-                    f'Did you mean: "{suggestions[0]}"? '
-                    'As a HELPFUL Verztec helpdesk assistant, politely suggest this clarification to help provide the most accurate answer. '
-                    'Ask the user to confirm if this is what they meant, or if they would like to rephrase their question. '
+                    #f'The user asked: "{clean_query}". '
+                    'This seems to be workplace-related, but might need clarification to give the most helpful answer. '
+                    'As a HELPFUL Verztec helpdesk assistant, politely acknowledge the query and express your intent to assist. '
+                    'Let the user know that you have a few specific follow-up questions or suggestions that could help. '
+                    #f'here are some possible rephrases based on the query that the user might have meant: {", ".join(suggestions)}. '
+                    'Mention that these are based on relevant company policies or practices. '
                     'Be encouraging and warm, and do NOT include any formal sign-offs like "Best regards" or your name at the end. '
                     f"Here is some information about the user: NAME: {user_name}, ROLE: {user_role}, COUNTRY: {user_country}, DEPARTMENT: {user_department}\n\n"
                 )
