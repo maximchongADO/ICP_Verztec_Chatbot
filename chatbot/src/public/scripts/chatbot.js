@@ -156,7 +156,9 @@ function addMessageFromStorage(messageData) {
     if (messageData.images && messageData.images.length > 0) {
       imagesHtml = `<div class="ai-message-images">` +
         messageData.images.map(filename => {
-          return `<img src="/data/images/${filename}" alt="${filename}" class="chat-image" />`;
+          // Handle different image sources - if it starts with 'images/', serve from public, otherwise from data/images
+          const imageSrc = filename.startsWith('images/') ? `/${filename}` : `/data/images/${filename}`;
+          return `<img src="${imageSrc}" alt="${filename}" class="chat-image" />`;
         }).join("") +
         `</div>`;
     }
