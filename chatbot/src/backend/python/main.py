@@ -444,6 +444,11 @@ async def chat_endpoint(request: ChatRequest):
             tool_identified = response_data.get('tool_identified', 'none')
             tool_confidence = response_data.get('tool_confidence', '')
             meeting_confirmation = response_data.get('meeting_confirmation', None)
+            suggestions = response_data.get('suggestions', [])
+            has_suggestions = response_data.get('has_suggestions', False)
+            suggestion_type = response_data.get('suggestion_type', 'none')
+            likely_topic = response_data.get('likely_topic', None)
+            intent_level = response_data.get('intent_level', 'none')
         else:
             # Old tuple format (fallback)
             response_message, image_list = response_data
@@ -452,6 +457,11 @@ async def chat_endpoint(request: ChatRequest):
             tool_identified = 'none'
             tool_confidence = ''
             meeting_confirmation = None
+            suggestions = []
+            has_suggestions = False
+            suggestion_type = 'none'
+            likely_topic = None
+            intent_level = 'none'
         
         logger.info(f"Generated response: {response_message}")
         logger.info(f"Image list: {image_list}")
@@ -467,7 +477,12 @@ async def chat_endpoint(request: ChatRequest):
             "sources": sources,
             "tool_used": tool_used,
             "tool_identified": tool_identified,
-            "tool_confidence": tool_confidence
+            "tool_confidence": tool_confidence,
+            "suggestions": suggestions,
+            "has_suggestions": has_suggestions,
+            "suggestion_type": suggestion_type,
+            "likely_topic": likely_topic,
+            "intent_level": intent_level
         }
         
         # Add meeting_confirmation data if present
@@ -489,7 +504,12 @@ async def chat_endpoint(request: ChatRequest):
             "sources": [],
             "tool_used": False,
             "tool_identified": "none",
-            "tool_confidence": "error"
+            "tool_confidence": "error",
+            "suggestions": [],
+            "has_suggestions": False,
+            "suggestion_type": "none",
+            "likely_topic": None,
+            "intent_level": "none"
         }
         
 @app.post("/frequent")

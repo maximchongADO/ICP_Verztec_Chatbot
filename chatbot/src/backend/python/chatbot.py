@@ -709,68 +709,99 @@ Corrected query:"""
 def check_query_relevance_to_verztec(query: str, user_index):
     """
     Determine whether the corrected query is relevant to internal Verztec topics 
-    (HR, IT support, SOPs, workplace policies, etc.).
+    (HR, IT support, SOPs, workplace policies, etc.) or is a general/casual query
+    that should get a friendly response.
     
     Args:
         query (str): The extracted/corrected query
         user_index: The FAISS index containing Verztec knowledge
         
     Returns:
-        bool: True if relevant to Verztec topics, False otherwise
+        str: 'relevant', 'general', or 'irrelevant'
     """
     try:
-        # First, check for obviously irrelevant queries
-        if is_obviously_irrelevant(query):
-            logger.info(f"Query '{query}' detected as obviously irrelevant")
-            return False
+        # First, use AI to classify the query type
+        classification_prompt = f"""You are a query classifier for a workplace helpdesk system. Classify the following user query into one of three categories:
+
+1. "relevant" - Work-related queries about HR, IT, policies, procedures, workplace matters
+2. "general" - Casual greetings, small talk, friendly conversation (e.g., "hi", "hello", "how are you", "good morning")  
+3. "irrelevant" - Completely unrelated topics (movies, sports, cooking, weather, random facts, etc.)
+
+Query: "{query}"
+
+Respond with ONLY one word: relevant, general, or irrelevant"""
+
+        try:
+            ai_response = decisionlayer_model.predict(classification_prompt)
+            ai_classification = re.sub(r"<think>.*?</think>", "", ai_response, flags=re.DOTALL).strip().lower()
+            
+            # Clean and validate AI response
+            if 'general' in ai_classification:
+                classification = 'general'
+            elif 'relevant' in ai_classification:
+                classification = 'relevant'
+            elif 'irrelevant' in ai_classification:
+                classification = 'irrelevant'
+            else:
+                # Fallback to rule-based classification
+                classification = None
+                
+            logger.info(f"AI classification for '{query}': {classification}")
+            
+        except Exception as e:
+            logger.warning(f"AI classification failed: {str(e)}, using fallback")
+            classification = None
         
-        # Get similarity scores with the knowledge base
-        results = user_index.similarity_search_with_score(query, k=10)
+        # If AI classification failed, use rule-based fallback
+        if classification is None:
+            # Check for obviously irrelevant queries first
+            if is_obviously_irrelevant(query):
+                classification = 'irrelevant'
+            else:
+                # Check for general/casual queries
+                casual_indicators = [
+                    'hi', 'hello', 'hey', 'good morning', 'good afternoon', 'good evening',
+                    'how are you', 'whats up', 'thanks', 'thank you', 'goodbye', 'bye',
+                    'ok', 'okay', 'yes', 'no', 'sure'
+                ]
+                
+                query_lower = query.lower().strip()
+                if any(indicator in query_lower for indicator in casual_indicators) and len(query.split()) <= 4:
+                    classification = 'general'
+                else:
+                    # Default to checking workplace relevance
+                    is_workplace_related = check_workplace_keywords(query)
+                    task_query_score = is_query_score(query)
+                    
+                    if is_workplace_related or task_query_score >= 0.4:
+                        classification = 'relevant'
+                    else:
+                        classification = 'irrelevant'
         
-        if not results:
-            logger.info(f"No similar documents found for query: '{query}'")
-            return False
+        # For relevant queries, also check FAISS similarity as additional validation
+        if classification == 'relevant':
+            results = user_index.similarity_search_with_score(query, k=10)
+            
+            if results:
+                best_score = results[0][1]
+                avg_top5_score = np.mean([score for _, score in results[:5]])
+                
+                logger.info(f"FAISS validation for '{query}': best_score={best_score:.3f}, avg_top5={avg_top5_score:.3f}")
+                
+                # If FAISS scores are very poor, might be irrelevant despite AI classification
+                if best_score > 1.5 and not check_workplace_keywords(query):
+                    logger.info(f"Overriding AI classification - FAISS scores too poor ({best_score:.3f})")
+                    classification = 'irrelevant'
+                else:
+                    relevant_sources = [doc.metadata.get('source', '') for doc, score in results[:3] if score < 1.0]
+                    logger.info(f"Query confirmed relevant to Verztec topics. Related sources: {relevant_sources}")
         
-        # Analyze the similarity scores
-        best_score = results[0][1]
-        avg_top5_score = np.mean([score for _, score in results[:5]])
-        
-        # Get the task query score to filter out casual/irrelevant queries
-        task_query_score = is_query_score(query)
-        
-        logger.info(f"Relevance check for '{query}': best_score={best_score:.3f}, avg_top5={avg_top5_score:.3f}, task_score={task_query_score:.3f}")
-        
-        # Define stricter relevance thresholds
-        RELEVANT_THRESHOLD = 0.8      # Lower score = more similar = more relevant (made stricter)
-        TASK_SCORE_THRESHOLD = 0.4    # Minimum task-like score (increased)
-        
-        # Check basic relevance criteria
-        is_similar_to_docs = best_score < RELEVANT_THRESHOLD
-        is_task_like = task_query_score >= TASK_SCORE_THRESHOLD
-        
-        # Additional content-based relevance check
-        is_workplace_related = check_workplace_keywords(query)
-        
-        # Stricter criteria - need both similarity AND (task-like OR workplace keywords)
-        is_relevant = is_similar_to_docs and (is_task_like or is_workplace_related)
-        
-        # Additional check: if the query has very poor similarity scores, dismiss it
-        if best_score > 1.2 and not is_workplace_related:
-            logger.info(f"Query '{query}' has poor similarity ({best_score:.3f}) and no workplace keywords - dismissing")
-            return False
-        
-        # Analyze document sources for additional context
-        if is_relevant:
-            relevant_sources = [doc.metadata.get('source', '') for doc, score in results[:3] if score < 1.0]
-            logger.info(f"Query relevant to Verztec topics. Related sources: {relevant_sources}")
-        else:
-            logger.info(f"Query not relevant to Verztec topics. Scores: similarity={best_score:.3f}, task={task_query_score:.3f}, workplace_keywords={is_workplace_related}")
-        
-        return is_relevant
+        logger.info(f"Final classification for '{query}': {classification}")
+        return classification
         
     except Exception as e:
         logger.error(f"Error checking query relevance: {str(e)}")
-        return False
+        return 'general'  # Default to general for error cases to avoid dismissing
 
 
 def is_obviously_irrelevant(query: str) -> bool:
@@ -948,30 +979,31 @@ def generate_intelligent_query_suggestions(user_query: str, user_index, embeddin
         # Step 1: Extract user intent (correct spelling/grammar only)
         extracted_query = extract_user_query_intent(user_query, user_index)
         
-        # Step 2: Check if the extracted query is relevant to Verztec topics
-        is_relevant = check_query_relevance_to_verztec(extracted_query, user_index)
+        # Step 2: Check if the extracted query is relevant to Verztec topics using new classification
+        relevance_classification = check_query_relevance_to_verztec(extracted_query, user_index)
         
-        # Step 3: Generate suggestion if relevant and different from original
-        if is_relevant and extracted_query.strip().lower() != user_query.strip().lower():
+        # Step 3: Generate suggestion based on classification
+        if relevance_classification == 'relevant' and extracted_query.strip().lower() != user_query.strip().lower():
             suggestion_data = {
                 'original_query': user_query,
                 'suggested_query': extracted_query,
                 'is_relevant': True,
                 'confidence': 'high',
-                'suggestion_type': 'query_correction'
+                'suggestion_type': 'query_correction',
+                'classification': relevance_classification
             }
             
             logger.info(f"Generated suggestion: '{user_query}' → '{extracted_query}'")
             return suggestion_data
             
-        elif is_relevant and extracted_query.strip().lower() == user_query.strip().lower():
-            # Query is relevant but doesn't need correction
-            logger.info(f"Query is relevant but doesn't need correction: '{user_query}'")
+        elif relevance_classification in ['relevant', 'general'] and extracted_query.strip().lower() == user_query.strip().lower():
+            # Query is relevant/general but doesn't need correction
+            logger.info(f"Query is {relevance_classification} but doesn't need correction: '{user_query}'")
             return None
             
         else:
-            # Query is not relevant to Verztec topics
-            logger.info(f"Query not relevant to Verztec topics, dismissing: '{user_query}'")
+            # Query is irrelevant to Verztec topics
+            logger.info(f"Query classified as {relevance_classification}, dismissing: '{user_query}'")
             return None
             
     except Exception as e:
@@ -994,11 +1026,6 @@ def analyze_query_relevance(user_query: str, index, embedding_model, relevance_t
     try:
         # First check if this is a general/casual query using is_query_score
         query_score = is_query_score(user_query)
-        
-        # If query score is very low (casual/general queries), treat as completely irrelevant
-        if query_score <= 0.0:
-            logger.info(f"General/casual query detected (score: {query_score:.4f}) - treating as completely irrelevant")
-            return False, 2, False, 'none'
         
         # Get top documents to analyze relevance with broader scope
         results = index.similarity_search_with_score(user_query, k=10)
@@ -2293,22 +2320,38 @@ def generate_answer_histoy_retrieval(user_query: str, user_id:str, chat_id:str):
         logger.info(f"Query Score: {is_task_query}")
         logger.info(f"Average Score: {avg_score}")
         
-        # Use enhanced intelligent query analysis system
+        # Use enhanced intelligent query analysis system with AI classification
         is_relevant, best_doc_score, should_suggest, intent_level = analyze_query_relevance(user_query, user_index, embedding_model)
         
-        # Updated logic: Use relevance analysis + task query score for better decisions
+        # Get AI-based classification to better handle general vs irrelevant queries
+        try:
+            query_classification = check_query_relevance_to_verztec(user_query, user_index)
+            logger.info(f"AI Classification for '{user_query}': {query_classification}")
+        except Exception as e:
+            logger.warning(f"AI classification failed: {str(e)}, defaulting to 'general'")
+            query_classification = 'general'
+        
+        # Updated logic: Use relevance analysis + AI classification for better decisions
         STRICT_QUERY_THRESHOLD = 0.2
         COMPLETE_DISMISSAL_THRESHOLD = 1.3  # Slightly higher threshold for dismissal
         
+        # Only dismiss if AI explicitly classifies as 'irrelevant'
+        # General queries (hi, hello) should go through QA chain for friendly responses
         should_dismiss_completely = (
-            intent_level == 'none' or
-            (is_task_query < STRICT_QUERY_THRESHOLD and best_doc_score >= COMPLETE_DISMISSAL_THRESHOLD)
+            query_classification == 'irrelevant' or
+            (intent_level == 'none' and is_task_query < STRICT_QUERY_THRESHOLD and best_doc_score >= COMPLETE_DISMISSAL_THRESHOLD and query_classification != 'general')
         )
+        
+        # Allow general queries to proceed to QA chain instead of being dismissed
+        if query_classification == 'general':
+            should_dismiss_completely = False
+            should_suggest = False
+            logger.info(f"General query detected - allowing to proceed to QA chain for friendly response")
         
         #handle irrelevant query or provide intelligent suggestions
        
         logger.info(f"Clean Query at qa chain: {clean_query}")
-        logger.info(f"Enhanced Analysis - Relevant: {is_relevant}, Intent: {intent_level}, Should suggest: {should_suggest}, Should dismiss: {should_dismiss_completely}")
+        logger.info(f"Enhanced Analysis - Relevant: {is_relevant}, Intent: {intent_level}, Classification: {query_classification}, Should suggest: {should_suggest}, Should dismiss: {should_dismiss_completely}")
         if (
             not tool_used and (should_dismiss_completely or should_suggest)
         ):
@@ -2324,10 +2367,13 @@ def generate_answer_histoy_retrieval(user_query: str, user_id:str, chat_id:str):
                     logger.info(f"Generated AI-driven suggestion: {suggestion_data['suggested_query']}")
                 else:
                     # If no suggestion generated, check if we should dismiss instead
-                    is_irrelevant_query = not check_query_relevance_to_verztec(user_query, user_index)
-                    if is_irrelevant_query:
+                    # But respect the AI classification - don't dismiss general queries
+                    if query_classification == 'irrelevant':
                         should_dismiss_completely = True
-                        logger.info("No suggestion generated and query is irrelevant - switching to dismissal mode")
+                        logger.info("No suggestion generated and query classified as irrelevant - switching to dismissal mode")
+                    else:
+                        should_dismiss_completely = False
+                        logger.info("No suggestion generated but query not irrelevant - allowing QA chain")
                     suggestions = []
                     logger.info("No relevant suggestion generated or query unchanged")
             
