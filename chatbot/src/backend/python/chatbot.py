@@ -1498,6 +1498,199 @@ hybrid_retriever_obj = HybridRetriever(
             )
 
 
+class ContextAwareMemoryPruner:
+    def __init__(self, embedding_model, enable_detailed_logging=True, cache_embeddings=True):
+        self.embedding_model = embedding_model
+        self.reranker = CrossEncoder("BAAI/bge-reranker-large")
+        self.enable_detailed_logging = enable_detailed_logging
+        self.cache_embeddings = cache_embeddings
+        self.embedding_cache = {}  # Cache message embeddings
+        
+    def intelligent_prune(self, messages, current_query, user_id):
+        """Prune memory based on relevance, not just recency"""
+        
+        start_time = time.time()
+        
+        if self.enable_detailed_logging:
+            logger.info("="*80)
+            logger.info(f"🧠 MEMORY PRUNING STARTED for user {user_id}")
+            logger.info(f"📝 Current query: '{current_query}'")
+            logger.info(f"📊 Input message count: {len(messages)}")
+            
+            # Log the full conversation before pruning
+            logger.info("📋 CONVERSATION BEFORE PRUNING:")
+            for i, msg in enumerate(messages):
+                msg_type = "👤 Human" if isinstance(msg, HumanMessage) else "🤖 AI"
+                content_preview = msg.content[:100] + "..." if len(msg.content) > 100 else msg.content
+                logger.info(f"  [{i}] {msg_type}: {content_preview}")
+        
+        # Calculate relevance scores for each message pair
+        query_embedding = self._get_cached_embedding(current_query)
+        
+        # Collect all turn relevance data first
+        turn_data = []
+        for i in range(0, len(messages), 2):  # Process human-ai pairs
+            if i + 1 < len(messages):
+                human_msg = messages[i]
+                ai_msg = messages[i + 1]
+                
+                # Calculate relevance to current query
+                relevance_score = self._calculate_relevance(
+                    human_msg.content, current_query, query_embedding
+                )
+                
+                turn_data.append({
+                    'index': i,
+                    'human_msg': human_msg,
+                    'ai_msg': ai_msg,
+                    'relevance': relevance_score,
+                    'turn_number': i//2 + 1
+                })
+        
+        # Sort by relevance (higher is better)
+        turn_data.sort(key=lambda x: x['relevance'], reverse=True)
+        
+        if self.enable_detailed_logging:
+            logger.info("🔍 RELEVANCE ANALYSIS:")
+        
+        # Intelligent selection strategy
+        relevant_messages = []
+        max_turns = min(5, len(turn_data))  # Limit to 5 turns maximum (10 messages)
+        
+        # Always keep the most recent turn
+        recent_turn_index = len(messages) - 2  # Most recent human-ai pair
+        recent_turn = next((t for t in turn_data if t['index'] == recent_turn_index), None)
+        
+        if recent_turn:
+            relevant_messages.extend([recent_turn['human_msg'], recent_turn['ai_msg']])
+            selected_indices = {recent_turn['index']}
+            
+            if self.enable_detailed_logging:
+                logger.info(f"  ⭐ Turn {recent_turn['turn_number']}: relevance={recent_turn['relevance']:.3f}, recent=True, keep=True (MOST RECENT)")
+                logger.info(f"    👤: {recent_turn['human_msg'].content[:80]}...")
+                logger.info(f"    🤖: {recent_turn['ai_msg'].content[:80]}...")
+        else:
+            selected_indices = set()
+        
+        # Add most relevant turns up to the limit
+        for turn in turn_data:
+            if len(relevant_messages) >= max_turns * 2:  # 2 messages per turn
+                break
+                
+            if turn['index'] not in selected_indices:
+                # Dynamic threshold: only keep if relevance is meaningful
+                is_relevant = turn['relevance'] > 0.5 or len(relevant_messages) < 4  # Ensure minimum 2 turns
+                
+                if is_relevant:
+                    relevant_messages.extend([turn['human_msg'], turn['ai_msg']])
+                    selected_indices.add(turn['index'])
+                    
+                    if self.enable_detailed_logging:
+                        logger.info(f"  Turn {turn['turn_number']}: relevance={turn['relevance']:.3f}, recent=False, keep=True")
+                        logger.info(f"    👤: {turn['human_msg'].content[:80]}...")
+                        logger.info(f"    🤖: {turn['ai_msg'].content[:80]}...")
+                else:
+                    if self.enable_detailed_logging:
+                        logger.info(f"  Turn {turn['turn_number']}: relevance={turn['relevance']:.3f}, recent=False, keep=False (LOW RELEVANCE)")
+        
+        # Sort the final messages back to chronological order
+        message_order = {}
+        for i, msg in enumerate(messages):
+            message_order[id(msg)] = i
+        
+        relevant_messages.sort(key=lambda msg: message_order.get(id(msg), 0))
+        
+        # Ensure minimum context (2 turns) and maximum (5 turns)
+        original_count = len(relevant_messages)
+        if len(relevant_messages) < 4:
+            # If we don't have enough, take the most recent turns
+            relevant_messages = messages[-4:] if len(messages) >= 4 else messages
+            if self.enable_detailed_logging:
+                logger.info("⚠️  Applied minimum context rule (kept last 2 turns)")
+        elif len(relevant_messages) > 10:
+            # If too many, keep most recent
+            relevant_messages = relevant_messages[-10:]
+            if self.enable_detailed_logging:
+                logger.info("⚠️  Applied maximum context rule (kept last 5 turns)")
+                
+        # Performance tracking
+        pruning_time = time.time() - start_time
+        
+        if self.enable_detailed_logging:
+            # Log the final conversation after pruning
+            logger.info("📋 CONVERSATION AFTER PRUNING:")
+            for i, msg in enumerate(relevant_messages):
+                msg_type = "👤 Human" if isinstance(msg, HumanMessage) else "🤖 AI"
+                content_preview = msg.content[:100] + "..." if len(msg.content) > 100 else msg.content
+                logger.info(f"  [{i}] {msg_type}: {content_preview}")
+            
+            # Summary statistics
+            pruned_count = len(messages) - len(relevant_messages)
+            retention_rate = (len(relevant_messages) / len(messages)) * 100 if messages else 0
+            
+            logger.info("📊 PRUNING SUMMARY:")
+            logger.info(f"  • Original messages: {len(messages)}")
+            logger.info(f"  • Kept messages: {len(relevant_messages)}")
+            logger.info(f"  • Pruned messages: {pruned_count}")
+            logger.info(f"  • Retention rate: {retention_rate:.1f}%")
+            logger.info(f"  • Pruning time: {pruning_time:.3f}s")
+            logger.info("🧠 MEMORY PRUNING COMPLETED")
+            logger.info("="*80)
+        else:
+            # Minimal logging for performance mode
+            pruned_count = len(messages) - len(relevant_messages)
+            logger.info(f"🧠 Memory pruned: {len(messages)}→{len(relevant_messages)} messages ({pruning_time:.3f}s)")
+            
+        return relevant_messages
+    
+    def _get_cached_embedding(self, text):
+        """Get embedding with caching for performance"""
+        if not self.cache_embeddings:
+            return self.embedding_model.embed_query(text)
+            
+        # Use hash as cache key for consistent results
+        cache_key = hash(text)
+        if cache_key not in self.embedding_cache:
+            self.embedding_cache[cache_key] = self.embedding_model.embed_query(text)
+            
+        return self.embedding_cache[cache_key]
+    
+    def _calculate_relevance(self, message_content: str, current_query: str, query_embedding):
+        """Calculate semantic relevance between a message and current query"""
+        try:
+            # Get embedding for the message (with caching)
+            message_embedding = self._get_cached_embedding(message_content)
+            
+            # Calculate cosine similarity
+            query_vec = np.array(query_embedding)
+            message_vec = np.array(message_embedding)
+            
+            # Cosine similarity
+            dot_product = np.dot(query_vec, message_vec)
+            norms = np.linalg.norm(query_vec) * np.linalg.norm(message_vec)
+            
+            if norms == 0:
+                return 0.0
+                
+            similarity = dot_product / norms
+            
+            # Convert similarity to relevance score (higher = more relevant)
+            # Cosine similarity ranges from -1 to 1, we normalize to 0-1
+            relevance_score = (similarity + 1) / 2
+            
+            return relevance_score
+            
+        except Exception as e:
+            logger.error(f"Error calculating relevance: {str(e)}")
+            return 0.0  # Return low relevance on error
+
+# Initialize the memory pruner with performance options
+memory_pruner = ContextAwareMemoryPruner(
+    embedding_model, 
+    enable_detailed_logging=True,   # Enable detailed logging to see improved pruning
+    cache_embeddings=True           # Cache embeddings for repeated messages
+)
+
 memory_store = {}
 global_tools = {
     "raise_to_hr": {
@@ -2207,7 +2400,7 @@ def generate_answer_histoy_retrieval(user_query: str, user_id:str, chat_id:str):
                     'Be encouraging and warm, and do NOT include any formal sign-offs like "Best regards" or your name at the end. '
                     f"Here is some information about the user: NAME: {user_name}, ROLE: {user_role}, COUNTRY: {user_country}, DEPARTMENT: {user_department}\n\n"
                 )
-                
+                '''
                 return {
                 'text': "Did you mean to ask about one of these topics? " + ", ".join(suggestions) + "?",
                 'images': top_3_img,
@@ -2221,6 +2414,7 @@ def generate_answer_histoy_retrieval(user_query: str, user_id:str, chat_id:str):
                 'likely_topic': likely_topic if should_suggest and likely_topic else None,
                 'intent_level': intent_level
                 }
+                '''
         
             else:
                 fallback_prompt = (
@@ -2312,19 +2506,15 @@ def generate_answer_histoy_retrieval(user_query: str, user_id:str, chat_id:str):
             '''
             
             
-            # Clean up chat memory to keep it manageable
-            # Limit chat memory to last 4 turns (8 messages)
-            
-            MAX_TURNS = 4
-            if len(chat_history.chat_memory.messages) > 2 * MAX_TURNS:
-                chat_history.chat_memory.messages = chat_history.chat_memory.messages[-2 * MAX_TURNS:]
+            # Store chat log immediately before memory pruning
             if tool_used:
                 is_task_query = 0  # Force task query for fallback response
                 avg_score = 2  # Force average score for fallback response
                 
             store_chat_log_updated(user_message=SUPER_CLEAN_QUERY, bot_response=cleaned_fallback, query_score=is_task_query, relevance_score=best_doc_score, user_id=user_id, chat_id=chat_id, chat_name=chat_name)
     
-            return {
+            # Prepare response first
+            response_data = {
                 'text': cleaned_fallback,
                 'images': top_3_img,
                 'sources': [],
@@ -2337,6 +2527,36 @@ def generate_answer_histoy_retrieval(user_query: str, user_id:str, chat_id:str):
                 'likely_topic': likely_topic if should_suggest and likely_topic else None,
                 'intent_level': intent_level
             }
+            
+            # Defer memory pruning until after response (non-blocking optimization)
+            if len(chat_history.chat_memory.messages) > 4:  # Only prune if we have more than 2 turns
+                try:
+                    import threading
+                    def prune_memory_async():
+                        pruned_messages = memory_pruner.intelligent_prune(
+                            chat_history.chat_memory.messages, 
+                            SUPER_CLEAN_QUERY, 
+                            user_id
+                        )
+                        chat_history.chat_memory.messages = pruned_messages
+                    
+                    # Run memory pruning in background thread
+                    pruning_thread = threading.Thread(target=prune_memory_async, daemon=True)
+                    pruning_thread.start()
+                    logger.info(f"🧠 Memory pruning started in background thread for {len(chat_history.chat_memory.messages)} messages")
+                except Exception as e:
+                    logger.warning(f"Background memory pruning failed, falling back to sync: {str(e)}")
+                    # Fallback to synchronous pruning if threading fails
+                    pruned_messages = memory_pruner.intelligent_prune(
+                        chat_history.chat_memory.messages, 
+                        SUPER_CLEAN_QUERY, 
+                        user_id
+                    )
+                    chat_history.chat_memory.messages = pruned_messages
+            else:
+                logger.info(f"🧠 Memory has {len(chat_history.chat_memory.messages)} messages - no pruning needed")
+
+            return response_data
         
         
         
@@ -2434,6 +2654,7 @@ def generate_answer_histoy_retrieval(user_query: str, user_id:str, chat_id:str):
                 f"Answer in a conversational and human-like manner, directly addressing the user as 'you'. "
                 f"Do NOT refer to the user in the third person. "
                 f"Do NOT include any sign-off like 'Best regards' or your name. "
+                f"Use clear formatting when possible, such as bullet points or numbered lists, to make your response easy to read. "
                 f"If the query is not covered by the documents, kindly explain that you are unable to help with that specific request and recommend contacting Verztec support. "
                 f"Keep your tone supportive and clear.\n\n"
                 f"Here is some background information about the user:\n"
@@ -2501,11 +2722,6 @@ def generate_answer_histoy_retrieval(user_query: str, user_id:str, chat_id:str):
                     logger.info("Cleaned up ignore-tag content from last HumanMessage.")
                     break
             #logger.info(chat_history.chat_memory.messages)
-            # Clean the chat memory to keep it manageable
-            # Limit chat memory to last 4 turns (8 messages)
-            MAX_TURNS = 4
-            if len(chat_history.chat_memory.messages) > 2 * MAX_TURNS:
-                chat_history.chat_memory.messages = chat_history.chat_memory.messages[-2 * MAX_TURNS:]
 
             # Define regex pattern to match full <think>...</think> block
             think_block_pattern = re.compile(r"<think>.*?</think>", flags=re.DOTALL)
@@ -2555,11 +2771,8 @@ def generate_answer_histoy_retrieval(user_query: str, user_id:str, chat_id:str):
             total_elapsed_time = time.time() - total_start_time
             logger.info(f"Total time taken for query processing: {total_elapsed_time:.2f}s")
             
-            
-            
-
-            # Return structured data for frontend
-            return {
+            # Prepare response first
+            response_data = {
                 'text': final_response,
                 'images': top_3_img,
                 'sources': source_docs,
@@ -2567,6 +2780,37 @@ def generate_answer_histoy_retrieval(user_query: str, user_id:str, chat_id:str):
                 'tool_identified': tool_identified,
                 'tool_confidence': tool_confidence
             }
+            
+            # Defer memory pruning until after response (non-blocking optimization)
+            if len(chat_history.chat_memory.messages) > 4:  # Only prune if we have more than 2 turns
+                try:
+                    import threading
+                    def prune_memory_async():
+                        pruned_messages = memory_pruner.intelligent_prune(
+                            chat_history.chat_memory.messages, 
+                            clean_query, 
+                            user_id
+                        )
+                        chat_history.chat_memory.messages = pruned_messages
+                    
+                    # Run memory pruning in background thread
+                    pruning_thread = threading.Thread(target=prune_memory_async, daemon=True)
+                    pruning_thread.start()
+                    logger.info(f"🧠 Memory pruning started in background thread for {len(chat_history.chat_memory.messages)} messages")
+                except Exception as e:
+                    logger.warning(f"Background memory pruning failed, falling back to sync: {str(e)}")
+                    # Fallback to synchronous pruning if threading fails
+                    pruned_messages = memory_pruner.intelligent_prune(
+                        chat_history.chat_memory.messages, 
+                        clean_query, 
+                        user_id
+                    )
+                    chat_history.chat_memory.messages = pruned_messages
+            else:
+                logger.info(f"🧠 Memory has {len(chat_history.chat_memory.messages)} messages - no pruning needed")
+
+            # Return structured data for frontend
+            return response_data
     except Exception as e:
         return {
             'error': f"I encountered an error while processing your request: {str(e)}", 
@@ -3064,11 +3308,6 @@ def agentic_bot_v1(user_query: str, user_id: str, chat_id: str):
         if chat_history and hasattr(chat_history, 'chat_memory'):
             chat_history.chat_memory.add_user_message(user_query)
             chat_history.chat_memory.add_ai_message(final_answer)
-            
-            # Clean up chat memory to keep it manageable
-            MAX_TURNS = 6  # Keep more history for agentic conversations
-            if len(chat_history.chat_memory.messages) > 2 * MAX_TURNS:
-                chat_history.chat_memory.messages = chat_history.chat_memory.messages[-2 * MAX_TURNS:]
         
         # Step 8: Calculate scores for logging
         is_task_query = is_query_score(user_query)
@@ -3087,6 +3326,34 @@ def agentic_bot_v1(user_query: str, user_id: str, chat_id: str):
         )
         
         logger.info(f"Agentic bot response: {final_answer}")
+        
+        # Defer memory pruning until after response (non-blocking optimization)
+        if chat_history and hasattr(chat_history, 'chat_memory') and len(chat_history.chat_memory.messages) > 4:
+            try:
+                import threading
+                def prune_memory_async():
+                    pruned_messages = memory_pruner.intelligent_prune(
+                        chat_history.chat_memory.messages, 
+                        user_query, 
+                        user_id
+                    )
+                    chat_history.chat_memory.messages = pruned_messages
+                
+                # Run memory pruning in background thread
+                pruning_thread = threading.Thread(target=prune_memory_async, daemon=True)
+                pruning_thread.start()
+                logger.info(f"🧠 Agentic memory pruning started in background thread for {len(chat_history.chat_memory.messages)} messages")
+            except Exception as e:
+                logger.warning(f"Agentic background memory pruning failed, falling back to sync: {str(e)}")
+                # Fallback to synchronous pruning if threading fails
+                pruned_messages = memory_pruner.intelligent_prune(
+                    chat_history.chat_memory.messages, 
+                    user_query, 
+                    user_id
+                )
+                chat_history.chat_memory.messages = pruned_messages
+        elif chat_history and hasattr(chat_history, 'chat_memory'):
+            logger.info(f"🧠 Agentic memory has {len(chat_history.chat_memory.messages)} messages - no pruning needed")
         
         # Step 10: Return response (no images for agentic responses)
         return final_answer, []

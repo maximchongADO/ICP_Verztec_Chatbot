@@ -828,6 +828,36 @@ function sendImages(images) {
 }
 
 
+// Enhanced text formatting function for policy responses
+function formatBoldText(text) {
+  if (!text) return '';
+  
+  // Convert **text** to <strong>text</strong> for proper bold formatting
+  let formatted = text.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
+  
+  // Handle single asterisks for emphasis if needed
+  formatted = formatted.replace(/\*([^*]+)\*/g, '<em>$1</em>');
+  
+  // Handle line breaks for better readability
+  formatted = formatted.replace(/\n/g, '<br>');
+  
+  // Format bullet points with proper HTML structure
+  formatted = formatted.replace(/^- (.+)$/gm, '<li>$1</li>');
+  
+  // Wrap consecutive list items in ul tags
+  formatted = formatted.replace(/(<li>.*?<\/li>)(\s*<br>\s*<li>.*?<\/li>)*/g, function(match) {
+    return '<ul>' + match.replace(/<br>\s*/g, '') + '</ul>';
+  });
+  
+  // Format numbered lists
+  formatted = formatted.replace(/^\d+\. (.+)$/gm, '<li>$1</li>');
+  
+  // Clean up any double line breaks
+  formatted = formatted.replace(/<br>\s*<br>/g, '<br>');
+  
+  return formatted;
+}
+
 function addMessage(textOrResponse, sender, isHistorical = false) {
   let text = textOrResponse;
   let images = [];
@@ -928,7 +958,7 @@ function addMessage(textOrResponse, sender, isHistorical = false) {
   messageDiv.innerHTML = `
     <div class="ai-message-avatar"></div>
     <div class="message-content ai-message">
-      ${escapeHtml(text).replace(/\n/g, '<br/>')}${imagesHtml}
+      ${formatBoldText(text)}${imagesHtml}
       ${confirmationHtml}
       <button class="copy-btn" title="Copy response" onclick="copyMessage(this)">📋</button>
     </div>
