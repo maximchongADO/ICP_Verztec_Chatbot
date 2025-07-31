@@ -1,54 +1,52 @@
 
-from collections import Counter
-import os, re, difflib, logging
-import os
-import re
+# Standard library imports
+import concurrent.futures
+import csv
 import difflib
-import time
-import concurrent.futures
-import logging
-import csv
-import uuid
-import numpy as np
-import pymysql
-import spacy
-import concurrent.futures
-from datetime import datetime
-from time import sleep
-from spacy.matcher import PhraseMatcher
-from langchain.prompts import ChatPromptTemplate, SystemMessagePromptTemplate, HumanMessagePromptTemplate
-from langchain.chains import ConversationChain 
-from typing import List
-from dotenv import load_dotenv
-from sentence_transformers import SentenceTransformer
-from transformers import AutoModelForSeq2SeqLM, AutoTokenizer
-from typing import Optional, Dict
-from langchain_groq import ChatGroq
-from langchain.schema import HumanMessage, AIMessage, Document
-from langchain.memory import ConversationBufferMemory
-from langchain.chains import ConversationalRetrievalChain
-from langchain_core.output_parsers import StrOutputParser
-from langchain_community.vectorstores import FAISS
-from langchain_community.embeddings import HuggingFaceEmbeddings
-from memory_retrieval import build_memory_from_results, retrieve_user_messages_and_scores
-from sentence_transformers import CrossEncoder
-from langchain.schema import BaseRetriever
-from langchain.agents import Tool, create_react_agent, AgentExecutor
-from langchain.agents.output_parsers import ReActSingleInputOutputParser
-from langchain_core.prompts import PromptTemplate
-from langchain_core.agents import AgentAction, AgentFinish
-from langchain.prompts import ChatPromptTemplate
-#from tool_executors import execute_confirmed_tool, execute_hr_escalation_tool, execute_meeting_scheduling_tool
-import csv
+import json
 import logging
 import os
 import re
 import smtplib
+import threading
+import time
+import uuid
+from collections import Counter
 from datetime import datetime, timedelta
-from typing import Optional, Dict, Any, List, Tuple
-from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
+from email.mime.text import MIMEText
+from time import sleep
+from typing import Any, Dict, List, Optional, Tuple
+
+# Third-party imports
+import numpy as np
+import pymysql
+import spacy
 from dotenv import load_dotenv
+from pydantic import Field, ConfigDict
+from sentence_transformers import CrossEncoder, SentenceTransformer
+from spacy.matcher import PhraseMatcher
+from transformers import AutoModelForSeq2SeqLM, AutoTokenizer
+
+# LangChain imports
+from langchain.agents import AgentExecutor, Tool, create_react_agent
+from langchain.agents.output_parsers import ReActSingleInputOutputParser
+from langchain.chains import ConversationChain, ConversationalRetrievalChain, LLMChain
+from langchain.memory import ConversationBufferMemory
+from langchain.prompts import ChatPromptTemplate, SystemMessagePromptTemplate, HumanMessagePromptTemplate
+from langchain.retrievers import ContextualCompressionRetriever
+from langchain.retrievers.document_compressors import LLMChainFilter
+from langchain.schema import AIMessage, BaseRetriever, Document, HumanMessage
+from langchain_community.embeddings import HuggingFaceEmbeddings
+from langchain_community.vectorstores import FAISS
+from langchain_core.agents import AgentAction, AgentFinish
+from langchain_core.output_parsers import StrOutputParser
+from langchain_core.prompts import PromptTemplate
+from langchain_groq import ChatGroq
+
+# Local imports
+from memory_retrieval import build_memory_from_results, retrieve_user_messages_and_scores
+#from tool_executors import execute_confirmed_tool, execute_hr_escalation_tool, execute_meeting_scheduling_tool
 # Set up logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
@@ -1418,8 +1416,6 @@ cross_encoder = CrossEncoder("BAAI/bge-reranker-large")
 
 
 
-from pydantic import Field, ConfigDict
-
 class HybridRetriever(BaseRetriever):
     # ---- Pydantic-declared fields --------------------------------
     retr_direct: BaseRetriever
@@ -1500,14 +1496,14 @@ class ContextAwareMemoryPruner:
         
         if self.enable_detailed_logging:
             logger.info("="*80)
-            logger.info(f"🧠 MEMORY PRUNING STARTED for user {user_id}")
-            logger.info(f"📝 Current query: '{current_query}'")
-            logger.info(f"📊 Input message count: {len(messages)}")
+            logger.info(f"MEMORY PRUNING STARTED for user {user_id}")
+            logger.info(f"Current query: '{current_query}'")
+            logger.info(f"Input message count: {len(messages)}")
             
             # Log the full conversation before pruning
-            logger.info("📋 CONVERSATION BEFORE PRUNING:")
+            logger.info("CONVERSATION BEFORE PRUNING:")
             for i, msg in enumerate(messages):
-                msg_type = "👤 Human" if isinstance(msg, HumanMessage) else "🤖 AI"
+                msg_type = "Human" if isinstance(msg, HumanMessage) else "AI"
                 content_preview = msg.content[:100] + "..." if len(msg.content) > 100 else msg.content
                 logger.info(f"  [{i}] {msg_type}: {content_preview}")
         
@@ -1679,23 +1675,7 @@ memory_pruner = ContextAwareMemoryPruner(
 )
 
 memory_store = {}
-global_tools = {
-    "raise_to_hr": {
-        "description": "Raise the query to HR — ONLY for serious complaints, legal issues, or sensitive workplace matters. DO NOT use this tool for general HR queries (e.g., leave balance, benefits, policies), questions about entitlements, or non-sensitive issues. This tool is for confidential escalation to HR. ONLY CALL IT WHEN YOU THINK A USER NEEDS IT, OR IS SUGGESTING TO IT. DO NOT CALL IT FOR GENERAL HR QUESTIONS THAT CAN BE ANSWERED BY THE SYSTEM SUCH AS OFFBOARDING OR WHAT TO DO IF I GET FIRED UNLESS THE USER EXPLICTLY RAISES.",
-        "prompt_style": "ONLY use this tool for workplace issues that are serious, sensitive, involve harassment, discrimination, legal matters, or require confidential escalation. DO NOT use this tool for general HR questions such as leave balance, entitlements, policies, routine HR matters, or informational queries about HR processes such as offboarding.",
-        "response_tone": "supportive_professional"
-    },
-    "schedule_meeting": {
-        "description": "Set up a meeting — for coordination involving multiple stakeholders or recurring issues.",
-        "prompt_style": "You are an efficient scheduling and coordination assistant. When handling meeting requests, focus on practical logistics, available time slots, and clear next steps. Be organized and detail-oriented in your responses, asking for necessary information like preferred dates, attendees, and meeting purpose.",
-        "response_tone": "organized_efficient"
-    },
-    "vacation_check": {
-        "description": "Check vacation balance — for inquiries about remaining leave days, entitlements,ONLY CALL THIS TOOL WHEN USER EXPLICITLY ASKS ABOUT LEAVE BALANCE, DO NOT CALL THIS TOOL FOR ANYTHING OTHER THAN VACATION BALANCE QUERIES. IF THE USER IS ASKING ABOUT THE LEAVE POLICY DO NOT CALL THIS",
-        "prompt_style": "ONLY CALL THIS TOOL WHEN USER EXPLICITLY ASKS ABOUT LEAVE BALANCE. You are a helpful assistant focused on vacation and leave inquiries. When responding to vacation balance questions, provide clear information about remaining leave days, entitlements, and any relevant policies. Be concise and direct in your responses, ensuring the user understands their current vacation status. DO NOT CALL THIS TOOL FOR ANYTHING OTHER THAN VACATION BALANCE QUERIES. IF THE USER IS ASKING ABOUT THE LEAVE POLICY DO NOT CALL THIS",
-        "response_tone": "concise_direct"
-    }   
-}
+
 global_tools = {
     "raise_to_hr": {
         "description": (
@@ -1938,7 +1918,6 @@ def clean_q_2(org_query):
     and replacing all variations of offboarding-related terms with 'offboarding process'.
     Adds a disclaimer only if such a term is found and replaced.
     """
-    import re
 
     # Step 1: Remove <think>...</think> and <image>...</image> blocks
     org_query = re.sub(r"<think>.*?</think>", "", org_query, flags=re.DOTALL)
@@ -2002,7 +1981,6 @@ def clean_q_3(org_query):
     and replacing all variations of offboarding-related terms with 'offboarding process'.
     Adds a disclaimer only if such a term is found and replaced.
     """
-    import re
 
     # Step 1: Remove <think>...</think> and <image>...</image> blocks
     org_query = re.sub(r"<think>.*?</think>", "", org_query, flags=re.DOTALL)
@@ -2071,10 +2049,46 @@ def clean_q_3(org_query):
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+## start of actual retrieval function
+
+
 def generate_answer_histoy_retrieval(user_query: str, user_id:str, chat_id:str):
     """
     Returns a tuple: (answer_text, image_list)
     """
+    
+    # Easter egg toggle - set to True to enable maxim gag
+    ENABLE_MAXIM_EASTER_EGG = False
     
     key = f"{user_id}_{chat_id}"  # Use a separator to avoid accidental key collisions
     logger.info(f"Retrieving memory for key: {key}")
@@ -2116,10 +2130,6 @@ def generate_answer_histoy_retrieval(user_query: str, user_id:str, chat_id:str):
         # Chain the Groq model with the parser
         deepseek_chain = deepseek | parser
         
-        
-        from langchain.prompts import PromptTemplate
-        from langchain.retrievers import ContextualCompressionRetriever
-        from langchain.retrievers.document_compressors import LLMChainFilter
         
         # Get user-specific index based on role, country, and department
         user_index = get_user_specific_index(user_id)
@@ -2301,7 +2311,10 @@ def generate_answer_histoy_retrieval(user_query: str, user_id:str, chat_id:str):
 
             # ---- gather up to 3 images ------------------------------
             if len(top_3_img) < MAX_IMAGES:
+                doc.metadata.setdefault("images", [])  # Ensure images key exists
+                logger.info(f"Document images: {doc.metadata.get('images', [])}")  # Log images for debugging
                 for img in doc.metadata.get("images", []):
+                    
                     top_3_img.append(img)
                     if len(top_3_img) >= MAX_IMAGES:
                         break
@@ -2309,10 +2322,9 @@ def generate_answer_histoy_retrieval(user_query: str, user_id:str, chat_id:str):
 
             # Ensures a flat list of strings
         top_3_img = list(set(top_3_img))  # Remove duplicates
-        if 'maxim' in user_query.lower():
-            # Apply specific logic for queries containing 'maxim'
-            #top_3_img.append('avatar1.png')
-            pass
+        
+        # Easter egg: Add maxim image if enabled and query contains 'maxim'
+        
             
 
         is_task_query = is_query_score(user_query)
@@ -2389,7 +2401,7 @@ def generate_answer_histoy_retrieval(user_query: str, user_id:str, chat_id:str):
             
             # Handle different prompt types based on relevance analysis
             if should_dismiss_completely:
-                fallback_prompt = (
+                fallback_prompt2 = (
                     f'The user asked: "{clean_query}". '
                     'This question appears to be outside the scope of Verztec workplace assistance. '
                     'As the Verztec helpdesk assistant, you must strictly respond with: '
@@ -2402,6 +2414,14 @@ def generate_answer_histoy_retrieval(user_query: str, user_id:str, chat_id:str):
                     '\n• Company policies and SOPs (workflows, guidelines, forms)'
                     '\n\nIf a query falls outside of these areas or lacks a direct match in the database, respond exactly with the fallback message above—do not elaborate or fabricate. '
                     f"\n\nUser details for context: NAME: {user_name}, ROLE: {user_role}, COUNTRY: {user_country}, DEPARTMENT: {user_department}\n\n"
+                )
+                fallback_prompt=(
+                    f'The user asked: "{clean_query}". '
+                    'This question appears to be outside the scope of Verztec workplace assistance. '
+                    f'you are only able to help with work-related topics such as: '
+                    
+                    'For example, you could ask about leave applications, password resets, office policies, or company procedures. '
+                    f"Here is some information about the user: NAME: {user_name}, ROLE: {user_role}, COUNTRY: {user_country}, DEPARTMENT: {user_department}\n\n"
                 )
             elif should_suggest and suggestions:
                 fallback_prompt = (
@@ -2464,7 +2484,6 @@ def generate_answer_histoy_retrieval(user_query: str, user_id:str, chat_id:str):
             
             #######################################################################
             
-            from langchain.chains import LLMChain
 
             
 
@@ -2543,7 +2562,6 @@ def generate_answer_histoy_retrieval(user_query: str, user_id:str, chat_id:str):
             # Defer memory pruning until after response (non-blocking optimization)
             if len(chat_history.chat_memory.messages) > 4:  # Only prune if we have more than 2 turns
                 try:
-                    import threading
                     def prune_memory_async():
                         pruned_messages = memory_pruner.intelligent_prune(
                             chat_history.chat_memory.messages, 
@@ -2555,7 +2573,7 @@ def generate_answer_histoy_retrieval(user_query: str, user_id:str, chat_id:str):
                     # Run memory pruning in background thread
                     pruning_thread = threading.Thread(target=prune_memory_async, daemon=True)
                     pruning_thread.start()
-                    logger.info(f"🧠 Memory pruning started in background thread for {len(chat_history.chat_memory.messages)} messages")
+                    logger.info(f"Memory pruning started in background thread for {len(chat_history.chat_memory.messages)} messages")
                 except Exception as e:
                     logger.warning(f"Background memory pruning failed, falling back to sync: {str(e)}")
                     # Fallback to synchronous pruning if threading fails
@@ -2566,7 +2584,7 @@ def generate_answer_histoy_retrieval(user_query: str, user_id:str, chat_id:str):
                     )
                     chat_history.chat_memory.messages = pruned_messages
             else:
-                logger.info(f"🧠 Memory has {len(chat_history.chat_memory.messages)} messages - no pruning needed")
+                logger.info(f"Memory has {len(chat_history.chat_memory.messages)} messages - no pruning needed")
 
             return response_data
         
@@ -2663,6 +2681,7 @@ def generate_answer_histoy_retrieval(user_query: str, user_id:str, chat_id:str):
                 f"You are a HELPFUL, FRIENDLY, and PROFESSIONAL Verztec helpdesk assistant. "
                 f"You must only respond using the information provided in the retrieved documents. "
                 f"Do NOT make up any answers or include information that is not explicitly supported by the documents. "
+                f"IF THE QUERY IS NOT COVERED BY THE DOCUMENTS, DO NOT ATTEMPT TO ANSWER IT. DO NOT MAKE UP ANY ANSWERS."
                 f"Answer in a conversational and human-like manner, directly addressing the user as 'you'. "
                 f"Do NOT refer to the user in the third person. "
                 f"Do NOT include any sign-off like 'Best regards' or your name. "
@@ -2801,7 +2820,6 @@ def generate_answer_histoy_retrieval(user_query: str, user_id:str, chat_id:str):
             # Defer memory pruning until after response (non-blocking optimization)
             if len(chat_history.chat_memory.messages) > 4:  # Only prune if we have more than 2 turns
                 try:
-                    import threading
                     def prune_memory_async():
                         pruned_messages = memory_pruner.intelligent_prune(
                             chat_history.chat_memory.messages, 
@@ -3347,7 +3365,6 @@ def agentic_bot_v1(user_query: str, user_id: str, chat_id: str):
         # Defer memory pruning until after response (non-blocking optimization)
         if chat_history and hasattr(chat_history, 'chat_memory') and len(chat_history.chat_memory.messages) > 4:
             try:
-                import threading
                 def prune_memory_async():
                     pruned_messages = memory_pruner.intelligent_prune(
                         chat_history.chat_memory.messages, 
@@ -3408,14 +3425,8 @@ def extract_meeting_details(user_query: str) -> Dict[str, Any]:
         dict: Extracted meeting details with confidence scores
     """
     try:
-        # Import the LLM models from chatbot.py when needed
-        from langchain_groq import ChatGroq
-        from langchain_core.prompts import ChatPromptTemplate
-        import json
-        import re
-        
         # Initialize the LLM (using same config as in chatbot.py)
-        api_key = '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'
+        #api_key = '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'
         extraction_model = ChatGroq(
             api_key=api_key, 
             model="qwen/qwen3-32b",
@@ -3428,7 +3439,6 @@ def extract_meeting_details(user_query: str) -> Dict[str, Any]:
         )
         
         # Get current date and time context
-        from datetime import datetime
         current_datetime = datetime.now()
         current_date = current_datetime.strftime("%A, %B %d, %Y")
         current_time = current_datetime.strftime("%I:%M %p")
@@ -3437,38 +3447,38 @@ def extract_meeting_details(user_query: str) -> Dict[str, Any]:
         extraction_prompt = ChatPromptTemplate.from_messages([
             ("system", """You are a meeting detail extraction assistant. Extract meeting details from user input and return ONLY a valid JSON object.
 
-CURRENT CONTEXT:
-- Today is: {current_date}
-- Current time is: {current_time}
+                CURRENT CONTEXT:
+                - Today is: {current_date}
+                - Current time is: {current_time}
 
-Required JSON format:
-{{
-    "subject": "string or null",
-    "date_time": "string or null", 
-    "duration": "string or null",
-    "participants": ["array", "of", "strings"],
-    "meeting_type": "virtual|in-person|hybrid or null",
-    "location": "string or null",
-    "priority": "high|normal|low",
-    "extraction_confidence": "high|medium|low"
-}}
+                Required JSON format:
+                {{
+                    "subject": "string or null",
+                    "date_time": "string or null", 
+                    "duration": "string or null",
+                    "participants": ["array", "of", "strings"],
+                    "meeting_type": "virtual|in-person|hybrid or null",
+                    "location": "string or null",
+                    "priority": "high|normal|low",
+                    "extraction_confidence": "high|medium|low"
+                }}
 
-Extraction rules:
-- subject: Main topic/purpose of the meeting
-- date_time: Convert relative dates to specific dates/times. For example:
-  * "tomorrow" = the next day from today
-  * "next Monday" = the next Monday from today
-  * "this Friday" = the upcoming Friday this week
-  * Include both date and time when available (e.g., "Tuesday, July 16, 2025 at 3:00 PM")
-- duration: How long the meeting should be
-- participants: Names, emails, departments, titles mentioned
-- meeting_type: virtual (zoom/teams/online), in-person (conference room/office), or hybrid
-- location: Physical location, room names, or virtual platform
-- priority: high (urgent/asap/emergency), normal (default), low (when possible/eventually)
-- extraction_confidence: high (4+ fields), medium (2-3 fields), low (0-1 fields)
+                Extraction rules:
+                - subject: Main topic/purpose of the meeting
+                - date_time: Convert relative dates to specific dates/times. For example:
+                * "tomorrow" = the next day from today
+                * "next Monday" = the next Monday from today
+                * "this Friday" = the upcoming Friday this week
+                * Include both date and time when available (e.g., "Tuesday, July 16, 2025 at 3:00 PM")
+                - duration: How long the meeting should be
+                - participants: Names, emails, departments, titles mentioned
+                - meeting_type: virtual (zoom/teams/online), in-person (conference room/office), or hybrid
+                - location: Physical location, room names, or virtual platform
+                - priority: high (urgent/asap/emergency), normal (default), low (when possible/eventually)
+                - extraction_confidence: high (4+ fields), medium (2-3 fields), low (0-1 fields)
 
-Return ONLY the JSON object. No explanations."""),
-            ("human", "Extract meeting details from: {query}")
+                Return ONLY the JSON object. No explanations."""),
+                ("human", "Extract meeting details from: {query}")
         ])
         
         # Create and run the extraction chain
