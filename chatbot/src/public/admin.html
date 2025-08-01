@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -874,6 +875,143 @@
       font-size: 0.95rem;
       line-height: 1.5;
     }
+
+    /* Mailing List Modal Styles */
+    .mailing-list-item {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 1rem 1.5rem;
+      border-bottom: 1px solid var(--border-color);
+      transition: var(--transition);
+      background: var(--background-card);
+    }
+
+    .mailing-list-item:last-child {
+      border-bottom: none;
+    }
+
+    .mailing-list-item:hover {
+      background: var(--background-btn-hover);
+    }
+
+    .email-info {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      flex: 1;
+    }
+
+    .email-icon {
+      width: 20px;
+      height: 20px;
+      color: var(--primary-accent);
+      flex-shrink: 0;
+    }
+
+    .email-address {
+      font-size: 0.95rem;
+      color: var(--text-primary);
+      font-weight: 500;
+      flex: 1;
+    }
+
+    .email-actions {
+      display: flex;
+      gap: 0.5rem;
+      align-items: center;
+    }
+
+    .email-action-btn {
+      background: none;
+      border: 1px solid var(--border-color);
+      color: var(--text-secondary);
+      cursor: pointer;
+      padding: 0.5rem;
+      border-radius: 6px;
+      transition: var(--transition);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      width: 32px;
+      height: 32px;
+    }
+
+    .email-action-btn:hover {
+      background: var(--background-btn-hover);
+      color: var(--text-primary);
+      border-color: var(--primary-accent);
+    }
+
+    .email-action-btn.edit:hover {
+      color: var(--primary-accent);
+      background: rgba(212, 178, 76, 0.1);
+    }
+
+    .email-action-btn.delete:hover {
+      color: #ef4444;
+      background: rgba(239, 68, 68, 0.1);
+      border-color: #ef4444;
+    }
+
+    .email-action-btn svg {
+      width: 14px;
+      height: 14px;
+    }
+
+    .email-edit-input {
+      background: var(--background-main);
+      border: 1px solid var(--primary-accent);
+      border-radius: 6px;
+      padding: 0.5rem 0.75rem;
+      font-size: 0.95rem;
+      font-weight: 500;
+      color: var(--text-primary);
+      outline: none;
+      transition: var(--transition);
+      flex: 1;
+    }
+
+    .email-edit-input:focus {
+      box-shadow: 0 0 0 3px rgba(212, 178, 76, 0.1);
+    }
+
+    .edit-actions {
+      display: flex;
+      gap: 0.5rem;
+      margin-left: 0.75rem;
+    }
+
+    @keyframes spin {
+      0% { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
+    }
+
+    /* Dark mode styles for mailing list */
+    html[data-theme="dark"] .mailing-list-item {
+      background: #1a1a1a;
+      border-color: #333;
+    }
+
+    html[data-theme="dark"] .mailing-list-item:hover {
+      background: #2a2a2a;
+    }
+
+    html[data-theme="dark"] .email-edit-input {
+      background: #2a2a2a;
+      border-color: var(--primary-accent);
+      color: #f0f0f0;
+    }
+
+    html[data-theme="dark"] .email-action-btn {
+      border-color: #333;
+      color: #aaa;
+    }
+
+    html[data-theme="dark"] .email-action-btn:hover {
+      background: #2a2a2a;
+      color: #f0f0f0;
+    }
   </style>
 </head>
 <body>
@@ -1202,6 +1340,99 @@
           <button type="button" class="btn btn-secondary" onclick="closeUserModal()" style="flex: 1;">Cancel</button>
         </div>
       </form>
+    </div>
+  </div>
+
+  <!-- Mailing List Modal -->
+  <div id="mailingModal" class="user-modal">
+    <div class="user-modal-dialog" style="max-width: 800px;">
+      <div class="user-modal-header">
+        <h3 class="user-modal-title">📧 Edit HR Mailing List</h3>
+        <button class="modal-close" onclick="closeMailingModal()">&times;</button>
+      </div>
+      
+      <div style="margin-bottom: 2rem;">
+        <p style="color: var(--text-muted); margin-bottom: 1.5rem;">
+          Manage the email addresses that receive HR notifications and alerts from the chatbot system.
+        </p>
+        
+        <!-- Add New Email Section -->
+        <div style="background: var(--background-main); padding: 1.5rem; border-radius: 12px; margin-bottom: 1.5rem; border: 1px solid var(--border-color);">
+          <h4 style="margin: 0 0 1rem 0; color: var(--text-primary); font-size: 1.1rem; display: flex; align-items: center; gap: 0.5rem;">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M12 5v14M5 12h14"/>
+            </svg>
+            Add New Email
+          </h4>
+          <div class="form-group" style="display: flex; gap: 1rem; margin: 0;">
+            <input 
+              type="email" 
+              id="newEmailInput" 
+              class="form-input" 
+              placeholder="Enter email address..."
+              style="flex: 1;"
+              onkeypress="handleAddEmailKeypress(event)"
+            >
+            <button 
+              type="button" 
+              class="btn btn-primary" 
+              onclick="addNewEmail()"
+              style="white-space: nowrap;"
+            >
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M12 5v14M5 12h14"/>
+              </svg>
+              Add Email
+            </button>
+          </div>
+        </div>
+        
+        <!-- Current Emails List -->
+        <div style="background: var(--background-card); border-radius: 12px; border: 1px solid var(--border-color); overflow: hidden;">
+          <div style="padding: 1.5rem 1.5rem 1rem; border-bottom: 1px solid var(--border-color); background: var(--background-header);">
+            <h4 style="margin: 0; color: var(--text-primary); font-size: 1.1rem; display: flex; align-items: center; gap: 0.5rem;">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/>
+                <polyline points="22,6 12,13 2,6"/>
+              </svg>
+              Current Mailing List
+              <span id="mailingListCount" class="user-group-count" style="background: var(--primary-accent); color: #1a1a1a;">0</span>
+            </h4>
+          </div>
+          
+          <div id="mailingListContainer" style="max-height: 400px; overflow-y: auto;">
+            <div id="mailingListLoading" style="padding: 2rem; text-align: center; color: var(--text-muted);">
+              <div style="display: inline-block; width: 20px; height: 20px; border: 2px solid var(--border-color); border-top: 2px solid var(--primary-accent); border-radius: 50%; animation: spin 1s linear infinite; margin-bottom: 0.5rem;"></div>
+              <p style="margin: 0;">Loading mailing list...</p>
+            </div>
+            
+            <div id="mailingListEmpty" style="display: none; padding: 2rem; text-align: center; color: var(--text-muted);">
+              <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1" style="margin-bottom: 1rem; opacity: 0.5;">
+                <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/>
+                <polyline points="22,6 12,13 2,6"/>
+              </svg>
+              <h4 style="margin: 0 0 0.5rem 0;">No emails in mailing list</h4>
+              <p style="margin: 0;">Add email addresses to start receiving HR notifications.</p>
+            </div>
+            
+            <div id="mailingListItems">
+              <!-- Email items will be populated here -->
+            </div>
+          </div>
+        </div>
+      </div>
+      
+      <div class="form-group" style="display: flex; gap: 1rem; margin: 0;">
+        <button type="button" class="btn btn-primary" onclick="saveMailingList()" style="flex: 1;">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M19 21H5a2 2 0 01-2-2V5a2 2 0 012-2h11l5 5v11a2 2 0 01-2 2z"/>
+            <polyline points="17,21 17,13 7,13 7,21"/>
+            <polyline points="7,3 7,8 15,8"/>
+          </svg>
+          Save Changes
+        </button>
+        <button type="button" class="btn btn-secondary" onclick="closeMailingModal()" style="flex: 1;">Cancel</button>
+      </div>
     </div>
   </div>
 
@@ -1582,21 +1813,276 @@
 
     async function loadmailingmodal() {
       try {
-        let endpoint;
-        if (currentUser.role === 'admin') {
-          endpoint = '/api/mailing-list';
-        } else {
+        // Check authorization
+        if (currentUser.role !== 'admin') {
           throw new Error('Unauthorized access');
         }
 
-        const response = await apiCall(endpoint);
-        // response is an array of {id, name, email}
-        const emails = response.map(entry => entry.email).filter(Boolean);
-        document.getElementById('mailingList').value = emails.join('\n');
+        // Show the modal
+        const modal = document.getElementById('mailingModal');
+        modal.classList.add('show');
+        
+        // Load the mailing list data
+        await loadMailingListData();
       } catch (error) {
-        console.error('Error loading mailing list:', error);
+        console.error('Error loading mailing modal:', error);
         showError('Failed to load mailing list. Please try again later.');
       }
+    }
+
+    let mailingListData = [];
+
+    async function loadMailingListData() {
+      try {
+        const loadingDiv = document.getElementById('mailingListLoading');
+        const emptyDiv = document.getElementById('mailingListEmpty');
+        const itemsDiv = document.getElementById('mailingListItems');
+        const countSpan = document.getElementById('mailingListCount');
+
+        // Show loading state
+        loadingDiv.style.display = 'block';
+        emptyDiv.style.display = 'none';
+        itemsDiv.innerHTML = '';
+
+        const response = await apiCall('/api/mailing-list');
+        mailingListData = response || [];
+
+        // Hide loading
+        loadingDiv.style.display = 'none';
+
+        // Update count
+        countSpan.textContent = mailingListData.length;
+
+        if (mailingListData.length === 0) {
+          emptyDiv.style.display = 'block';
+          return;
+        }
+
+        // Render mailing list items
+        renderMailingListItems();
+      } catch (error) {
+        console.error('Error loading mailing list data:', error);
+        document.getElementById('mailingListLoading').style.display = 'none';
+        showError('Failed to load mailing list data.');
+      }
+    }
+
+    function renderMailingListItems() {
+      const itemsDiv = document.getElementById('mailingListItems');
+      
+      itemsDiv.innerHTML = mailingListData.map(item => `
+        <div class="mailing-list-item" data-id="${item.id}">
+          <div class="email-info">
+            <svg class="email-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/>
+              <polyline points="22,6 12,13 2,6"/>
+            </svg>
+            <span class="email-address" id="email-${item.id}">${item.email}</span>
+          </div>
+          <div class="email-actions">
+            <button class="email-action-btn edit" onclick="editEmail(${item.id})" title="Edit email">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
+                <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
+              </svg>
+            </button>
+            <button class="email-action-btn delete" onclick="deleteEmail(${item.id})" title="Delete email">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <polyline points="3,6 5,6 21,6"/>
+                <path d="M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2"/>
+                <line x1="10" y1="11" x2="10" y2="17"/>
+                <line x1="14" y1="11" x2="14" y2="17"/>
+              </svg>
+            </button>
+          </div>
+        </div>
+      `).join('');
+    }
+
+    async function addNewEmail() {
+      const input = document.getElementById('newEmailInput');
+      const email = input.value.trim();
+
+      if (!email) {
+        showError('Please enter a valid email address.');
+        return;
+      }
+
+      if (!isValidEmail(email)) {
+        showError('Please enter a valid email format.');
+        return;
+      }
+
+      // Check for duplicates
+      if (mailingListData.some(item => item.email.toLowerCase() === email.toLowerCase())) {
+        showError('This email address is already in the mailing list.');
+        return;
+      }
+
+      try {
+        const response = await apiCall('/api/mailing-list', {
+          method: 'POST',
+          body: JSON.stringify({ email: email })
+        });
+
+        if (response.success) {
+          input.value = '';
+          await loadMailingListData();
+          showSuccess('Email address added successfully.');
+        } else {
+          showError(response.message || 'Failed to add email address.');
+        }
+      } catch (error) {
+        console.error('Error adding email:', error);
+        showError('Failed to add email address.');
+      }
+    }
+
+    function handleAddEmailKeypress(event) {
+      if (event.key === 'Enter') {
+        event.preventDefault();
+        addNewEmail();
+      }
+    }
+
+    let editingEmailId = null;
+
+    function editEmail(id) {
+      const item = mailingListData.find(item => item.id === id);
+      if (!item) return;
+
+      // Cancel any other edit in progress
+      cancelEmailEdit();
+
+      editingEmailId = id;
+      const emailSpan = document.getElementById(`email-${id}`);
+      const originalEmail = item.email;
+
+      emailSpan.parentElement.innerHTML = `
+        <svg class="email-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/>
+          <polyline points="22,6 12,13 2,6"/>
+        </svg>
+        <input type="email" class="email-edit-input" id="edit-input-${id}" value="${originalEmail}">
+      `;
+
+      // Update action buttons
+      const actionsDiv = emailSpan.parentElement.parentElement.querySelector('.email-actions');
+      actionsDiv.innerHTML = `
+        <button class="email-action-btn edit" onclick="saveEmailEdit(${id})" title="Save changes">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <polyline points="20,6 9,17 4,12"/>
+          </svg>
+        </button>
+        <button class="email-action-btn delete" onclick="cancelEmailEdit()" title="Cancel edit">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <line x1="18" y1="6" x2="6" y2="18"/>
+            <line x1="6" y1="6" x2="18" y2="18"/>
+          </svg>
+        </button>
+      `;
+
+      // Focus and select the input
+      const input = document.getElementById(`edit-input-${id}`);
+      input.focus();
+      input.select();
+
+      // Handle Enter key
+      input.addEventListener('keypress', function(event) {
+        if (event.key === 'Enter') {
+          event.preventDefault();
+          saveEmailEdit(id);
+        } else if (event.key === 'Escape') {
+          event.preventDefault();
+          cancelEmailEdit();
+        }
+      });
+    }
+
+    async function saveEmailEdit(id) {
+      const input = document.getElementById(`edit-input-${id}`);
+      const newEmail = input.value.trim();
+
+      if (!newEmail) {
+        showError('Please enter a valid email address.');
+        return;
+      }
+
+      if (!isValidEmail(newEmail)) {
+        showError('Please enter a valid email format.');
+        return;
+      }
+
+      // Check for duplicates (excluding current item)
+      if (mailingListData.some(item => item.id !== id && item.email.toLowerCase() === newEmail.toLowerCase())) {
+        showError('This email address is already in the mailing list.');
+        return;
+      }
+
+      try {
+        const response = await apiCall(`/api/mailing-list/${id}`, {
+          method: 'PUT',
+          body: JSON.stringify({ email: newEmail })
+        });
+
+        if (response.success) {
+          editingEmailId = null;
+          await loadMailingListData();
+          showSuccess('Email address updated successfully.');
+        } else {
+          showError(response.message || 'Failed to update email address.');
+        }
+      } catch (error) {
+        console.error('Error updating email:', error);
+        showError('Failed to update email address.');
+      }
+    }
+
+    function cancelEmailEdit() {
+      editingEmailId = null;
+      renderMailingListItems();
+    }
+
+    async function deleteEmail(id) {
+      const item = mailingListData.find(item => item.id === id);
+      if (!item) return;
+
+      if (!confirm(`Are you sure you want to delete the email address "${item.email}" from the mailing list?`)) {
+        return;
+      }
+
+      try {
+        const response = await apiCall(`/api/mailing-list/${id}`, {
+          method: 'DELETE'
+        });
+
+        if (response.success) {
+          await loadMailingListData();
+          showSuccess('Email address deleted successfully.');
+        } else {
+          showError(response.message || 'Failed to delete email address.');
+        }
+      } catch (error) {
+        console.error('Error deleting email:', error);
+        showError('Failed to delete email address.');
+      }
+    }
+
+    function closeMailingModal() {
+      const modal = document.getElementById('mailingModal');
+      modal.classList.remove('show');
+      editingEmailId = null;
+    }
+
+    async function saveMailingList() {
+      // In this implementation, changes are saved immediately, so this just closes the modal
+      closeMailingModal();
+      showSuccess('Mailing list changes saved successfully.');
+    }
+
+    function isValidEmail(email) {
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      return emailRegex.test(email);
     }
     
     
@@ -1901,6 +2387,12 @@
     document.getElementById('batchUploadModal').addEventListener('click', function(e) {
       if (e.target === this) {
         closeBatchUploadModal();
+      }
+    });
+
+    document.getElementById('mailingModal').addEventListener('click', function(e) {
+      if (e.target === this) {
+        closeMailingModal();
       }
     });
     

@@ -5,9 +5,3 @@
 venv/
 **/.venv/
 **/venv/
-
-# Suggestion system documentation files
-SUGGESTION_FEATURE_README.md
-ROBUST_SUGGESTION_SYSTEM_README.md
-IRRELEVANT_QUERY_FIX.md
-IMPLEMENTATION_COMPLETE.md

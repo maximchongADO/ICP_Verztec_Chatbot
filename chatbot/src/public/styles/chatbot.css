@@ -1533,6 +1533,59 @@ svg,
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
 }
 
+/* Inline suggestions for AI messages */
+.inline-suggestions {
+  margin-top: 16px;
+  padding: 16px;
+  background: #f8fafc;
+  border: 1px solid #e5e7eb;
+  border-radius: 12px;
+  border-left: 4px solid #d4b24c;
+}
+
+.suggestion-label {
+  font-size: 13px;
+  font-weight: 600;
+  color: #6b7280;
+  margin-bottom: 8px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.suggestion-pills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.suggestion-pill {
+  background: #ffffff;
+  border: 1px solid #d4b24c;
+  color: #a08a3c;
+  padding: 8px 14px;
+  border-radius: 18px;
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 500;
+  transition: all 0.2s ease;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+  font-family: inherit;
+  line-height: 1.2;
+}
+
+.suggestion-pill:hover {
+  background: #a08a3c;
+  color: #ffffff;
+  transform: translateY(-1px);
+  box-shadow: 0 2px 4px rgba(160, 138, 60, 0.2);
+}
+
+.suggestion-pill:active {
+  transform: translateY(0);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
+}
+
 /* Feedback buttons */
 .feedback-buttons {
     display: flex;
@@ -2323,6 +2376,30 @@ html[data-theme="dark"] .profile-modal-close:hover {
     rgba(212, 178, 76, 0.2),
     transparent
   );
+}
+
+/* Dark theme inline suggestions */
+[data-theme="dark"] .inline-suggestions {
+  background: #1a1a1a;
+  border-color: #333333;
+  border-left-color: #d4b24c;
+}
+
+[data-theme="dark"] .suggestion-label {
+  color: #9ca3af;
+}
+
+[data-theme="dark"] .inline-suggestions .suggestion-pill {
+  background: #000000;
+  border-color: #d4b24c;
+  color: #d4b24c;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
+}
+
+[data-theme="dark"] .inline-suggestions .suggestion-pill:hover {
+  background: #d4b24c;
+  color: #000000;
+  box-shadow: 0 2px 4px rgba(212, 178, 76, 0.4);
 }
 
 /* Fix for pure black backgrounds in dark mode, removing all grey */
