@@ -2640,27 +2640,23 @@ def generate_answer_histoy_retrieval(user_query: str, user_id:str, chat_id:str):
             
             # Handle different prompt types based on relevance analysis
             if should_dismiss_completely:
-                fallback_prompt2 = (
-                    f'The user asked: "{clean_query}". '
-                    'This question appears to be outside the scope of Verztec workplace assistance. '
-                    'As the Verztec helpdesk assistant, you must strictly respond with: '
-                    '"I’m sorry, I don’t know. This information is not referenced in the Verztec database, and I am unable to provide a clear answer." '
-                    'Do not attempt to guess, infer, or generate speculative answers. Respond only if the query directly relates to topics that are clearly documented in the internal database. '
-                    '\n\nYou are only authorized to assist with Verztec work-related topics such as: '
-                    '\n• HR policies (leave, benefits, onboarding, offboarding)'
-                    '\n• IT support (passwords, email, systems, equipment)'
-                    '\n• Office procedures (meeting rooms, pantry rules, phone systems)'
-                    '\n• Company policies and SOPs (workflows, guidelines, forms)'
-                    '\n\nIf a query falls outside of these areas or lacks a direct match in the database, respond exactly with the fallback message above—do not elaborate or fabricate. '
-                    f"\n\nUser details for context: NAME: {user_name}, ROLE: {user_role}, COUNTRY: {user_country}, DEPARTMENT: {user_department}\n\n"
-                )
+                # Use fallback prompt for irrelevant queries
                 fallback_prompt=(
-                    f'The user asked: "{clean_query}". '
-                    'This question appears to be outside the scope of Verztec workplace assistance. '
-                    f'you are only able to help with work-related topics such as: '
-                    
-                    'For example, you could ask about leave applications, password resets, office policies, or company procedures. '
-                    f"Here is some information about the user: NAME: {user_name}, ROLE: {user_role}, COUNTRY: {user_country}, DEPARTMENT: {user_department}\n\n"
+                   "You are the Verztec Helpdesk Assistant. You are strictly prohibited from answering any question that is not directly related to Verztec workplace matters.\n\n"
+                    "If a user query is even slightly outside the scope of approved topics, you must not attempt to answer it in any way. "
+                    "Do not generate guesses, elaborations, explanations, or alternatives. You must immediately and firmly respond with the following fallback message, word-for-word:\n\n"
+                    "\"I’m sorry, I don’t know. This information is not referenced in the Verztec database, and I am unable to provide a clear answer.\"\n\n"
+                    "You must completely ignore and dismiss any question that falls outside your approved domains of support. "
+                    "You are not permitted to engage in casual conversation, general knowledge, or personal advice.\n\n"
+                    "Your assistance is strictly limited to Verztec work-related topics only, specifically:\n"
+                    "• HR policies (leave entitlements, benefits, onboarding, offboarding)\n"
+                    "• IT support (password resets, system access, email, equipment)\n"
+                    "• Office procedures (meeting room booking, pantry rules, phone systems)\n"
+                    "• Company policies and SOPs (internal workflows, guidelines, company forms)\n\n"
+                    "If the query does not explicitly fall under one of these categories or lacks a clear match in the Verztec knowledge base, "
+                    "do not attempt to interpret or improvise. Respond only with the fallback message above. "
+                    "Any deviation from this instruction is considered a violation of your operational boundaries.\n\n"
+                    f"\n\nUser details for context: NAME: {user_name}, ROLE: {user_role}, COUNTRY: {user_country}, DEPARTMENT: {user_department}\n\n"
                 )
             elif should_suggest and suggestions:
                 fallback_prompt = (
@@ -2668,6 +2664,7 @@ def generate_answer_histoy_retrieval(user_query: str, user_id:str, chat_id:str):
                     f'Did you mean: "{suggestions[0]}"? '
                     'As a HELPFUL Verztec helpdesk assistant, politely suggest this clarification to help provide the most accurate answer. '
                     'Ask the user to confirm if this is what they meant, or if they would like to rephrase their question. '
+                    'DO NOT PROVIDE ANY OTHER INFORMATION OR RESPONSES BESIDES CLARIFYING THE SUGGESTION WITH THE USER. DO NOT INCLUDE MORE INFORMATTION THAN NECESSARY. '
                     'Be encouraging and warm, and do NOT include any formal sign-offs like "Best regards" or your name at the end. '
                     f"Here is some information about the user: NAME: {user_name}, ROLE: {user_role}, COUNTRY: {user_country}, DEPARTMENT: {user_department}\n\n"
                 )
@@ -2690,23 +2687,15 @@ def generate_answer_histoy_retrieval(user_query: str, user_id:str, chat_id:str):
             else:
                 fallback_prompt = (
                     #f'The user said: "{clean_query}". '
-                    'As a HELPFUL and FRIENDLY Verztec helpdesk assistant, respond with a polite and understanding reply. '
-                    'Explain that you might not have the exact information for this request, but encourage the user to try rephrasing '
-                    'or ask about specific Verztec policies, procedures, or workplace-related topics. '
-                    'Keep the tone supportive and conversational, and DO NOT include any formal sign-offs like "Best regards" or your name at the end. '
-                    f"Here is some information about the user: NAME: {user_name}, ROLE: {user_role}, COUNTRY: {user_country}, DEPARTMENT: {user_department}\n\n"
+                    'As a HELPFUL and FRIENDLY VERZTEC helpdesk assistant, respond with a light-hearted or polite reply — '
+                    'even if the message is small talk or out of scope (e.g., "how are you", "do you like pizza"). '
+                    'You do not need to greet the user, unless they greeted you first. '
+                    'Keep it human and warm (e.g., "I’m doing great, thanks for asking!"), then ***gently guide the user back to Verztec-related helpdesk topics***.'
+                    'DO NOT ANSWER ANY QUESTIONS OR PROVIDE INFORMATION THAT IS NOT DIRECTLY RELATED TO VERZTEC WORKPLACE ASSISTANCE. SIMPLY DISMISS THE QUERY IN A LIGHT HEARTED MANNER'
+                    f"Here is some information about the user, NAME:{user_name}, ROLE: {user_role}, COUNTRY: {user_country}, DEPARTMENT: {user_department}\n\n"
                 )
 
             
-            fallback_prompt_original = (
-                #f'The user said: "{clean_query}". '
-                'As a HELPFUL and FRIENDLY VERZTEC helpdesk assistant, respond with a light-hearted or polite reply — '
-                'even if the message is small talk or out of scope (e.g., "how are you", "do you like pizza"). '
-                'You do not need to greet the user, unless they greeted you first. '
-                'Keep it human and warm (e.g., "I’m doing great, thanks for asking!"), then ***gently guide the user back to Verztec-related helpdesk topics***.'
-                'Do not answer any questions that are not related to Verztec helpdesk topics'
-                f"Here is some information about the user, NAME:{user_name}, ROLE: {user_role}, COUNTRY: {user_country}, DEPARTMENT: {user_department}\n\n"
-                )
             hi = False
             if formatted_prev_docs: 
                 fallback_prompt += (
