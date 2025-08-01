@@ -23,7 +23,7 @@ import numpy as np
 import pymysql
 import spacy
 from dotenv import load_dotenv
-from langdetect import detect
+from langdetect import detect, detect_langs
 from langdetect.lang_detect_exception import LangDetectException
 from pydantic import Field, ConfigDict
 from sentence_transformers import CrossEncoder, SentenceTransformer
@@ -586,6 +586,250 @@ def is_query_score(text: str) -> float:
     except Exception as e:
         print(f"[Error in is_query_score]: {e}")
         return 0.0
+
+
+# Language detection configuration - easily configurable and extensible
+LANGUAGE_CONFIG = {
+    # Primary languages supported by the system
+    'supported_languages': {
+        'en': {'name': 'English', 'is_primary': True},
+        'zh-cn': {'name': 'Chinese (Simplified)', 'is_primary': False},
+        'zh-tw': {'name': 'Chinese (Traditional)', 'is_primary': False},
+        'es': {'name': 'Spanish', 'is_primary': False},
+        'fr': {'name': 'French', 'is_primary': False},
+        'de': {'name': 'German', 'is_primary': False},
+        'ja': {'name': 'Japanese', 'is_primary': False},
+        'ko': {'name': 'Korean', 'is_primary': False},
+    },
+    
+    # Common phrases per language - easily extensible
+    'common_phrases': {
+        'en': {
+            'hello', 'hi', 'hey', 'thanks', 'thank you', 'goodbye', 'bye',
+            'good morning', 'good afternoon', 'good evening', 'good night',
+            'how are you', 'what', 'why', 'when', 'where', 'who', 'how',
+            'yes', 'no', 'ok', 'okay', 'sure', 'please', 'sorry',
+            'help', 'can you', 'could you', 'would you', 'will you',
+            'i need', 'i want', 'i have', 'i am', 'i\'m', 'you are', 'you\'re'
+        },
+        'zh-cn': {
+            '你好', '谢谢', '再见', '早上好', '晚上好', '什么', '为什么', '怎么',
+            '哪里', '什么时候', '谁', '是的', '不是', '好的', '请', '对不起',
+            '帮助', '我需要', '我想要', '我有', '我是', '你是'
+        },
+        'es': {
+            'hola', 'gracias', 'adiós', 'buenos días', 'buenas noches', 'qué', 'por qué', 'cómo',
+            'dónde', 'cuándo', 'quién', 'sí', 'no', 'vale', 'por favor', 'lo siento',
+            'ayuda', 'necesito', 'quiero', 'tengo', 'soy', 'eres'
+        },
+        'fr': {
+            'bonjour', 'merci', 'au revoir', 'bonne nuit', 'quoi', 'pourquoi', 'comment',
+            'où', 'quand', 'qui', 'oui', 'non', 'd\'accord', 's\'il vous plaît', 'désolé',
+            'aide', 'j\'ai besoin', 'je veux', 'j\'ai', 'je suis', 'vous êtes'
+        }
+    },
+    
+    # Question starters per language
+    'question_starters': {
+        'en': ['what', 'why', 'when', 'where', 'who', 'how', 'can', 'could', 'would', 'will', 'do', 'does', 'did', 'is', 'are', 'was', 'were'],
+        'zh-cn': ['什么', '为什么', '怎么', '哪里', '什么时候', '谁', '是否', '可以', '能否', '会不会'],
+        'es': ['qué', 'por qué', 'cómo', 'dónde', 'cuándo', 'quién', 'puede', 'podría', 'será', 'es', 'son'],
+        'fr': ['quoi', 'pourquoi', 'comment', 'où', 'quand', 'qui', 'peut', 'pourrait', 'sera', 'est', 'sont']
+    },
+    
+    # Detection thresholds
+    'thresholds': {
+        'short_query_words': 2,  # Consider queries with <= 2 words as "short"
+        'very_short_chars': 10,  # Consider queries with <= 10 chars as "very short"
+        'confidence_threshold': 0.3,  # Minimum confidence for langdetect
+        'fallback_language': 'en'  # Default fallback language
+    }
+}
+
+
+def detect_language_improved(user_query: str, config: dict = None) -> tuple[str, bool]:
+    """
+    Improved language detection that handles short phrases and common words better.
+    Now configurable and extensible for multiple languages.
+    
+    Args:
+        user_query (str): The query to analyze
+        config (dict, optional): Configuration override. Defaults to LANGUAGE_CONFIG.
+    
+    Returns:
+        tuple[str, bool]: (detected_language_code, is_primary_language)
+    """
+    if config is None:
+        config = LANGUAGE_CONFIG
+    
+    query_lower = user_query.lower().strip()
+    thresholds = config['thresholds']
+    
+    # Check against common phrases for all supported languages
+    for lang_code, phrases in config['common_phrases'].items():
+        if query_lower in phrases:
+            is_primary = config['supported_languages'].get(lang_code, {}).get('is_primary', False)
+            logger.info(f"Matched common phrase '{query_lower}' to language: {lang_code}")
+            return lang_code, is_primary
+    
+    # Check question starters for all languages
+    first_word = query_lower.split()[0] if query_lower.split() else ''
+    for lang_code, starters in config['question_starters'].items():
+        if first_word in starters:
+            is_primary = config['supported_languages'].get(lang_code, {}).get('is_primary', False)
+            logger.info(f"Matched question starter '{first_word}' to language: {lang_code}")
+            return lang_code, is_primary
+    
+    # For short queries, be more conservative with langdetect
+    if len(user_query.split()) <= thresholds['short_query_words']:
+        try:
+            detections = detect_langs(user_query)
+            
+            # Check if any supported language is detected with reasonable confidence
+            for detection in detections:
+                if (detection.lang in config['supported_languages'] and 
+                    detection.prob > thresholds['confidence_threshold']):
+                    is_primary = config['supported_languages'][detection.lang].get('is_primary', False)
+                    logger.info(f"Short query detected as {detection.lang} with confidence {detection.prob:.3f}")
+                    return detection.lang, is_primary
+            
+            # For very short queries, default to fallback language
+            if len(user_query.strip()) <= thresholds['very_short_chars']:
+                fallback_lang = thresholds['fallback_language']
+                is_primary = config['supported_languages'].get(fallback_lang, {}).get('is_primary', False)
+                logger.info(f"Very short query, defaulting to {fallback_lang}")
+                return fallback_lang, is_primary
+                
+        except Exception as e:
+            logger.warning(f"Language detection failed for short query: {e}")
+            fallback_lang = thresholds['fallback_language']
+            is_primary = config['supported_languages'].get(fallback_lang, {}).get('is_primary', False)
+            return fallback_lang, is_primary
+    
+    # For longer queries, use standard langdetect
+    try:
+        detected_language = detect(user_query)
+        
+        # Check if detected language is in our supported list
+        if detected_language in config['supported_languages']:
+            is_primary = config['supported_languages'][detected_language].get('is_primary', False)
+            logger.info(f"Detected supported language: {detected_language}")
+            return detected_language, is_primary
+        else:
+            # Language detected but not in our supported list, fallback to primary
+            fallback_lang = thresholds['fallback_language']
+            is_primary = config['supported_languages'].get(fallback_lang, {}).get('is_primary', False)
+            logger.info(f"Detected unsupported language {detected_language}, falling back to {fallback_lang}")
+            return fallback_lang, is_primary
+            
+    except LangDetectException as e:
+        logger.warning(f"Language detection failed: {e}")
+        fallback_lang = thresholds['fallback_language']
+        is_primary = config['supported_languages'].get(fallback_lang, {}).get('is_primary', False)
+        return fallback_lang, is_primary
+
+
+def get_language_name(lang_code: str, config: dict = None) -> str:
+    """
+    Get the human-readable name for a language code.
+    
+    Args:
+        lang_code (str): Language code (e.g., 'en', 'zh-cn')
+        config (dict, optional): Configuration override
+    
+    Returns:
+        str: Human-readable language name
+    """
+    if config is None:
+        config = LANGUAGE_CONFIG
+    
+    return config['supported_languages'].get(lang_code, {}).get('name', lang_code.upper())
+
+
+def add_language_phrases(lang_code: str, phrases: set, config: dict = None) -> dict:
+    """
+    Dynamically add phrases for a language. Useful for runtime customization.
+    
+    Args:
+        lang_code (str): Language code
+        phrases (set): Set of phrases to add
+        config (dict, optional): Configuration to modify
+    
+    Returns:
+        dict: Updated configuration
+    """
+    if config is None:
+        config = LANGUAGE_CONFIG.copy()
+    
+    if lang_code not in config['common_phrases']:
+        config['common_phrases'][lang_code] = set()
+    
+    config['common_phrases'][lang_code].update(phrases)
+    logger.info(f"Added {len(phrases)} phrases for language {lang_code}")
+    
+    return config
+
+
+def load_language_config_from_file(config_path: str = None) -> dict:
+    """
+    Load language configuration from a JSON file for easier customization.
+    
+    Args:
+        config_path (str, optional): Path to JSON config file
+    
+    Returns:
+        dict: Language configuration
+    """
+    if config_path and os.path.exists(config_path):
+        try:
+            with open(config_path, 'r', encoding='utf-8') as f:
+                loaded_config = json.load(f)
+            
+            # Convert phrase lists to sets for faster lookup
+            if 'common_phrases' in loaded_config:
+                for lang_code, phrases in loaded_config['common_phrases'].items():
+                    if isinstance(phrases, list):
+                        loaded_config['common_phrases'][lang_code] = set(phrases)
+            
+            logger.info(f"Loaded language configuration from {config_path}")
+            return loaded_config
+            
+        except Exception as e:
+            logger.error(f"Failed to load language config from {config_path}: {e}")
+            logger.info("Using default language configuration")
+            return LANGUAGE_CONFIG
+    else:
+        return LANGUAGE_CONFIG
+
+
+def save_language_config_to_file(config: dict, config_path: str) -> bool:
+    """
+    Save current language configuration to a JSON file for persistence.
+    
+    Args:
+        config (dict): Language configuration to save
+        config_path (str): Path where to save the config
+    
+    Returns:
+        bool: True if successful, False otherwise
+    """
+    try:
+        # Convert sets to lists for JSON serialization
+        config_to_save = config.copy()
+        if 'common_phrases' in config_to_save:
+            for lang_code, phrases in config_to_save['common_phrases'].items():
+                if isinstance(phrases, set):
+                    config_to_save['common_phrases'][lang_code] = sorted(list(phrases))
+        
+        with open(config_path, 'w', encoding='utf-8') as f:
+            json.dump(config_to_save, f, indent=2, ensure_ascii=False)
+        
+        logger.info(f"Saved language configuration to {config_path}")
+        return True
+        
+    except Exception as e:
+        logger.error(f"Failed to save language config to {config_path}: {e}")
+        return False
 
 
 def clean_with_grammar_model(user_query: str) -> str:
@@ -2339,18 +2583,19 @@ def generate_answer_histoy_retrieval(user_query: str, user_id:str, chat_id:str):
         
         # Allow general queries to proceed to QA chain instead of being dismissed
         if query_classification == 'general':
-            should_dismiss_completely = False
+            should_dismiss_completely = True 
             should_suggest = False
-            logger.info(f"General query detected - allowing to proceed to QA chain for friendly response")
+            logger.info(f"General query detected - allowing to skip to QA chain for friendly response")
         
         #handle irrelevant query or provide intelligent suggestions
-        # Check if the user query is in English using langdetect
+        # Check if the user query is in English using improved language detection
         try:
-            detected_language = detect(user_query)
-            language_english = detected_language == 'en'
+            detected_language, language_english = detect_language_improved(user_query)
             logger.info(f"Detected language: {detected_language}, Is English: {language_english}")
-        except LangDetectException:
+            logger.info(f"User query: '{clean_query}...' detected as {detected_language} language")
+        except Exception:
             # If language detection fails, assume English (fallback)
+            detected_language = 'en'
             language_english = True
             logger.warning(f"Language detection failed for query: '{user_query[:50]}...', assuming English")
        
