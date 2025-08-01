@@ -967,25 +967,27 @@ def check_query_relevance_to_verztec(query: str, user_index):
         # First, use AI to classify the query type
         classification_prompt = f"""You are a query classifier for a workplace helpdesk system. Classify the following user query into one of three categories:
 
-1. "relevant" - Work-related queries about HR, IT, policies, procedures, workplace matters
-2. "general" - Casual greetings, small talk, friendly conversation (e.g., "hi", "hello", "how are you", "good morning")  
-3. "irrelevant" - Completely unrelated topics (movies, sports, cooking, weather, random facts, etc.)
+            1. "relevant" - Work-related queries about HR, IT, policies, procedures, workplace matters
+            2. "general" - Casual greetings, small talk, friendly conversation (e.g., "hi", "hello", "how are you", "good morning")  
+            3. "irrelevant" - Completely unrelated topics (movies, sports, cooking, weather, random facts, etc.)
 
-Query: "{query}"
+            Query: "{query}"
 
-Respond with ONLY one word: relevant, general, or irrelevant"""
+            Respond with ONLY one word: relevant, general, or irrelevant"""
 
         try:
             ai_response = decisionlayer_model.predict(classification_prompt)
+            logger.info(f"AI classification response: {ai_response}")
             ai_classification = re.sub(r"<think>.*?</think>", "", ai_response, flags=re.DOTALL).strip().lower()
             
             # Clean and validate AI response
             if 'general' in ai_classification:
                 classification = 'general'
-            elif 'relevant' in ai_classification:
-                classification = 'relevant'
             elif 'irrelevant' in ai_classification:
                 classification = 'irrelevant'
+            elif 'relevant' in ai_classification:
+                classification = 'relevant'
+            
             else:
                 # Fallback to rule-based classification
                 classification = None
