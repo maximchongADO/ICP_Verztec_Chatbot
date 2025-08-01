@@ -37,6 +37,31 @@ const userRoute = (app) => {
     authenticateToken.requireAdmin,
     userController.getMailingList
   );
+
+  // Admin-only: add email to mailing list (POST /api/mailing-list)
+  app.post(
+    "/api/mailing-list",
+    authenticateToken,
+    authenticateToken.requireAdmin,
+    userController.addToMailingList
+  );
+
+  // Admin-only: update email in mailing list (PUT /api/mailing-list/:id)
+  app.put(
+    "/api/mailing-list/:id",
+    authenticateToken,
+    authenticateToken.requireAdmin,
+    userController.updateMailingListEmail
+  );
+
+  // Admin-only: delete email from mailing list (DELETE /api/mailing-list/:id)
+  app.delete(
+    "/api/mailing-list/:id",
+    authenticateToken,
+    authenticateToken.requireAdmin,
+    userController.deleteFromMailingList
+  );
+
   // Admin-only: delete user (DELETE /api/users/:id)
   app.delete(
     "/api/users/:id",

@@ -23,6 +23,8 @@ import numpy as np
 import pymysql
 import spacy
 from dotenv import load_dotenv
+from langdetect import detect
+from langdetect.lang_detect_exception import LangDetectException
 from pydantic import Field, ConfigDict
 from sentence_transformers import CrossEncoder, SentenceTransformer
 from spacy.matcher import PhraseMatcher
@@ -1719,28 +1721,9 @@ global_tools = {
         "response_tone": "concise_direct"
     }
 }
-# Utility: Get last bot message from ConversationBufferMemory
-def get_last_bot_message(chat_history):
-    """
-    Returns the content of the last AI (bot) message from a ConversationBufferMemory object.
-    """
-    history = chat_history.load_memory_variables({}).get("chat_history", [])
-    # history is a list of HumanMessage and AIMessage objects (if return_messages=True)
-    for msg in reversed(history):
-        if hasattr(msg, 'content') and msg.__class__.__name__ == 'answer':
-            return msg.content
-    return None
 
-def get_last_human_message(chat_history):
-    """
-    Returns the content of the last human message from a ConversationBufferMemory object.
-    """
-    history = chat_history.load_memory_variables({}).get("chat_history", [])
-    # history is a list of HumanMessage and AIMessage objects (if return_messages=True)
-    for msg in reversed(history):
-        if hasattr(msg, 'content') and msg.__class__.__name__ == 'HumanMessage':
-            return msg.content
-    return None
+
+
 
 def get_last_human_message(chat_id, user_id):
     """
@@ -2361,11 +2344,20 @@ def generate_answer_histoy_retrieval(user_query: str, user_id:str, chat_id:str):
             logger.info(f"General query detected - allowing to proceed to QA chain for friendly response")
         
         #handle irrelevant query or provide intelligent suggestions
+        # Check if the user query is in English using langdetect
+        try:
+            detected_language = detect(user_query)
+            language_english = detected_language == 'en'
+            logger.info(f"Detected language: {detected_language}, Is English: {language_english}")
+        except LangDetectException:
+            # If language detection fails, assume English (fallback)
+            language_english = True
+            logger.warning(f"Language detection failed for query: '{user_query[:50]}...', assuming English")
        
         logger.info(f"Clean Query at qa chain: {clean_query}")
         logger.info(f"Enhanced Analysis - Relevant: {is_relevant}, Intent: {intent_level}, Classification: {query_classification}, Should suggest: {should_suggest}, Should dismiss: {should_dismiss_completely}")
         if (
-            not tool_used and (should_dismiss_completely or should_suggest)
+            not tool_used and (should_dismiss_completely or should_suggest) and language_english
         ):
             suggestions = []
             likely_topic = None

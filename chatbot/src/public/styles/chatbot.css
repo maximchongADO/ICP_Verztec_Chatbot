@@ -1275,8 +1275,8 @@ svg,
 /* Copy button for AI responses - subtle and unobtrusive */
 .copy-btn {
   position: absolute;
-  bottom: 12px;
-  right: 12px;
+  bottom: 8px;
+  right: 8px;
   background: rgba(255, 255, 255, 0.9);
   border: 1px solid rgba(229, 231, 235, 0.8);
   color: #9ca3af;
@@ -1291,7 +1291,7 @@ svg,
   box-shadow: 0 2px 4px rgba(0,0,0,0.05);
   outline: none;
   gap: 4px;
-  z-index: 1;
+  z-index: 10;
   pointer-events: auto;
   font-weight: 500;
   backdrop-filter: blur(10px);
@@ -2539,7 +2539,7 @@ html[data-theme="dark"] .profile-modal-close:hover {
 }
 /* Source documents styling - Clean and modern */
 .message-sources {
-  margin-top: 20px;
+  margin-top: 16px;
   padding: 0;
   background: transparent;
   border-radius: 0;
@@ -2547,6 +2547,7 @@ html[data-theme="dark"] .profile-modal-close:hover {
   box-shadow: none;
   position: relative;
   overflow: visible;
+  clear: both; /* Ensure sources appear below other content */
 }
 
 .sources-header {
