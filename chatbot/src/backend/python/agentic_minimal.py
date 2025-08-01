@@ -581,3 +581,6 @@ if __name__ == "__main__":
     print("- Debugging guides provided")
     
     print("\n" + "=" * 60)
+
+
+    print("Thank you for using the Agentic Minimal Playground! 🎉")

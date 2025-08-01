@@ -55,9 +55,11 @@ const createTablesSQL = {
   
   mailing_list: `
     CREATE TABLE IF NOT EXISTS mailing_list (
-      email VARCHAR(255) PRIMARY KEY,
-      id INT NOT NULL, 
-      name VARCHAR(100)
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      email VARCHAR(255) NOT NULL UNIQUE,
+      name VARCHAR(100) NULL,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
     )`,
 
   users: `

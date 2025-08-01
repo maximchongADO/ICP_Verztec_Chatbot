@@ -43,9 +43,77 @@ load_dotenv(dotenv_path=os.path.join(os.path.dirname(__file__), '..', '..', '..'
 logger = logging.getLogger(__name__)
 
 
+def get_hr_mailing_list() -> List[str]:
+    """
+    Fetch HR mailing list from the database.
+    
+    Returns:
+        List[str]: List of email addresses from the mailing list table
+    """
+    try:
+        import mysql.connector
+        from mysql.connector import Error
+        
+        # Database configuration - using same config as userController.js
+        db_config = {
+            'host': 'localhost',
+            'user': 'chatbot_user',
+            'password': 'strong_password',
+            'database': 'chatbot_db'
+        }
+        
+        connection = mysql.connector.connect(**db_config)
+        cursor = connection.cursor()
+        
+        # Query mailing list table
+        cursor.execute("SELECT id, name, email FROM mailing_list WHERE email IS NOT NULL AND email != ''")
+        mailing_list_records = cursor.fetchall()
+        
+        # Extract emails and log all found entries
+        email_list = []
+        logger.info(f"Found {len(mailing_list_records)} entries in mailing_list table:")
+        for record in mailing_list_records:
+            record_id, name, email = record
+            if email and email.strip():
+                clean_email = email.strip()
+                email_list.append(clean_email)
+                logger.info(f"Mailing list entry - ID: {record_id}, Name: {name}, Email: {clean_email}")
+            else:
+                logger.warning(f"Mailing list entry with empty email - ID: {record_id}, Name: {name}")
+        
+        connection.close()
+        
+        # Filter out duplicates and empty emails
+        unique_emails = list(set([email for email in email_list if email and '@' in email]))
+        logger.info(f"Total unique valid emails for HR notifications: {len(unique_emails)} - {unique_emails}")
+        
+        return unique_emails
+        
+    except Error as e:
+        logger.error(f"Database error while fetching mailing list: {e}")
+        # Fallback to environment variables if database fails
+        logger.warning("Falling back to environment variable email configuration")
+        fallback_emails = [
+            os.getenv('HR_EMAIL', 'jwwl6424@gmail.com'),
+            os.getenv('HR_EMAIL2', ''),
+            os.getenv('HR_EMAIL3', ''),
+            os.getenv('HR_EMAIL4', '')
+        ]
+        unique_emails = list(set([email.strip() for email in fallback_emails if email.strip()]))
+        logger.info(f"Fallback emails: {unique_emails}")
+        return unique_emails
+        
+    except Exception as e:
+        logger.error(f"Unexpected error while fetching mailing list: {e}")
+        # Emergency fallback to single email
+        emergency_email = os.getenv('HR_EMAIL', 'jwwl6424@gmail.com')
+        logger.info(f"Emergency fallback to single email: {emergency_email}")
+        return [emergency_email]
+
+
 def send_hr_escalation_email(escalation_id: str, user_id: str, chat_id: str, 
                            user_query: str, user_description: str = None,
-                           hr_email: str = None) -> bool:
+                           hr_emails: List[str] = None) -> bool:
     """
     Send an email notification to HR about the escalation.
     
@@ -55,10 +123,10 @@ def send_hr_escalation_email(escalation_id: str, user_id: str, chat_id: str,
         chat_id (str): Chat session identifier
         user_query (str): Original user query
         user_description (str, optional): Additional description from user
-        hr_email (str): HR representative email address
+        hr_emails (List[str]): List of HR representative email addresses
         
     Returns:
-        bool: True if email was sent successfully, False otherwise
+        bool: True if email was sent successfully to at least one recipient, False otherwise
     """
     try:
         # Email configuration - Load from environment variables
@@ -76,15 +144,13 @@ def send_hr_escalation_email(escalation_id: str, user_id: str, chat_id: str,
             logger.error("- SENDER_APP_PASSWORD=your_16_character_app_password")
             return False
         
-        # Use HR email from environment or fallback to parameter
-        if hr_email is None:
-            hr_email = os.getenv('HR_EMAIL', 'jwwl6424@gmail.com')
+        # Use provided HR emails or get from mailing list
+        if hr_emails is None or len(hr_emails) == 0:
+            hr_emails = get_hr_mailing_list()
         
-        # Create message
-        message = MIMEMultipart()
-        message["From"] = sender_email
-        message["To"] = hr_email
-        message["Subject"] = f"HR Escalation Alert - {escalation_id}"
+        if not hr_emails:
+            logger.error("No HR emails available for notification")
+            return False
         
         # Create email body
         issue_summary = user_description if user_description else user_query
@@ -123,40 +189,56 @@ Best regards,
 Verztec AI Assistant
         """
         
-        message.attach(MIMEText(email_body, "plain"))
+        # Send email to all HR contacts
+        successful_sends = 0
+        failed_sends = 0
         
-        # Actually send the email
-        try:
-            logger.info(f"Attempting to send email to {hr_email} using SMTP server {smtp_server}:{smtp_port}")
-            server = smtplib.SMTP(smtp_server, smtp_port)
-            logger.info("SMTP connection established")
-            
-            server.starttls()
-            logger.info("TLS encryption started")
-            
-            server.login(sender_email, sender_password)
-            logger.info(f"Successfully logged in as {sender_email}")
-            
-            text = message.as_string()
-            server.sendmail(sender_email, hr_email, text)
-            logger.info("Email sent successfully")
-            
-            server.quit()
-            logger.info("SMTP connection closed")
-            
-            logger.info(f"Email notification successfully sent to HR ({hr_email}) for escalation {escalation_id}")
-            return True
-            
-        except Exception as smtp_error:
-            logger.error(f"SMTP error sending email for {escalation_id}: {str(smtp_error)}")
-            logger.error(f"Error type: {type(smtp_error).__name__}")
-            logger.error(f"Full error details: {repr(smtp_error)}")
-            # Log the email content for debugging
-            logger.info(f"Failed to send - Email Content for {escalation_id}:")
-            logger.info(f"To: {hr_email}")
-            logger.info(f"Subject: HR Escalation Alert - {escalation_id}")
-            logger.info(f"Body: {email_body}")
-            return False
+        for hr_email in hr_emails:
+            try:
+                logger.info(f"Attempting to send email to {hr_email} using SMTP server {smtp_server}:{smtp_port}")
+                
+                # Create message for this recipient
+                message = MIMEMultipart()
+                message["From"] = sender_email
+                message["To"] = hr_email
+                message["Subject"] = f"HR Escalation Alert - {escalation_id}"
+                message.attach(MIMEText(email_body, "plain"))
+                
+                # Send the email
+                server = smtplib.SMTP(smtp_server, smtp_port)
+                logger.info("SMTP connection established")
+                
+                server.starttls()
+                logger.info("TLS encryption started")
+                
+                server.login(sender_email, sender_password)
+                logger.info(f"Successfully logged in as {sender_email}")
+                
+                text = message.as_string()
+                server.sendmail(sender_email, hr_email, text)
+                logger.info(f"Email sent successfully to {hr_email}")
+                
+                server.quit()
+                logger.info("SMTP connection closed")
+                
+                successful_sends += 1
+                logger.info(f"Email notification successfully sent to HR ({hr_email}) for escalation {escalation_id}")
+                
+            except Exception as smtp_error:
+                failed_sends += 1
+                logger.error(f"SMTP error sending email to {hr_email} for {escalation_id}: {str(smtp_error)}")
+                logger.error(f"Error type: {type(smtp_error).__name__}")
+                logger.error(f"Full error details: {repr(smtp_error)}")
+                # Log the email content for debugging
+                logger.info(f"Failed to send to {hr_email} - Email Content for {escalation_id}:")
+                logger.info(f"Subject: HR Escalation Alert - {escalation_id}")
+                logger.info(f"Body: {email_body}")
+        
+        # Return success if at least one email was sent successfully
+        total_recipients = len(hr_emails)
+        logger.info(f"Email sending summary for {escalation_id}: {successful_sends}/{total_recipients} successful, {failed_sends} failed")
+        
+        return successful_sends > 0
         
     except Exception as e:
         logger.error(f"Failed to send HR escalation email for {escalation_id}: {str(e)}")
@@ -575,77 +657,24 @@ def execute_hr_escalation_tool(
         if user_description:
             logger.info(f"User provided detailed description: {user_description[:200]}...")
         
-        # Read mailing list from database
-        try:
-            import mysql.connector
-            from mysql.connector import Error
-            
-            # Database configuration - using same config as userController.js
-            db_config = {
-                'host': 'localhost',
-                'user': 'chatbot_user',
-                'password': 'strong_password',
-                'database': 'chatbot_db'
-            }
-            
-            connection = mysql.connector.connect(**db_config)
-            cursor = connection.cursor()
-            
-            # Query mailing list table
-            cursor.execute("SELECT id, name, email FROM mailing_list")
-            mailing_list_records = cursor.fetchall()
-            
-            # Extract emails and log all found entries
-            email_list = []
-            logger.info(f"Found {len(mailing_list_records)} entries in mailing_list table:")
-            for record in mailing_list_records:
-                record_id, name, email = record
-                if email and email.strip():
-                    email_list.append(email.strip())
-                    logger.info(f"Mailing list entry - ID: {record_id}, Name: {name}, Email: {email}")
-                else:
-                    logger.warning(f"Mailing list entry with empty email - ID: {record_id}, Name: {name}")
-            
-            connection.close()
-            
-            # Filter out duplicates
-            unique_emails = list(set(email_list))
-            logger.info(f"Total unique emails for HR escalation: {len(unique_emails)} - {unique_emails}")
-            
-        except Error as e:
-            logger.error(f"Database error while fetching mailing list: {e}")
-            # Fallback to environment variables if database fails
-            logger.warning("Falling back to environment variable email configuration")
-            email_list = [
-                os.getenv('HR_EMAIL', 'jwwl6424@gmail.com'),
-                os.getenv('HR_EMAIL2', ''),
-                os.getenv('HR_EMAIL3', ''),
-                os.getenv('HR_EMAIL4', '')
-            ]
-            unique_emails = list(set([email.strip() for email in email_list if email.strip()]))
-            logger.info(f"Fallback emails: {unique_emails}")
-        except Exception as e:
-            logger.error(f"Unexpected error while fetching mailing list: {e}")
-            # Fallback to environment variables
-            unique_emails = [os.getenv('HR_EMAIL', 'jwwl6424@gmail.com')]
-            logger.info(f"Emergency fallback to single email: {unique_emails}")
+        # Get HR mailing list using the new function
+        hr_emails = get_hr_mailing_list()
+        logger.info(f"Retrieved {len(hr_emails)} emails from mailing list for HR escalation: {hr_emails}")
 
-        # Send email notification to each HR contact
-        
-        for email in unique_emails:
-            logger.info(f"Sending HR escalation email to: {email}")
-            email_sent = send_hr_escalation_email(
-                escalation_id=escalation_id,
-                user_id=user_id,
-                chat_id=chat_id,
-                user_query=user_query,
-                user_description=user_description,
-                hr_email=email
-            )
-            if email_sent:
-                logger.info(f"Email notification sent to HR for escalation {escalation_id}")
-            else:
-                logger.warning(f"Failed to send email notification for escalation {escalation_id}")
+        # Send email notification to all HR contacts at once
+        logger.info(f"Sending HR escalation email to all contacts: {hr_emails}")
+        email_sent = send_hr_escalation_email(
+            escalation_id=escalation_id,
+            user_id=user_id,
+            chat_id=chat_id,
+            user_query=user_query,
+            user_description=user_description,
+            hr_emails=hr_emails
+        )
+        if email_sent:
+            logger.info(f"Email notifications sent successfully for escalation {escalation_id}")
+        else:
+            logger.warning(f"Failed to send email notifications for escalation {escalation_id}")
             
         # Store HR escalation in dedicated database table if function is provided
         db_success = False

@@ -154,12 +154,165 @@ const getMailingList = async (req, res) => {
     try {
         const connection = await mysql.createConnection(dbConfig);
         const [rows] = await connection.execute(
-            'SELECT id, name, email FROM mailing_list'
+            'SELECT id, name, email FROM mailing_list ORDER BY email'
         );
         await connection.end();
         res.json(rows); // returns an array of {id, name, email}
     } catch (error) {
         console.error('Error fetching mailing list:', error);
+        res.status(500).json({ message: 'Internal server error' });
+    }
+};
+
+// Admin-only: add email to mailing list
+const addToMailingList = async (req, res) => {
+    if (!req.user || req.user.role !== 'admin') {
+        return res.status(403).json({ message: 'Admin access required' });
+    }
+
+    const { email } = req.body;
+    
+    if (!email) {
+        return res.status(400).json({ message: 'Email is required' });
+    }
+
+    // Basic email validation
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email)) {
+        return res.status(400).json({ message: 'Invalid email format' });
+    }
+
+    try {
+        const connection = await mysql.createConnection(dbConfig);
+        
+        // Check if email already exists
+        const [existing] = await connection.execute(
+            'SELECT id FROM mailing_list WHERE email = ?',
+            [email]
+        );
+
+        if (existing.length > 0) {
+            await connection.end();
+            return res.status(400).json({ message: 'Email already exists in mailing list' });
+        }
+
+        // Add email to mailing list
+        const [result] = await connection.execute(
+            'INSERT INTO mailing_list (email) VALUES (?)',
+            [email]
+        );
+
+        await connection.end();
+
+        res.json({ 
+            success: true, 
+            message: 'Email added to mailing list successfully',
+            id: result.insertId 
+        });
+    } catch (error) {
+        console.error('Error adding email to mailing list:', error);
+        res.status(500).json({ message: 'Internal server error' });
+    }
+};
+
+// Admin-only: update email in mailing list
+const updateMailingListEmail = async (req, res) => {
+    if (!req.user || req.user.role !== 'admin') {
+        return res.status(403).json({ message: 'Admin access required' });
+    }
+
+    const { id } = req.params;
+    const { email } = req.body;
+    
+    if (!email) {
+        return res.status(400).json({ message: 'Email is required' });
+    }
+
+    // Basic email validation
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email)) {
+        return res.status(400).json({ message: 'Invalid email format' });
+    }
+
+    try {
+        const connection = await mysql.createConnection(dbConfig);
+        
+        // Check if the ID exists
+        const [existing] = await connection.execute(
+            'SELECT id FROM mailing_list WHERE id = ?',
+            [id]
+        );
+
+        if (existing.length === 0) {
+            await connection.end();
+            return res.status(404).json({ message: 'Email not found in mailing list' });
+        }
+
+        // Check if new email already exists (excluding current record)
+        const [duplicate] = await connection.execute(
+            'SELECT id FROM mailing_list WHERE email = ? AND id != ?',
+            [email, id]
+        );
+
+        if (duplicate.length > 0) {
+            await connection.end();
+            return res.status(400).json({ message: 'Email already exists in mailing list' });
+        }
+
+        // Update email
+        await connection.execute(
+            'UPDATE mailing_list SET email = ? WHERE id = ?',
+            [email, id]
+        );
+
+        await connection.end();
+
+        res.json({ 
+            success: true, 
+            message: 'Email updated successfully' 
+        });
+    } catch (error) {
+        console.error('Error updating email in mailing list:', error);
+        res.status(500).json({ message: 'Internal server error' });
+    }
+};
+
+// Admin-only: delete email from mailing list
+const deleteFromMailingList = async (req, res) => {
+    if (!req.user || req.user.role !== 'admin') {
+        return res.status(403).json({ message: 'Admin access required' });
+    }
+
+    const { id } = req.params;
+
+    try {
+        const connection = await mysql.createConnection(dbConfig);
+        
+        // Check if the ID exists
+        const [existing] = await connection.execute(
+            'SELECT id FROM mailing_list WHERE id = ?',
+            [id]
+        );
+
+        if (existing.length === 0) {
+            await connection.end();
+            return res.status(404).json({ message: 'Email not found in mailing list' });
+        }
+
+        // Delete email
+        await connection.execute(
+            'DELETE FROM mailing_list WHERE id = ?',
+            [id]
+        );
+
+        await connection.end();
+
+        res.json({ 
+            success: true, 
+            message: 'Email deleted from mailing list successfully' 
+        });
+    } catch (error) {
+        console.error('Error deleting email from mailing list:', error);
         res.status(500).json({ message: 'Internal server error' });
     }
 };
@@ -784,5 +937,8 @@ module.exports = {
     getUserFeedback,
     getCompanyAnalytics,
     getAllUsersAnalytics,
-    getMailingList
+    getMailingList,
+    addToMailingList,
+    updateMailingListEmail,
+    deleteFromMailingList
 };
