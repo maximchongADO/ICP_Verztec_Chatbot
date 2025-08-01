@@ -1345,8 +1345,31 @@ function escapeHtml(text) {
 }
 
 function logout() {
+  // Clear authentication data
   localStorage.removeItem("token");
   localStorage.removeItem("userId");
+  
+  // Clear all chat-related data to prevent cross-user chat display
+  clearChatFromLocalStorage();
+  
+  // Clear any remaining chat-related items
+  sessionStorage.removeItem("chat_id");
+  localStorage.removeItem("chat_id");
+  localStorage.removeItem("chat_id_timestamp");
+  
+  // Clear chat messages for current chat_id if it exists
+  const currentChatId = sessionStorage.getItem("chat_id") || localStorage.getItem("chat_id");
+  if (currentChatId) {
+    localStorage.removeItem(`chat_messages_${currentChatId}`);
+    localStorage.removeItem(`chat_messages_${currentChatId}_timestamp`);
+  }
+  
+  // Clear the chat display
+  const chatMessagesContainer = document.getElementById("chat-messages");
+  if (chatMessagesContainer) {
+    chatMessagesContainer.innerHTML = "";
+  }
+  
   window.location.href = "/login.html";
 }
 
