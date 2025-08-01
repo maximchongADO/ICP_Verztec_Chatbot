@@ -968,8 +968,8 @@ def check_query_relevance_to_verztec(query: str, user_index):
         classification_prompt = f"""You are a query classifier for a workplace helpdesk system. Classify the following user query into one of three categories:
 
             1. "relevant" - Work-related queries about HR, IT, policies, procedures, workplace matters
-            2. "general" - Casual greetings, small talk, friendly conversation (e.g., "hi", "hello", "how are you", "good morning")  
-            3. "irrelevant" - Completely unrelated topics (movies, sports, cooking, weather, random facts, etc.)
+            2. "general" - Casual greetings, small talk, friendly conversation (e.g., "hi", "hello", "how are you", "good morning")  ONLY CLASSIFY GENERAL GREETINGS AS "general" DO NOT ATTEMPT TO ANSWER QUESTIONS PAST THAT
+            3. "irrelevant" - Completely unrelated topics (animals, jokes, movies, sports, songs, cooking, weather, random facts, etc.)
 
             Query: "{query}"
 
@@ -2585,7 +2585,7 @@ def generate_answer_histoy_retrieval(user_query: str, user_id:str, chat_id:str):
         
         # Allow general queries to proceed to QA chain instead of being dismissed
         if query_classification == 'general':
-            should_dismiss_completely = True 
+            should_dismiss_completely = False 
             should_suggest = False
             logger.info(f"General query detected - allowing to skip to QA chain for friendly response")
         
