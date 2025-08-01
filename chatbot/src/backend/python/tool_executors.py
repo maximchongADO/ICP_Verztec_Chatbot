@@ -130,7 +130,7 @@ def send_hr_escalation_email(escalation_id: str, user_id: str, chat_id: str,
     """
     try:
         # Email configuration - Load from environment variables
-        # IMPORTANT: Configure these in your .env file!
+      
         smtp_server = os.getenv('SMTP_SERVER', 'smtp.gmail.com')
         smtp_port = int(os.getenv('SMTP_PORT', 587))
         sender_email = os.getenv('SENDER_EMAIL')
@@ -156,38 +156,38 @@ def send_hr_escalation_email(escalation_id: str, user_id: str, chat_id: str,
         issue_summary = user_description if user_description else user_query
         
         email_body = f"""
-HR ESCALATION ALERT
+            HR ESCALATION ALERT
 
-A new HR escalation has been submitted and requires your attention.
+            A new HR escalation has been submitted and requires your attention.
 
-ESCALATION DETAILS:
-• Reference ID: {escalation_id}
-• Date & Time: {datetime.now().strftime('%B %d, %Y at %I:%M %p')}
-• User ID: {user_id}
-• Chat ID: {chat_id}
+            ESCALATION DETAILS:
+            • Reference ID: {escalation_id}
+            • Date & Time: {datetime.now().strftime('%B %d, %Y at %I:%M %p')}
+            • User ID: {user_id}
+            • Chat ID: {chat_id}
 
-ORIGINAL QUERY:
-{user_query}
+            ORIGINAL QUERY:
+            {user_query}
 
-{f'''
-DETAILED DESCRIPTION:
-{user_description}
-''' if user_description else ''}
+            {f'''
+            DETAILED DESCRIPTION:
+            {user_description}
+            ''' if user_description else ''}
 
-ISSUE SUMMARY:
-{issue_summary[:500]}{'...' if len(issue_summary) > 500 else ''}
+            ISSUE SUMMARY:
+            {issue_summary[:500]}{'...' if len(issue_summary) > 500 else ''}
 
-PRIORITY: NORMAL
-STATUS: PENDING
+            PRIORITY: NORMAL
+            STATUS: PENDING
 
-Please log into the HR system to review this escalation and take appropriate action.
-The user has been informed that HR will contact them within 24 hours.
+            Please log into the HR system to review this escalation and take appropriate action.
+            The user has been informed that HR will contact them within 24 hours.
 
-For urgent matters, please contact the user directly using the provided User ID.
+            For urgent matters, please contact the user directly using the provided User ID.
 
-Best regards,
-Verztec AI Assistant
-        """
+            Best regards,
+            Verztec AI Assistant
+                    """
         
         # Send email to all HR contacts
         successful_sends = 0

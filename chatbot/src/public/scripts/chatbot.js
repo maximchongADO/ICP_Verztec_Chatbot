@@ -156,7 +156,9 @@ function addMessageFromStorage(messageData) {
     if (messageData.images && messageData.images.length > 0) {
       imagesHtml = `<div class="ai-message-images">` +
         messageData.images.map(filename => {
-          return `<img src="/data/images/${filename}" alt="${filename}" class="chat-image" />`;
+          // Handle different image sources - if it starts with 'images/', serve from public, otherwise from data/images
+          const imageSrc = filename.startsWith('images/') ? `/${filename}` : `/data/images/${filename}`;
+          return `<img src="${imageSrc}" alt="${filename}" class="chat-image" />`;
         }).join("") +
         `</div>`;
     }
@@ -304,7 +306,12 @@ function sendMessage() {
           tool_used: response.tool_used || false,
           tool_identified: response.tool_identified || "none",
           tool_confidence: response.tool_confidence || "",
-          original_message: message // Store original message for reprocessing
+          original_message: message, // Store original message for reprocessing
+          suggestions: response.suggestions || [], // Include AI-generated suggestions
+          has_suggestions: response.has_suggestions || false, // Include suggestion flag
+          suggestion_type: response.suggestion_type || 'none', // Include suggestion type
+          likely_topic: response.likely_topic || null, // Include likely topic
+          intent_level: response.intent_level || 'none' // Include intent level
         };
         
         addMessage(messageData, "bot");
@@ -614,7 +621,12 @@ async function callChatbotAPI(message,
         sources: data.sources || [], // Include sources data
         tool_used: data.tool_used || false, // Include tool_used flag
         tool_identified: data.tool_identified || "none", // Include tool identification
-        tool_confidence: data.tool_confidence || "" // Include tool confidence
+        tool_confidence: data.tool_confidence || "", // Include tool confidence
+        suggestions: data.suggestions || [], // Include AI-generated suggestions
+        has_suggestions: data.has_suggestions || false, // Include suggestion flag
+        suggestion_type: data.suggestion_type || 'none', // Include suggestion type
+        likely_topic: data.likely_topic || null, // Include likely topic
+        intent_level: data.intent_level || 'none' // Include intent level
       };
     } else {
       throw new Error("Invalid response format from chatbot");
@@ -865,6 +877,11 @@ function addMessage(textOrResponse, sender, isHistorical = false) {
   let tool_identified = "none";
   let tool_confidence = "";
   let original_message = null;
+  let suggestions = [];
+  let has_suggestions = false;
+  let suggestion_type = 'none';
+  let likely_topic = null;
+  let intent_level = 'none';
 
   // Check if it's an object with message and images
   if (typeof textOrResponse === "object" && textOrResponse !== null && "message" in textOrResponse) {
@@ -874,6 +891,11 @@ function addMessage(textOrResponse, sender, isHistorical = false) {
     tool_identified = textOrResponse.tool_identified || "none";
     tool_confidence = textOrResponse.tool_confidence || "";
     original_message = textOrResponse.original_message || null;
+    suggestions = textOrResponse.suggestions || [];
+    has_suggestions = textOrResponse.has_suggestions || false;
+    suggestion_type = textOrResponse.suggestion_type || 'none';
+    likely_topic = textOrResponse.likely_topic || null;
+    intent_level = textOrResponse.intent_level || 'none';
   } 
   
   // NEW: If it's a plain image filename string like "example.png"
@@ -955,11 +977,27 @@ function addMessage(textOrResponse, sender, isHistorical = false) {
     `;
   }
 
+  // Add suggestion HTML if suggestions are available
+  let suggestionsHtml = "";
+  if (has_suggestions && Array.isArray(suggestions) && suggestions.length > 0) {
+    suggestionsHtml = `
+      <div class="inline-suggestions">
+        <div class="suggestion-label">💡 Did you mean:</div>
+        <div class="suggestion-pills">
+          ${suggestions.map(suggestion => 
+            `<button class="suggestion-pill" onclick="sendSuggestion('${escapeHtml(suggestion).replace(/'/g, "&#39;")}')">${escapeHtml(suggestion)}</button>`
+          ).join('')}
+        </div>
+      </div>
+    `;
+  }
+
   messageDiv.innerHTML = `
     <div class="ai-message-avatar"></div>
     <div class="message-content ai-message">
       ${formatBoldText(text)}${imagesHtml}
       ${confirmationHtml}
+      ${suggestionsHtml}
       <button class="copy-btn" title="Copy response" onclick="copyMessage(this)">📋</button>
     </div>
     <div class="feedback-buttons">
