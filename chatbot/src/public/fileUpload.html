@@ -1192,6 +1192,12 @@
         margin: 0 auto 1rem;
       }
 
+      .loading-text {
+        margin: 0;
+        animation: none !important;
+        transform: none !important;
+      }
+
       @keyframes spin {
         0% { transform: rotate(0deg); }
         100% { transform: rotate(360deg); }
@@ -1705,7 +1711,6 @@
                     
                     <div id="faissLoadingSpinner" class="loading-spinner" style="display: none;">
                         <div class="spinner"></div>
-                        <p>Loading knowledge base data...</p>
                     </div>
                     
                     <div id="faissStats" class="faiss-stats" style="display: none;">

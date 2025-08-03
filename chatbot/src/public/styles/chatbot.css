@@ -1593,11 +1593,11 @@ svg,
     margin-top: 12px;
     margin-left: 44px;
     justify-content: flex-start;
-    opacity: 0;
+    opacity: 1;
     transition: all 0.3s ease;
     pointer-events: auto;
     z-index: 2;
-    transform: translateY(5px);
+    transform: translateY(0);
 }
 
 .ai-message:hover .feedback-buttons {
