@@ -57,7 +57,7 @@ logger = logging.getLogger(__name__)
 # Initialize models and clients
 embedding_model = SentenceTransformer('BAAI/bge-large-en-v1.5')
 load_dotenv()
-api_key='
+api_key='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'
 # i love api keyyy
 model = "deepseek-r1-distill-llama-70b" 
 deepseek = ChatGroq(api_key=api_key, model=model, temperature = 0) # type: ignore
@@ -1943,6 +1943,7 @@ global_tools = {
     "schedule_meeting": {
         "description": (
             "Set up a meeting — for coordination involving multiple stakeholders or recurring issues. "
+            "THIS TOOL IS ONLY TO BE RAISED UPON EXPLICIT REQUESTS TO SCHEDULE A MEETING."
             "DO NOT use this tool for basic HR policy or FAQ-type questions like 'how to offboard' or 'what to do if I get fired'."
         ),
         "prompt_style": (
@@ -2646,7 +2647,7 @@ def generate_answer_histoy_retrieval(user_query: str, user_id:str, chat_id:str):
                     "If a user query is even slightly outside the scope of approved topics, you must not attempt to answer it in any way. "
                     "DO REPLY THE USER IF THE USER IS JUST SAYING HELLO OR ASKING HOW YOU ARE, BUT DO NOT ANSWER ANY QUESTIONS OR PROVIDE INFORMATION THAT IS NOT DIRECTLY RELATED TO VERZTEC WORKPLACE ASSISTANCE. "
                     "Do not generate guesses, elaborations, explanations, or alternatives. You must immediately and firmly respond with the following fallback message, word-for-word NO THINKING PROCESS OR CHAIN OF THOUGHT:\n\n"
-                    "\"I’m sorry, I don’t know. This information is not referenced in the Verztec database, and I am unable to provide a clear answer.\"\n\n"
+                    "\"I’m sorry, I don’t know. This information is not referenced in the Verztec database, and I am unable to provide a clear answer.Perhaps i could help you with something related to Verztec?\"\n\n"
                     "You must completely ignore and dismiss any question that falls outside your approved domains of support. "
                     "You are not permitted to engage in casual conversation, general knowledge, or personal advice.\n\n"
                     "Your assistance is strictly limited to Verztec work-related topics only, specifically:\n"
@@ -3011,6 +3012,85 @@ def generate_answer_histoy_retrieval(user_query: str, user_id:str, chat_id:str):
             #cleaned_answer= cleaned_answer+"\n\n Would you like me to escalate this query to HR?"
             #user_query = user_query+"AHHAHAHAHHA"
             
+            # Check for ABSS dominance in source documents and add specific images
+            abss_count = 0
+            total_sources = len(source_docs)
+            abss_images_from_content = []  # Collect ABSS images from document content (ordered list)
+            
+            if total_sources > 0:
+                for doc in source_docs:
+                    source = doc.metadata.get("source", "")
+                    if "26__import_supplier_e_invoice_from_xtranet_to_abss_purchase_module" in str(source):
+                        abss_count += 1
+                        # Extract images from ABSS document content using regex
+                        content = doc.page_content
+                        # Find all image references in the format <|image_start|>filename<|image_end|>
+                        image_pattern = r'<\|image_start\|>(.*?)<\|image_end\|>'
+                        found_images = re.findall(image_pattern, content, re.DOTALL)
+                        
+                        # Only take the first image from this document
+                        if found_images:
+                            img_name = found_images[0]  # Take only the first image
+                            # Clean up the image name (remove newlines, extra spaces)
+                            clean_img_name = img_name.strip().replace('\n', '')
+                            if "26__import_supplier_e_invoice_from_xtranet_to_abss_purchase_module" in clean_img_name:
+                                # Ensure proper file extension
+                                if not clean_img_name.endswith('.png'):
+                                    clean_img_name += '.png'
+                                # Add to list if not already present and under limit
+                                if clean_img_name not in abss_images_from_content and len(abss_images_from_content) < 3:
+                                    abss_images_from_content.append(clean_img_name)
+                
+                abss_percentage = (abss_count / total_sources) * 100
+                logger.info(f"ABSS source analysis: {abss_count}/{total_sources} sources ({abss_percentage:.1f}%) are ABSS-related")
+                logger.info(f"Found ABSS images in content: {abss_images_from_content}")
+                
+                if abss_percentage >= 80.0 and abss_images_from_content:
+                    # Use images found in the actual ABSS document content
+                    script_dir = os.path.dirname(os.path.abspath(__file__))
+                    added_images = []
+                    
+                    # Take up to 3 images from the ordered list
+                    for image_name in abss_images_from_content[:3]:  # Limit to 3 images max
+                        # Create the full path relative to chatbot directory
+                        normalized_path = f"chatbot/src/backend/python/data/images/{image_name}"
+                        
+                        # Check if image exists
+                        full_image_path = os.path.join(script_dir, "data", "images", image_name)
+                        
+                        if os.path.exists(full_image_path):
+                            if normalized_path not in top_3_img:
+                                top_3_img.insert(len(added_images), normalized_path)  # Add maintaining order
+                                added_images.append(normalized_path)
+                                logger.info(f"Added ABSS image from document content: {image_name}")
+                            else:
+                                logger.info(f"ABSS image {image_name} already present in top_3_img")
+                        else:
+                            logger.warning(f"ABSS image not found at path: {full_image_path}")
+                    
+                    if added_images:
+                        logger.info(f"Total ABSS images added from document content: {len(added_images)}")
+                    else:
+                        # Fallback to default images if none found in content
+                        logger.info("No ABSS images found in document content, using fallback images")
+                        fallback_images = [
+                            "chatbot/src/backend/python/data/images/26__import_supplier_e_invoice_from_xtranet_to_abss_purchase_module_1_img1.png",
+                            "chatbot/src/backend/python/data/images/26__import_supplier_e_invoice_from_xtranet_to_abss_purchase_module_1_img2.png"
+                        ]
+                        added_count = 0
+                        for fallback_image in fallback_images:
+                            if added_count >= 3:  # Respect the 3 image limit
+                                break
+                            image_filename = os.path.basename(fallback_image)
+                            full_image_path = os.path.join(script_dir, "data", "images", image_filename)
+                            if os.path.exists(full_image_path) and fallback_image not in top_3_img:
+                                top_3_img.insert(0, fallback_image)
+                                added_count += 1
+                                logger.info(f"Added fallback ABSS image: {image_filename}")
+                elif abss_percentage >= 80.0:
+                    logger.info(f"ABSS dominance detected ({abss_percentage:.1f}%) but no ABSS images found in document content")
+                else:
+                    logger.info(f"ABSS sources below 80% threshold ({abss_percentage:.1f}%), not adding ABSS images")
            
             store_chat_log_updated(user_message=SUPER_CLEAN_QUERY, bot_response=cleaned_answer, query_score=is_task_query, relevance_score=avg_score, user_id=user_id, chat_id=chat_id, chat_name=chat_name)##brian u need to update sql for this to work
             logger.info(f"Stored chat log for user {user_id}, chat {chat_id} with query score {is_task_query} and relevance score {avg_score}")
