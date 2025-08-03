@@ -1819,13 +1819,77 @@ function handleFeedback(button, isPositive) {
 
     const feedbackGroup = button.closest('.feedback-buttons');
     if (!feedbackGroup) return;
-    const userMessageDiv = document.createElement('div');
-    userMessageDiv.className = 'message message-user';
-    userMessageDiv.innerHTML = `
-        <div class="user-message-avatar"></div>
-        <div class="message-content user-message">${escapeHtml(userMessage)}</div>
-    `;
-    chatMessages.appendChild(userMessageDiv);
+
+    // Disable all buttons in this feedback group to prevent double submission
+    feedbackGroup.querySelectorAll('.feedback-btn').forEach(btn => {
+        btn.disabled = true;
+        btn.classList.remove('selected');
+    });
+
+    // Mark the clicked button as selected
+    button.classList.add('selected');
+
+    // Prepare feedback data
+    const feedbackValue = isPositive ? 'helpful' : 'not helpful';
+    const feedbackData = {
+        feedback: feedbackValue,
+        chat_id: currentChatId || null
+    };
+
+    // Show loading state
+    const tempMessage = document.createElement('div');
+    tempMessage.style.cssText = 'font-size: 12px; color: #666; margin-top: 8px; font-style: italic;';
+    tempMessage.textContent = 'Submitting feedback...';
+    feedbackGroup.appendChild(tempMessage);
+
+    // Send feedback to backend
+    fetch('/api/chatbot/feedback', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${localStorage.getItem('token')}`
+        },
+        body: JSON.stringify(feedbackData)
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            // Success feedback
+            tempMessage.textContent = isPositive ? 
+                'Thanks for your feedback!' : 
+                'Thank you, we\'ll work to improve!';
+            tempMessage.style.color = '#4ade80'; // green color
+        } else {
+            // Error feedback
+            tempMessage.textContent = 'Failed to submit feedback. Please try again.';
+            tempMessage.style.color = '#ef4444'; // red color
+            
+            // Re-enable buttons on error
+            feedbackGroup.querySelectorAll('.feedback-btn').forEach(btn => {
+                btn.disabled = false;
+            });
+            button.classList.remove('selected');
+        }
+    })
+    .catch(error => {
+        console.error('Error submitting feedback:', error);
+        tempMessage.textContent = 'Failed to submit feedback. Please try again.';
+        tempMessage.style.color = '#ef4444'; // red color
+        
+        // Re-enable buttons on error
+        feedbackGroup.querySelectorAll('.feedback-btn').forEach(btn => {
+            btn.disabled = false;
+        });
+        button.classList.remove('selected');
+    })
+    .finally(() => {
+        // Remove temporary message after 3 seconds
+        setTimeout(() => {
+            if (tempMessage.parentNode) {
+                tempMessage.remove();
+            }
+        }, 3000);
+    });
 }
 
 // Render AI message with copy button

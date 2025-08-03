@@ -316,7 +316,8 @@ const clearChatHistory = async (req, res) => {
 // Handle feedback from user
 const handleFeedback = async (req, res) => {
     try {
-        const { feedback } = req.body;
+        const { feedback, chat_id, message_id } = req.body;
+        const userId = req.user?.userId || req.user?.id || req.user?.sub;
 
         if (!feedback) {
             return res.status(400).json({
@@ -326,13 +327,33 @@ const handleFeedback = async (req, res) => {
         }
 
         const connection = await mysql.createConnection(dbConfig);
-        await connection.execute(
-            `UPDATE chat_logs
-             SET feedback = ?
-             ORDER BY timestamp DESC
-             LIMIT 1`,
-            [feedback]
-        );
+        
+        // Update feedback for specific user and chat if provided, otherwise use most recent
+        let query, params;
+        if (chat_id && userId) {
+            query = `UPDATE chat_logs
+                     SET feedback = ?
+                     WHERE user_id = ? AND chat_id = ? AND sender = 'bot'
+                     ORDER BY timestamp DESC
+                     LIMIT 1`;
+            params = [feedback, userId, chat_id];
+        } else if (userId) {
+            query = `UPDATE chat_logs
+                     SET feedback = ?
+                     WHERE user_id = ? AND sender = 'bot'
+                     ORDER BY timestamp DESC
+                     LIMIT 1`;
+            params = [feedback, userId];
+        } else {
+            query = `UPDATE chat_logs
+                     SET feedback = ?
+                     WHERE sender = 'bot'
+                     ORDER BY timestamp DESC
+                     LIMIT 1`;
+            params = [feedback];
+        }
+
+        await connection.execute(query, params);
         await connection.end();
 
         res.json({
