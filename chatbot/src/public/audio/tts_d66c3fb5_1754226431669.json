@@ -1,0 +1,14 @@
+{
+  "metadata": {
+    "soundFile": "C:\\Users\\Jacobs laptop\\ICP_Verztec_Chatbot-2\\chatbot\\src\\public\\audio\\tts_d66c3fb5_1754226431669.wav",
+    "duration": 1.17
+  },
+  "mouthCues": [
+    { "start": 0.00, "end": 0.09, "value": "X" },
+    { "start": 0.09, "end": 0.13, "value": "B" },
+    { "start": 0.13, "end": 0.17, "value": "G" },
+    { "start": 0.17, "end": 0.31, "value": "C" },
+    { "start": 0.31, "end": 1.01, "value": "B" },
+    { "start": 1.01, "end": 1.17, "value": "X" }
+  ]
+}

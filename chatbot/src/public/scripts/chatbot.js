@@ -67,7 +67,7 @@ function saveChatToLocalStorage() {
       if (!isUser) {
         let htmlContent = messageContent.innerHTML;
         // Remove copy button and feedback buttons
-        htmlContent = htmlContent.replace(/<button[^>]*copy-btn[^>]*>.*?<\/button>/g, '');
+        htmlContent = htmlContent.replace(/<button[^>]*copy-btn[^>]*>.*?<\/button>/g, '');  
         htmlContent = htmlContent.replace(/<div[^>]*feedback-buttons[^>]*>.*?<\/div>/g, '');
         messageData.html = htmlContent;
       }

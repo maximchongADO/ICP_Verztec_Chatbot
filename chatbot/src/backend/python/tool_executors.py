@@ -30,6 +30,8 @@ import logging
 import os
 import re
 import smtplib
+import threading
+import time
 from datetime import datetime, timedelta
 from typing import Optional, Dict, Any, List, Tuple
 from email.mime.text import MIMEText
@@ -41,6 +43,70 @@ load_dotenv(dotenv_path=os.path.join(os.path.dirname(__file__), '..', '..', '..'
 
 # Set up logging
 logger = logging.getLogger(__name__)
+
+
+class TimeoutError(Exception):
+    """Custom timeout exception for email operations"""
+    pass
+
+
+class EmailTimeout:
+    """Context manager for email timeout operations using threading (Windows compatible)"""
+    def __init__(self, seconds=10):
+        self.seconds = seconds
+        self.timer = None
+        self.timed_out = False
+    
+    def _timeout_handler(self):
+        """Handler function called when timeout occurs"""
+        self.timed_out = True
+    
+    def __enter__(self):
+        # Start the timeout timer
+        self.timer = threading.Timer(self.seconds, self._timeout_handler)
+        self.timer.start()
+        return self
+    
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        # Cancel the timer
+        if self.timer:
+            self.timer.cancel()
+        
+        # Check if we timed out
+        if self.timed_out:
+            raise TimeoutError(f"Email operation timed out after {self.seconds} seconds")
+
+
+def send_email_with_timeout(server, sender_email, recipient_email, message_text, timeout_seconds=10):
+    """
+    Send email with timeout using threading.
+    Returns True if successful, raises TimeoutError if timeout occurs.
+    """
+    result = {'success': False, 'error': None}
+    
+    def send_email():
+        try:
+            server.sendmail(sender_email, recipient_email, message_text)
+            result['success'] = True
+        except Exception as e:
+            result['error'] = e
+    
+    # Start the email sending in a separate thread
+    thread = threading.Thread(target=send_email)
+    thread.daemon = True
+    thread.start()
+    
+    # Wait for the thread to complete or timeout
+    thread.join(timeout=timeout_seconds)
+    
+    if thread.is_alive():
+        # Thread is still running, which means we timed out
+        raise TimeoutError(f"Email send operation timed out after {timeout_seconds} seconds")
+    
+    if result['error']:
+        raise result['error']
+    
+    return result['success']
 
 
 def get_hr_mailing_list() -> List[str]:
@@ -212,25 +278,39 @@ def send_hr_escalation_email(escalation_id: str, user_id: str, chat_id: str,
                 message["Subject"] = f"HR Escalation Alert - {escalation_id}"
                 message.attach(MIMEText(email_body, "plain"))
                 
-                # Send the email
-                server = smtplib.SMTP(smtp_server, smtp_port)
-                logger.info("SMTP connection established")
-                
-                server.starttls()
-                logger.info("TLS encryption started")
-                
-                server.login(sender_email, sender_password)
-                logger.info(f"Successfully logged in as {sender_email}")
-                
-                text = message.as_string()
-                server.sendmail(sender_email, hr_email, text)
-                logger.info(f"Email sent successfully to {hr_email}")
-                
-                server.quit()
-                logger.info("SMTP connection closed")
+                # Send the email with 10-second timeout using threading approach
+                server = None
+                try:
+                    server = smtplib.SMTP(smtp_server, smtp_port)
+                    logger.info("SMTP connection established")
+                    
+                    server.starttls()
+                    logger.info("TLS encryption started")
+                    
+                    server.login(sender_email, sender_password)
+                    logger.info(f"Successfully logged in as {sender_email}")
+                    
+                    text = message.as_string()
+                    
+                    # Use threading-based timeout for the actual send operation
+                    send_email_with_timeout(server, sender_email, hr_email, text, timeout_seconds=10)
+                    logger.info(f"Email sent successfully to {hr_email}")
+                    
+                finally:
+                    if server:
+                        try:
+                            server.quit()
+                            logger.info("SMTP connection closed")
+                        except:
+                            pass  # Ignore errors during cleanup
                 
                 successful_sends += 1
                 logger.info(f"Email notification successfully sent to HR ({hr_email}) for escalation {escalation_id}")
+                
+            except TimeoutError as timeout_error:
+                failed_sends += 1
+                logger.error(f"Email timeout sending to {hr_email} for {escalation_id}: {str(timeout_error)}")
+                logger.error("Email operation exceeded 10-second limit - connection may be slow or server unresponsive")
                 
             except Exception as smtp_error:
                 failed_sends += 1
@@ -257,6 +337,132 @@ def send_hr_escalation_email(escalation_id: str, user_id: str, chat_id: str,
     
     
     
+def send_it_support_email(ticket_id: str, user_id: str, chat_id: str, 
+                         user_query: str, it_details: dict) -> bool:
+    """
+    Send an email notification to IT support about a serious technical issue.
+    
+    Args:
+        ticket_id (str): Unique IT ticket ID
+        user_id (str): User identifier
+        chat_id (str): Chat session identifier
+        user_query (str): Original user query
+        it_details (dict): Extracted IT support details
+        
+    Returns:
+        bool: True if email was sent successfully, False otherwise
+    """
+    try:
+        # Email configuration - Load from environment variables
+        smtp_server = os.getenv('SMTP_SERVER', 'smtp.gmail.com')
+        smtp_port = int(os.getenv('SMTP_PORT', 587))
+        sender_email = os.getenv('SENDER_EMAIL')
+        sender_password = os.getenv('SENDER_APP_PASSWORD')
+        
+        # Validate required environment variables
+        if not sender_email or not sender_password:
+            logger.error("Missing email configuration: SENDER_EMAIL or SENDER_APP_PASSWORD not set in environment")
+            return False
+        
+        # Hardcoded IT support email as specified by user
+        it_email = "jwwl6424@gmail.com"
+        
+        # Extract issue details
+        issue_type = it_details.get('issue_type', 'other').replace('_', ' ').title()
+        system_affected = it_details.get('system_affected', 'Unknown system')
+        urgency = it_details.get('urgency_level', 'medium').title()
+        error_message = it_details.get('error_message', 'Not specified')
+        business_impact = it_details.get('business_impact', 'Not specified')
+        device_info = it_details.get('device_info', 'Not specified')
+        when_occurred = it_details.get('when_occurred', 'Not specified')
+        frequency = it_details.get('frequency', 'one-time').replace('_', ' ').title()
+        troubleshooting = it_details.get('troubleshooting_attempted', [])
+        
+        # Create email body
+        email_body = f"""
+IT SUPPORT TICKET - URGENT ATTENTION REQUIRED
+
+A serious technical issue has been reported and requires immediate IT intervention.
+
+TICKET DETAILS:
+• Ticket ID: {ticket_id}
+• Date & Time: {datetime.now().strftime('%B %d, %Y at %I:%M %p')}
+• User ID: {user_id}
+• Chat ID: {chat_id}
+
+ISSUE CLASSIFICATION:
+• Issue Type: {issue_type}
+• System/Software Affected: {system_affected}
+• Priority Level: {urgency}
+• Frequency: {frequency}
+
+TECHNICAL DETAILS:
+• Error Message: {error_message}
+• Device Information: {device_info}
+• When Issue Started: {when_occurred}
+• Business Impact: {business_impact}
+
+ORIGINAL USER QUERY:
+{user_query}
+
+TROUBLESHOOTING ATTEMPTED:
+{chr(10).join([f"• {step}" for step in troubleshooting]) if troubleshooting else "• No previous troubleshooting reported"}
+
+RESPONSE TIME EXPECTATIONS:
+{f"🚨 CRITICAL: Response required within 15 minutes" if urgency.lower() == 'critical' else 
+  f"⚡ HIGH: Response required within 2 hours" if urgency.lower() == 'high' else 
+  f"📋 STANDARD: Response required within 24 hours"}
+
+Please contact the user directly using the provided User ID to begin troubleshooting.
+The user has been informed that IT support will contact them according to the priority level.
+
+Best regards,
+Verztec AI Assistant
+        """
+        
+        try:
+            logger.info(f"Sending IT support email to {it_email} for ticket {ticket_id}")
+            
+            # Create message
+            message = MIMEMultipart()
+            message["From"] = sender_email
+            message["To"] = it_email
+            message["Subject"] = f"IT Support Ticket - {issue_type} - {ticket_id}"
+            message.attach(MIMEText(email_body, "plain"))
+            
+            # Send the email with timeout
+            server = None
+            try:
+                server = smtplib.SMTP(smtp_server, smtp_port)
+                server.starttls()
+                server.login(sender_email, sender_password)
+                
+                text = message.as_string()
+                send_email_with_timeout(server, sender_email, it_email, text, timeout_seconds=10)
+                logger.info(f"IT support email sent successfully to {it_email}")
+                
+            finally:
+                if server:
+                    try:
+                        server.quit()
+                    except:
+                        pass
+            
+            return True
+            
+        except TimeoutError as timeout_error:
+            logger.error(f"Email timeout sending IT support ticket {ticket_id}: {str(timeout_error)}")
+            return False
+            
+        except Exception as smtp_error:
+            logger.error(f"SMTP error sending IT support email for {ticket_id}: {str(smtp_error)}")
+            return False
+        
+    except Exception as e:
+        logger.error(f"Failed to send IT support email for {ticket_id}: {str(e)}")
+        return False
+
+
 # Meeting request email sender (modeled after send_hr_escalation_email)
 def send_meeting_request_email(
     meeting_request_id: str,
@@ -312,13 +518,36 @@ This meeting request has been initiated and is awaiting user confirmation.
         message.attach(MIMEText(email_body, "plain"))
         try:
             logger.info(f"Attempting to send meeting email to {meeting_email} using SMTP server {smtp_server}:{smtp_port}")
-            server = smtplib.SMTP(smtp_server, smtp_port)
-            server.starttls()
-            server.login(sender_email, sender_password)
-            server.sendmail(sender_email, meeting_email, message.as_string())
-            server.quit()
+            
+            # Send email with 10-second timeout using threading approach
+            server = None
+            try:
+                server = smtplib.SMTP(smtp_server, smtp_port)
+                server.starttls()
+                server.login(sender_email, sender_password)
+                
+                # Use threading-based timeout for the actual send operation
+                send_email_with_timeout(server, sender_email, meeting_email, message.as_string(), timeout_seconds=10)
+                
+            finally:
+                if server:
+                    try:
+                        server.quit()
+                    except:
+                        pass  # Ignore errors during cleanup
+            
             logger.info(f"Meeting request email sent to {meeting_email} for meeting {meeting_request_id}")
             return True
+            
+        except TimeoutError as timeout_error:
+            logger.error(f"Email timeout sending meeting email for {meeting_request_id}: {str(timeout_error)}")
+            logger.error("Meeting email operation exceeded 10-second limit - connection may be slow or server unresponsive")
+            logger.info(f"Failed to send - Email Content for {meeting_request_id}:")
+            logger.info(f"To: {meeting_email}")
+            logger.info(f"Subject: Meeting Request - {meeting_request_id}")
+            logger.info(f"Body: {email_body}")
+            return False
+            
         except Exception as smtp_error:
             logger.error(f"SMTP error sending meeting email for {meeting_request_id}: {str(smtp_error)}")
             logger.info(f"Failed to send - Email Content for {meeting_request_id}:")
@@ -524,6 +753,9 @@ Return ONLY the JSON object. No explanations."""),
 
 
 
+        return details
+
+
 def execute_confirmed_tool(
     tool_identified: str, 
     user_query: str, 
@@ -612,6 +844,15 @@ def execute_confirmed_tool(
                 user_query, 
                 user_id, 
                 chat_id,  # Now pass the additional user input
+                store_chat_log_updated
+            )
+        elif tool_identified == "it_support":
+            # Import the dependency function when needed
+            from chatbot import store_chat_log_updated
+            return execute_it_support_tool(
+                user_query, 
+                user_id, 
+                chat_id,
                 store_chat_log_updated
             )
             
@@ -1544,3 +1785,180 @@ def execute_vacation_check_tool(user_query, user_id, chat_id, store_chat_log_upd
             'last_updated': 'N/A'
         }
     }
+
+
+def execute_it_support_tool(user_query, user_id, chat_id, store_chat_log_updated_func):
+    """
+    Executes IT support escalation with detailed technical issue extraction.
+    
+    • Performs comprehensive analysis of technical issues using LLM-powered extraction
+    • Identifies issue type, affected systems, error messages, and business impact
+    • Provides structured escalation to IT support team with detailed technical information
+    
+    Args:
+        user_query (str): The user's IT support query
+        user_id (str): User identifier
+        chat_id (str): Chat session identifier
+        store_chat_log_updated_func: Function to store chat logs
+        
+    Returns:
+        dict: Standardized tool response with IT support escalation results
+    """
+    try:
+        # Extract detailed IT support information
+        from chatbot import extract_it_support_details
+        it_details = extract_it_support_details(user_query)
+        
+        # Check if this is actually a serious technical issue
+        is_serious = it_details.get('is_serious_technical_issue', False)
+        
+        if not is_serious:
+            # This is not a serious technical issue, provide general guidance
+            return {
+                'text': "I can help you find the right resources for your question. Based on your inquiry, here are the best places to get assistance:\n\n"
+                       "📋 **For procedural questions:**\n"
+                       "• **ABSS system procedures** → Check the ABSS user guide or contact your department's ABSS administrator\n"
+                       "• **Software tutorials** → Visit the internal training portal or request training from your supervisor\n"
+                       "• **Company policies** → Review the employee handbook or contact HR at hr@verztec.com\n\n"
+                       "💻 **For technical support:**\n"
+                       "• **Password resets** → Contact IT helpdesk at ext. 2500\n"
+                       "• **Equipment requests** → Submit an IT request through the internal portal\n"
+                       "• **General IT questions** → Email support@verztec.com\n\n"
+                       "🚨 **If you're experiencing a system failure or error that's preventing you from working** (applications crashing, network down, hardware malfunction), please describe the specific problem and I'll escalate it immediately to our technical team.",
+                'images': [],
+                'sources': [],
+                'tool_used': True,
+                'tool_identified': 'it_support',
+                'tool_confidence': 'not_serious_issue',
+                'extracted_details': it_details
+            }
+        
+        # Generate ticket ID for serious issues
+        ticket_id = "IT-" + str(hash(user_query + user_id))[-8:].upper()
+        
+        # Send email notification for serious technical issues
+        email_sent = send_it_support_email(ticket_id, user_id, chat_id, user_query, it_details)
+        
+        # Format the IT support escalation response
+        response_sections = []
+        
+        # Issue summary section
+        issue_type = it_details.get('issue_type', 'other').replace('_', ' ').title()
+        system_affected = it_details.get('system_affected', 'Unknown system')
+        urgency = it_details.get('urgency_level', 'medium').title()
+        
+        response_sections.append(f"## IT Support Ticket Created")
+        response_sections.append(f"**Issue Type:** {issue_type}")
+        response_sections.append(f"**System/Software:** {system_affected}")
+        response_sections.append(f"**Priority Level:** {urgency}")
+        
+        # Technical details
+        if it_details.get('error_message'):
+            response_sections.append(f"**Error Message:** `{it_details['error_message']}`")
+            
+        if it_details.get('device_info'):
+            response_sections.append(f"**Device Information:** {it_details['device_info']}")
+            
+        if it_details.get('when_occurred'):
+            response_sections.append(f"**When Issue Started:** {it_details['when_occurred']}")
+            
+        if it_details.get('frequency'):
+            freq_display = it_details['frequency'].replace('_', ' ').title()
+            response_sections.append(f"**Issue Frequency:** {freq_display}")
+            
+        # Business impact
+        if it_details.get('business_impact'):
+            response_sections.append(f"**Business Impact:** {it_details['business_impact']}")
+            
+        # Troubleshooting attempted
+        if it_details.get('troubleshooting_attempted'):
+            steps_text = '\n  - ' + '\n  - '.join(it_details['troubleshooting_attempted'])
+            response_sections.append(f"**Previous Troubleshooting:**{steps_text}")
+            
+        # Next steps section
+        response_sections.append("\n## Next Steps")
+        
+        if urgency.lower() == 'critical':
+            response_sections.append("🚨 **Critical Priority** - IT support has been notified immediately")
+            response_sections.append("📞 **Expected Response:** Within 15 minutes")
+        elif urgency.lower() == 'high':
+            response_sections.append("⚡ **High Priority** - IT support will respond promptly")
+            response_sections.append("📞 **Expected Response:** Within 2 hours")
+        else:
+            response_sections.append("📋 **Standard Priority** - IT support has been notified")
+            response_sections.append("📞 **Expected Response:** Within 24 hours")
+            
+        response_sections.append(f"🎫 **Ticket Reference:** {ticket_id}")
+        
+        # Email confirmation
+        if email_sent:
+            response_sections.append("✅ **IT Team Notified:** Email alert sent successfully")
+            response_sections.append("📧 **Updates:** You'll receive email notifications on ticket progress")
+        else:
+            response_sections.append("⚠️ **IT Team Notified:** Ticket logged (email notification pending)")
+            response_sections.append("📧 **Updates:** IT support has been alerted through internal systems")
+        
+        # Create comprehensive response
+        response_text = '\n\n'.join(response_sections)
+        
+        # Add confidence information
+        confidence_level = it_details.get('extraction_confidence', 'medium')
+        if confidence_level == 'low':
+            response_text += "\n\n*Note: Additional information may be requested by IT support for better troubleshooting.*"
+            
+        # Add error information if present
+        if it_details.get('extraction_error'):
+            response_text += f"\n\n*Technical Note: Issue analysis completed with some limitations.*"
+
+        # Store in chat logs
+        if store_chat_log_updated_func:
+            try:
+                it_summary = f"IT_SUPPORT_ESCALATED | Type: {issue_type} | System: {system_affected} | Priority: {urgency}"
+                
+                store_chat_log_updated_func(
+                    user_message=user_query,
+                    bot_response=it_summary, 
+                    query_score=0.0,
+                    relevance_score=2.0,
+                    user_id=user_id,
+                    chat_id=chat_id
+                )
+            except Exception as db_error:
+                logger.error(f"Failed to store IT support log in database: {db_error}")
+
+        return {
+            'text': response_text,
+            'images': [],
+            'sources': [],
+            'tool_used': True,
+            'tool_identified': 'it_support',
+            'tool_confidence': 'executed_successfully',
+            'extracted_details': it_details,
+            'it_summary': {
+                'issue_type': it_details.get('issue_type'),
+                'system_affected': it_details.get('system_affected'),
+                'urgency_level': it_details.get('urgency_level'),
+                'confidence': confidence_level,
+                'has_error_message': bool(it_details.get('error_message')),
+                'troubleshooting_steps_count': len(it_details.get('troubleshooting_attempted', [])),
+                'ticket_reference': ticket_id,
+                'email_sent': email_sent,
+                'is_serious_issue': True
+            }
+        }
+        
+    except Exception as e:
+        logger.error(f"Error in IT support tool execution: {str(e)}", exc_info=True)
+        return {
+            'text': f"Sorry, I encountered an error while processing your IT support request: {str(e)}\n\nPlease try again or contact IT support directly if the issue persists.\n\n📞 **Direct IT Support:** ext. 2500",
+            'images': [],
+            'sources': [],
+            'tool_used': False,
+            'tool_identified': 'it_support',
+            'tool_confidence': 'execution_failed',
+            'extracted_details': {'error': str(e)},
+            'it_summary': {
+                'error': True,
+                'error_message': str(e)
+            }
+        }

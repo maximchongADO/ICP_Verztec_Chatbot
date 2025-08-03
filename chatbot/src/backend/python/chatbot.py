@@ -1966,6 +1966,23 @@ global_tools = {
             "'what is the offboarding process', or 'what happens if I get fired'."
         ),
         "response_tone": "concise_direct"
+    },
+    "it_support": {
+        "description": (
+            "IT Support escalation — ONLY for serious technical issues requiring immediate IT intervention. "
+            "USE THIS TOOL ONLY when users report CRITICAL technical problems like: system crashes, complete software failures, "
+            "network outages, security breaches, hardware malfunctions, system access completely blocked, or data loss. "
+            "DO NOT use for: procedural questions ('how do I upload files'), policy questions ('can I take computer home'), "
+            "training requests ('how to use software'), or general IT inquiries that can be answered with documentation. "
+            "ONLY ESCALATE when the user CANNOT WORK due to a technical failure."
+        ),
+        "prompt_style": (
+            "You are an IT support escalation specialist. ONLY escalate issues that require immediate technical intervention. "
+            "Questions like 'how do I upload files to ABSS', 'can I take my computer home', 'how to install software', "
+            "or 'what's the WiFi password' should NOT be escalated - these are documentation/policy questions. "
+            "ONLY escalate when there's an actual system failure, error, or technical breakdown preventing work."
+        ),
+        "response_tone": "technical_professional"
     }
 }
 
@@ -2458,6 +2475,12 @@ def generate_answer_histoy_retrieval(user_query: str, user_id:str, chat_id:str):
             tool_used = True
             logger.info(f"Vacation check tool identified for user {user_id}, query: {user_query}")
             
+        # Check for IT support
+        elif "it_support" in tool_answer_lower or "[it_support]" in tool_answer_lower:
+            tool_identified = "it_support"
+            tool_used = True
+            logger.info(f"IT support tool identified for user {user_id}, query: {user_query}")
+            
         # Handle unknown or malformed responses
         else:
             tool_identified = "none"  # Default to none for safety
@@ -2843,6 +2866,7 @@ def generate_answer_histoy_retrieval(user_query: str, user_id:str, chat_id:str):
                             HR has the expertise and authority to handle sensitive workplace matters through proper channels, ensuring your concern gets the attention and resolution it deserves.
 
                             Would you like me to proceed with escalating this matter to HR?"""
+                intent_details = None
             elif tool_identified == "schedule_meeting":
                 # Immediately extract meeting details
                 meeting_details = extract_meeting_details(user_query)
@@ -2871,12 +2895,42 @@ def generate_answer_histoy_retrieval(user_query: str, user_id:str, chat_id:str):
                     "Would you like to confirm and schedule this meeting?\n"
                     "(Please click 'Confirm' to proceed or 'Cancel' to abort.)"
                 )
+                intent_details = None
             elif tool_identified == "vacation_check":
                 confirmation_response = f"""I've identified that your request is related to checking your vacation balance. Would you like me to proceed with checking your vacation balance?"""
+                intent_details = None
+            elif tool_identified == "it_support":
+                # Immediately extract IT support details
+                it_details = extract_it_support_details(user_query)
+                if not it_details or not isinstance(it_details, dict):
+                    it_details = {}
+                # Format IT support details for confirmation
+                details_lines = []
+                if it_details.get('issue_type'):
+                    details_lines.append(f"• **Issue Type:** {it_details['issue_type']}")
+                if it_details.get('system_affected'):
+                    details_lines.append(f"• **System/Software:** {it_details['system_affected']}")
+                if it_details.get('error_message'):
+                    details_lines.append(f"• **Error Message:** {it_details['error_message']}")
+                if it_details.get('urgency_level'):
+                    details_lines.append(f"• **Urgency:** {it_details['urgency_level']}")
+                if it_details.get('troubleshooting_attempted'):
+                    details_lines.append(f"• **Troubleshooting Done:** {', '.join(it_details['troubleshooting_attempted'])}")
+                if it_details.get('business_impact'):
+                    details_lines.append(f"• **Business Impact:** {it_details['business_impact']}")
+                details_str = '\n'.join(details_lines) if details_lines else "(No technical details extracted)"
+                confirmation_response = (
+                    "I've analyzed your IT support request and extracted the following details:\n\n"
+                    f"{details_str}\n\n"
+                    "Would you like me to escalate this to the IT support team?\n"
+                    "(Please click 'Confirm' to proceed or 'Cancel' to abort.)"
+                )
             else:
                 confirmation_response = f"""I've identified that your request requires the {tool_identified} tool. This will help ensure your request is handled through the appropriate channels with the right level of attention.
 
                     Would you like me to proceed with activating this tool for your request?"""
+                intent_details = None
+                it_details = None
             # Store the confirmation response
            
             total_elapsed_time = time.time() - total_start_time
@@ -2888,7 +2942,8 @@ def generate_answer_histoy_retrieval(user_query: str, user_id:str, chat_id:str):
                 'tool_used': tool_used,
                 'tool_identified': tool_identified,
                 'tool_confidence': tool_confidence,
-                'meeting_details': meeting_details if tool_identified == "schedule_meeting" else None
+                'meeting_details': meeting_details if tool_identified == "schedule_meeting" else None,
+                'it_details': it_details if tool_identified == "it_support" else None
             }
         else:
             offboard, abss = clean_q_3(org_query=clean_query)
@@ -3897,4 +3952,170 @@ def extract_meeting_details(user_query: str) -> Dict[str, Any]:
                 details['subject'] = subject.replace('meeting', '').strip().title()
         
         return details
+
+
+def extract_it_support_details(user_query: str) -> Dict[str, Any]:
+    """
+    Extract IT support details from natural language user query using LLM.
+    
+    Args:
+        user_query (str): User's natural language IT support request
+        
+    Returns:
+        dict: Extracted IT support details with confidence scores
+    """
+    try:
+        # Initialize the LLM (using same config as in chatbot.py)
+        extraction_model = ChatGroq(
+            api_key=api_key, 
+            model="qwen/qwen3-32b",
+            temperature=0,  # Lower temperature for precise technical extraction
+            model_kwargs={
+                "top_p": 0,
+                "frequency_penalty": 0,
+                "presence_penalty": 0
+            }
+        )
+        
+        # Create IT support extraction prompt
+        extraction_prompt = ChatPromptTemplate.from_messages([
+            ("system", """You are an IT support specialist analyzing technical issues. Extract IT support details ONLY for serious technical failures that require immediate intervention.
+
+ONLY ESCALATE for these critical issues:
+- System crashes, freezes, or won't start
+- Complete software failures or critical errors
+- Hardware malfunctions (broken screens, dead computers, etc.)
+- Network outages or connectivity failures
+- Security breaches or malware infections
+- Data loss or corruption
+- System access completely blocked (not just forgotten passwords)
+
+DO NOT ESCALATE for these procedural/policy questions:
+- "How do I upload files to ABSS" (this is training/documentation)
+- "Can I take my computer home" (this is policy)
+- "How to install software" (this is training)
+- "What's the WiFi password" (this is information request)
+- "How to use [software]" (this is training)
+
+Required JSON format:
+{{
+    "is_serious_technical_issue": true/false,
+    "issue_type": "critical_failure|hardware_failure|network_outage|security_breach|data_loss|access_blocked|not_serious",
+    "system_affected": "string - specific system/software/device",
+    "error_message": "string or null - exact error message if provided",
+    "urgency_level": "critical|high|medium|low",
+    "troubleshooting_attempted": ["array", "of", "attempted", "solutions"],
+    "business_impact": "string - how this affects work",
+    "device_info": "string - device/computer information",
+    "when_occurred": "string - when the issue started",
+    "frequency": "constant|intermittent|one-time",
+    "extraction_confidence": "high|medium|low"
+}}
+
+Classification rules:
+- is_serious_technical_issue: FALSE for procedural/policy questions, TRUE only for actual technical failures
+- If is_serious_technical_issue is FALSE, set issue_type to "not_serious"
+- urgency_level: critical (system down), high (major malfunction), medium (partial issues), low (minor glitches)
+- Only return TRUE for is_serious_technical_issue when user CANNOT WORK due to technical failure
+
+Return ONLY the JSON object. No explanations."""),
+            ("human", "Analyze this request - is it a serious technical issue requiring IT escalation: {query}")
+        ])
+        
+        # Create and run the extraction chain
+        extraction_chain = extraction_prompt | extraction_model
+        
+        # Get the response
+        response = extraction_chain.invoke({
+            "query": user_query
+        })
+        raw_response = response.content.strip()
+        
+        logger.info(f"Raw IT support response: {raw_response}")
+        
+        # Clean up the response to extract JSON
+        json_start = raw_response.find('{')
+        json_end = raw_response.rfind('}') + 1
+        
+        if json_start != -1 and json_end > json_start:
+            json_str = raw_response[json_start:json_end]
+            logger.info(f"Extracted IT JSON string: {json_str}")
+            
+            # Additional cleanup for common issues
+            json_str = json_str.replace('\n', ' ').replace('\r', ' ')
+            json_str = re.sub(r'\s+', ' ', json_str)
+            
+            extracted_data = json.loads(json_str)
+            
+            # Validate and clean the extracted data
+            details = {
+                'is_serious_technical_issue': bool(extracted_data.get('is_serious_technical_issue', False)),
+                'issue_type': str(extracted_data.get('issue_type', 'not_serious')).lower(),
+                'system_affected': str(extracted_data.get('system_affected', '')).strip() or None,
+                'error_message': str(extracted_data.get('error_message', '')).strip() or None,
+                'urgency_level': str(extracted_data.get('urgency_level', 'low')).lower(),
+                'troubleshooting_attempted': [str(step).strip() for step in (extracted_data.get('troubleshooting_attempted') or []) if str(step).strip()],
+                'business_impact': str(extracted_data.get('business_impact', '')).strip() or None,
+                'device_info': str(extracted_data.get('device_info', '')).strip() or None,
+                'when_occurred': str(extracted_data.get('when_occurred', '')).strip() or None,
+                'frequency': str(extracted_data.get('frequency', 'one-time')).lower(),
+                'extraction_confidence': str(extracted_data.get('extraction_confidence', 'medium')).lower(),
+                'raw_query': user_query.strip()
+            }
+            
+            # Ensure issue_type is valid
+            valid_issue_types = ['critical_failure', 'hardware_failure', 'network_outage', 'security_breach', 'data_loss', 'access_blocked', 'not_serious']
+            if details['issue_type'] not in valid_issue_types:
+                details['issue_type'] = 'not_serious'
+                details['is_serious_technical_issue'] = False
+                
+            # Ensure urgency_level is valid
+            if details['urgency_level'] not in ['critical', 'high', 'medium', 'low']:
+                details['urgency_level'] = 'medium'
+                
+            # Ensure frequency is valid
+            if details['frequency'] not in ['constant', 'intermittent', 'one-time']:
+                details['frequency'] = 'one-time'
+                
+            # Ensure extraction_confidence is valid
+            if details['extraction_confidence'] not in ['high', 'medium', 'low']:
+                details['extraction_confidence'] = 'medium'
+            
+            logger.info(f"Successfully extracted IT support details: {details}")
+            return details
+        else:
+            logger.warning(f"Could not extract JSON from IT support response: {raw_response}")
+            return {
+                'is_serious_technical_issue': False,
+                'issue_type': 'not_serious',
+                'system_affected': 'Unknown system',
+                'error_message': None,
+                'urgency_level': 'low',
+                'troubleshooting_attempted': [],
+                'business_impact': 'User needs information or training',
+                'device_info': None,
+                'when_occurred': None,
+                'frequency': 'one-time',
+                'extraction_confidence': 'low',
+                'raw_query': user_query.strip(),
+                'extraction_error': 'Could not parse LLM response'
+            }
+        
+    except Exception as e:
+        logger.error(f"Error in IT support extraction: {str(e)}")
+        # Return minimal structure with error info
+        return {
+            'issue_type': 'other',
+            'system_affected': 'Unknown system',
+            'error_message': None,
+            'urgency_level': 'medium',
+            'troubleshooting_attempted': [],
+            'business_impact': 'Technical support needed',
+            'device_info': None,
+            'when_occurred': None,
+            'frequency': 'one-time',
+            'extraction_confidence': 'low',
+            'raw_query': user_query.strip(),
+            'extraction_error': str(e)
+        }
 
