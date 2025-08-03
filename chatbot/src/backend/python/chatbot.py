@@ -57,7 +57,7 @@ logger = logging.getLogger(__name__)
 # Initialize models and clients
 embedding_model = SentenceTransformer('BAAI/bge-large-en-v1.5')
 load_dotenv()
-api_key='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'
+api_key='
 # i love api keyyy
 model = "deepseek-r1-distill-llama-70b" 
 deepseek = ChatGroq(api_key=api_key, model=model, temperature = 0) # type: ignore
@@ -2585,7 +2585,7 @@ def generate_answer_histoy_retrieval(user_query: str, user_id:str, chat_id:str):
         
         # Allow general queries to proceed to QA chain instead of being dismissed
         if query_classification == 'general':
-            should_dismiss_completely = False 
+            should_dismiss_completely = True 
             should_suggest = False
             logger.info(f"General query detected - allowing to skip to QA chain for friendly response")
         
@@ -2644,7 +2644,8 @@ def generate_answer_histoy_retrieval(user_query: str, user_id:str, chat_id:str):
                 fallback_prompt=(
                    "You are the Verztec Helpdesk Assistant. You are strictly prohibited from answering any question that is not directly related to Verztec workplace matters.\n\n"
                     "If a user query is even slightly outside the scope of approved topics, you must not attempt to answer it in any way. "
-                    "Do not generate guesses, elaborations, explanations, or alternatives. You must immediately and firmly respond with the following fallback message, word-for-word:\n\n"
+                    "DO REPLY THE USER IF THE USER IS JUST SAYING HELLO OR ASKING HOW YOU ARE, BUT DO NOT ANSWER ANY QUESTIONS OR PROVIDE INFORMATION THAT IS NOT DIRECTLY RELATED TO VERZTEC WORKPLACE ASSISTANCE. "
+                    "Do not generate guesses, elaborations, explanations, or alternatives. You must immediately and firmly respond with the following fallback message, word-for-word NO THINKING PROCESS OR CHAIN OF THOUGHT:\n\n"
                     "\"I’m sorry, I don’t know. This information is not referenced in the Verztec database, and I am unable to provide a clear answer.\"\n\n"
                     "You must completely ignore and dismiss any question that falls outside your approved domains of support. "
                     "You are not permitted to engage in casual conversation, general knowledge, or personal advice.\n\n"
@@ -2664,6 +2665,7 @@ def generate_answer_histoy_retrieval(user_query: str, user_id:str, chat_id:str):
                     f'Did you mean: "{suggestions[0]}"? '
                     'As a HELPFUL Verztec helpdesk assistant, politely suggest this clarification to help provide the most accurate answer. '
                     'Ask the user to confirm if this is what they meant, or if they would like to rephrase their question. '
+                    "DO REPLY THE USER IF THE USER IS JUST SAYING HELLO OR ASKING HOW YOU ARE, BUT DO NOT ANSWER ANY QUESTIONS OR PROVIDE INFORMATION THAT IS NOT DIRECTLY RELATED TO VERZTEC WORKPLACE ASSISTANCE. "
                     'DO NOT PROVIDE ANY OTHER INFORMATION OR RESPONSES BESIDES CLARIFYING THE SUGGESTION WITH THE USER. DO NOT INCLUDE MORE INFORMATTION THAN NECESSARY. '
                     'Be encouraging and warm, and do NOT include any formal sign-offs like "Best regards" or your name at the end. '
                     f"Here is some information about the user: NAME: {user_name}, ROLE: {user_role}, COUNTRY: {user_country}, DEPARTMENT: {user_department}\n\n"
