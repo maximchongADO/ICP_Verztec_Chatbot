@@ -23,6 +23,8 @@ import numpy as np
 import pymysql
 import spacy
 from dotenv import load_dotenv
+from langdetect import detect, detect_langs
+from langdetect.lang_detect_exception import LangDetectException
 from pydantic import Field, ConfigDict
 from sentence_transformers import CrossEncoder, SentenceTransformer
 from spacy.matcher import PhraseMatcher
@@ -586,6 +588,250 @@ def is_query_score(text: str) -> float:
         return 0.0
 
 
+# Language detection configuration - easily configurable and extensible
+LANGUAGE_CONFIG = {
+    # Primary languages supported by the system
+    'supported_languages': {
+        'en': {'name': 'English', 'is_primary': True},
+        'zh-cn': {'name': 'Chinese (Simplified)', 'is_primary': False},
+        'zh-tw': {'name': 'Chinese (Traditional)', 'is_primary': False},
+        'es': {'name': 'Spanish', 'is_primary': False},
+        'fr': {'name': 'French', 'is_primary': False},
+        'de': {'name': 'German', 'is_primary': False},
+        'ja': {'name': 'Japanese', 'is_primary': False},
+        'ko': {'name': 'Korean', 'is_primary': False},
+    },
+    
+    # Common phrases per language - easily extensible
+    'common_phrases': {
+        'en': {
+            'hello', 'hi', 'hey', 'thanks', 'thank you', 'goodbye', 'bye',
+            'good morning', 'good afternoon', 'good evening', 'good night',
+            'how are you', 'what', 'why', 'when', 'where', 'who', 'how',
+            'yes', 'no', 'ok', 'okay', 'sure', 'please', 'sorry',
+            'help', 'can you', 'could you', 'would you', 'will you',
+            'i need', 'i want', 'i have', 'i am', 'i\'m', 'you are', 'you\'re'
+        },
+        'zh-cn': {
+            '你好', '谢谢', '再见', '早上好', '晚上好', '什么', '为什么', '怎么',
+            '哪里', '什么时候', '谁', '是的', '不是', '好的', '请', '对不起',
+            '帮助', '我需要', '我想要', '我有', '我是', '你是'
+        },
+        'es': {
+            'hola', 'gracias', 'adiós', 'buenos días', 'buenas noches', 'qué', 'por qué', 'cómo',
+            'dónde', 'cuándo', 'quién', 'sí', 'no', 'vale', 'por favor', 'lo siento',
+            'ayuda', 'necesito', 'quiero', 'tengo', 'soy', 'eres'
+        },
+        'fr': {
+            'bonjour', 'merci', 'au revoir', 'bonne nuit', 'quoi', 'pourquoi', 'comment',
+            'où', 'quand', 'qui', 'oui', 'non', 'd\'accord', 's\'il vous plaît', 'désolé',
+            'aide', 'j\'ai besoin', 'je veux', 'j\'ai', 'je suis', 'vous êtes'
+        }
+    },
+    
+    # Question starters per language
+    'question_starters': {
+        'en': ['what', 'why', 'when', 'where', 'who', 'how', 'can', 'could', 'would', 'will', 'do', 'does', 'did', 'is', 'are', 'was', 'were'],
+        'zh-cn': ['什么', '为什么', '怎么', '哪里', '什么时候', '谁', '是否', '可以', '能否', '会不会'],
+        'es': ['qué', 'por qué', 'cómo', 'dónde', 'cuándo', 'quién', 'puede', 'podría', 'será', 'es', 'son'],
+        'fr': ['quoi', 'pourquoi', 'comment', 'où', 'quand', 'qui', 'peut', 'pourrait', 'sera', 'est', 'sont']
+    },
+    
+    # Detection thresholds
+    'thresholds': {
+        'short_query_words': 2,  # Consider queries with <= 2 words as "short"
+        'very_short_chars': 10,  # Consider queries with <= 10 chars as "very short"
+        'confidence_threshold': 0.3,  # Minimum confidence for langdetect
+        'fallback_language': 'en'  # Default fallback language
+    }
+}
+
+
+def detect_language_improved(user_query: str, config: dict = None) -> tuple[str, bool]:
+    """
+    Improved language detection that handles short phrases and common words better.
+    Now configurable and extensible for multiple languages.
+    
+    Args:
+        user_query (str): The query to analyze
+        config (dict, optional): Configuration override. Defaults to LANGUAGE_CONFIG.
+    
+    Returns:
+        tuple[str, bool]: (detected_language_code, is_primary_language)
+    """
+    if config is None:
+        config = LANGUAGE_CONFIG
+    
+    query_lower = user_query.lower().strip()
+    thresholds = config['thresholds']
+    
+    # Check against common phrases for all supported languages
+    for lang_code, phrases in config['common_phrases'].items():
+        if query_lower in phrases:
+            is_primary = config['supported_languages'].get(lang_code, {}).get('is_primary', False)
+            logger.info(f"Matched common phrase '{query_lower}' to language: {lang_code}")
+            return lang_code, is_primary
+    
+    # Check question starters for all languages
+    first_word = query_lower.split()[0] if query_lower.split() else ''
+    for lang_code, starters in config['question_starters'].items():
+        if first_word in starters:
+            is_primary = config['supported_languages'].get(lang_code, {}).get('is_primary', False)
+            logger.info(f"Matched question starter '{first_word}' to language: {lang_code}")
+            return lang_code, is_primary
+    
+    # For short queries, be more conservative with langdetect
+    if len(user_query.split()) <= thresholds['short_query_words']:
+        try:
+            detections = detect_langs(user_query)
+            
+            # Check if any supported language is detected with reasonable confidence
+            for detection in detections:
+                if (detection.lang in config['supported_languages'] and 
+                    detection.prob > thresholds['confidence_threshold']):
+                    is_primary = config['supported_languages'][detection.lang].get('is_primary', False)
+                    logger.info(f"Short query detected as {detection.lang} with confidence {detection.prob:.3f}")
+                    return detection.lang, is_primary
+            
+            # For very short queries, default to fallback language
+            if len(user_query.strip()) <= thresholds['very_short_chars']:
+                fallback_lang = thresholds['fallback_language']
+                is_primary = config['supported_languages'].get(fallback_lang, {}).get('is_primary', False)
+                logger.info(f"Very short query, defaulting to {fallback_lang}")
+                return fallback_lang, is_primary
+                
+        except Exception as e:
+            logger.warning(f"Language detection failed for short query: {e}")
+            fallback_lang = thresholds['fallback_language']
+            is_primary = config['supported_languages'].get(fallback_lang, {}).get('is_primary', False)
+            return fallback_lang, is_primary
+    
+    # For longer queries, use standard langdetect
+    try:
+        detected_language = detect(user_query)
+        
+        # Check if detected language is in our supported list
+        if detected_language in config['supported_languages']:
+            is_primary = config['supported_languages'][detected_language].get('is_primary', False)
+            logger.info(f"Detected supported language: {detected_language}")
+            return detected_language, is_primary
+        else:
+            # Language detected but not in our supported list, fallback to primary
+            fallback_lang = thresholds['fallback_language']
+            is_primary = config['supported_languages'].get(fallback_lang, {}).get('is_primary', False)
+            logger.info(f"Detected unsupported language {detected_language}, falling back to {fallback_lang}")
+            return fallback_lang, is_primary
+            
+    except LangDetectException as e:
+        logger.warning(f"Language detection failed: {e}")
+        fallback_lang = thresholds['fallback_language']
+        is_primary = config['supported_languages'].get(fallback_lang, {}).get('is_primary', False)
+        return fallback_lang, is_primary
+
+
+def get_language_name(lang_code: str, config: dict = None) -> str:
+    """
+    Get the human-readable name for a language code.
+    
+    Args:
+        lang_code (str): Language code (e.g., 'en', 'zh-cn')
+        config (dict, optional): Configuration override
+    
+    Returns:
+        str: Human-readable language name
+    """
+    if config is None:
+        config = LANGUAGE_CONFIG
+    
+    return config['supported_languages'].get(lang_code, {}).get('name', lang_code.upper())
+
+
+def add_language_phrases(lang_code: str, phrases: set, config: dict = None) -> dict:
+    """
+    Dynamically add phrases for a language. Useful for runtime customization.
+    
+    Args:
+        lang_code (str): Language code
+        phrases (set): Set of phrases to add
+        config (dict, optional): Configuration to modify
+    
+    Returns:
+        dict: Updated configuration
+    """
+    if config is None:
+        config = LANGUAGE_CONFIG.copy()
+    
+    if lang_code not in config['common_phrases']:
+        config['common_phrases'][lang_code] = set()
+    
+    config['common_phrases'][lang_code].update(phrases)
+    logger.info(f"Added {len(phrases)} phrases for language {lang_code}")
+    
+    return config
+
+
+def load_language_config_from_file(config_path: str = None) -> dict:
+    """
+    Load language configuration from a JSON file for easier customization.
+    
+    Args:
+        config_path (str, optional): Path to JSON config file
+    
+    Returns:
+        dict: Language configuration
+    """
+    if config_path and os.path.exists(config_path):
+        try:
+            with open(config_path, 'r', encoding='utf-8') as f:
+                loaded_config = json.load(f)
+            
+            # Convert phrase lists to sets for faster lookup
+            if 'common_phrases' in loaded_config:
+                for lang_code, phrases in loaded_config['common_phrases'].items():
+                    if isinstance(phrases, list):
+                        loaded_config['common_phrases'][lang_code] = set(phrases)
+            
+            logger.info(f"Loaded language configuration from {config_path}")
+            return loaded_config
+            
+        except Exception as e:
+            logger.error(f"Failed to load language config from {config_path}: {e}")
+            logger.info("Using default language configuration")
+            return LANGUAGE_CONFIG
+    else:
+        return LANGUAGE_CONFIG
+
+
+def save_language_config_to_file(config: dict, config_path: str) -> bool:
+    """
+    Save current language configuration to a JSON file for persistence.
+    
+    Args:
+        config (dict): Language configuration to save
+        config_path (str): Path where to save the config
+    
+    Returns:
+        bool: True if successful, False otherwise
+    """
+    try:
+        # Convert sets to lists for JSON serialization
+        config_to_save = config.copy()
+        if 'common_phrases' in config_to_save:
+            for lang_code, phrases in config_to_save['common_phrases'].items():
+                if isinstance(phrases, set):
+                    config_to_save['common_phrases'][lang_code] = sorted(list(phrases))
+        
+        with open(config_path, 'w', encoding='utf-8') as f:
+            json.dump(config_to_save, f, indent=2, ensure_ascii=False)
+        
+        logger.info(f"Saved language configuration to {config_path}")
+        return True
+        
+    except Exception as e:
+        logger.error(f"Failed to save language config to {config_path}: {e}")
+        return False
+
+
 def clean_with_grammar_model(user_query: str) -> str:
     """
     Uses a GEC-tuned model to clean up grammar, spelling, and clarity issues from user input.
@@ -721,25 +967,27 @@ def check_query_relevance_to_verztec(query: str, user_index):
         # First, use AI to classify the query type
         classification_prompt = f"""You are a query classifier for a workplace helpdesk system. Classify the following user query into one of three categories:
 
-1. "relevant" - Work-related queries about HR, IT, policies, procedures, workplace matters
-2. "general" - Casual greetings, small talk, friendly conversation (e.g., "hi", "hello", "how are you", "good morning")  
-3. "irrelevant" - Completely unrelated topics (movies, sports, cooking, weather, random facts, etc.)
+            1. "relevant" - Work-related queries about HR, IT, policies, procedures, workplace matters
+            2. "general" - Casual greetings, small talk, friendly conversation (e.g., "hi", "hello", "how are you", "good morning")  ONLY CLASSIFY GENERAL GREETINGS AS "general" DO NOT ATTEMPT TO ANSWER QUESTIONS PAST THAT
+            3. "irrelevant" - Completely unrelated topics (animals, jokes, movies, sports, songs, cooking, weather, random facts, etc.)
 
-Query: "{query}"
+            Query: "{query}"
 
-Respond with ONLY one word: relevant, general, or irrelevant"""
+            Respond with ONLY one word: relevant, general, or irrelevant"""
 
         try:
             ai_response = decisionlayer_model.predict(classification_prompt)
+            logger.info(f"AI classification response: {ai_response}")
             ai_classification = re.sub(r"<think>.*?</think>", "", ai_response, flags=re.DOTALL).strip().lower()
             
             # Clean and validate AI response
             if 'general' in ai_classification:
                 classification = 'general'
-            elif 'relevant' in ai_classification:
-                classification = 'relevant'
             elif 'irrelevant' in ai_classification:
                 classification = 'irrelevant'
+            elif 'relevant' in ai_classification:
+                classification = 'relevant'
+            
             else:
                 # Fallback to rule-based classification
                 classification = None
@@ -1719,28 +1967,9 @@ global_tools = {
         "response_tone": "concise_direct"
     }
 }
-# Utility: Get last bot message from ConversationBufferMemory
-def get_last_bot_message(chat_history):
-    """
-    Returns the content of the last AI (bot) message from a ConversationBufferMemory object.
-    """
-    history = chat_history.load_memory_variables({}).get("chat_history", [])
-    # history is a list of HumanMessage and AIMessage objects (if return_messages=True)
-    for msg in reversed(history):
-        if hasattr(msg, 'content') and msg.__class__.__name__ == 'answer':
-            return msg.content
-    return None
 
-def get_last_human_message(chat_history):
-    """
-    Returns the content of the last human message from a ConversationBufferMemory object.
-    """
-    history = chat_history.load_memory_variables({}).get("chat_history", [])
-    # history is a list of HumanMessage and AIMessage objects (if return_messages=True)
-    for msg in reversed(history):
-        if hasattr(msg, 'content') and msg.__class__.__name__ == 'HumanMessage':
-            return msg.content
-    return None
+
+
 
 def get_last_human_message(chat_id, user_id):
     """
@@ -2356,16 +2585,26 @@ def generate_answer_histoy_retrieval(user_query: str, user_id:str, chat_id:str):
         
         # Allow general queries to proceed to QA chain instead of being dismissed
         if query_classification == 'general':
-            should_dismiss_completely = False
+            should_dismiss_completely = False 
             should_suggest = False
-            logger.info(f"General query detected - allowing to proceed to QA chain for friendly response")
+            logger.info(f"General query detected - allowing to skip to QA chain for friendly response")
         
         #handle irrelevant query or provide intelligent suggestions
+        # Check if the user query is in English using improved language detection
+        try:
+            detected_language, language_english = detect_language_improved(user_query)
+            logger.info(f"Detected language: {detected_language}, Is English: {language_english}")
+            logger.info(f"User query: '{clean_query}...' detected as {detected_language} language")
+        except Exception:
+            # If language detection fails, assume English (fallback)
+            detected_language = 'en'
+            language_english = True
+            logger.warning(f"Language detection failed for query: '{user_query[:50]}...', assuming English")
        
         logger.info(f"Clean Query at qa chain: {clean_query}")
         logger.info(f"Enhanced Analysis - Relevant: {is_relevant}, Intent: {intent_level}, Classification: {query_classification}, Should suggest: {should_suggest}, Should dismiss: {should_dismiss_completely}")
         if (
-            not tool_used and (should_dismiss_completely or should_suggest)
+            not tool_used and (should_dismiss_completely or should_suggest) and language_english
         ):
             suggestions = []
             likely_topic = None
@@ -2401,27 +2640,23 @@ def generate_answer_histoy_retrieval(user_query: str, user_id:str, chat_id:str):
             
             # Handle different prompt types based on relevance analysis
             if should_dismiss_completely:
-                fallback_prompt2 = (
-                    f'The user asked: "{clean_query}". '
-                    'This question appears to be outside the scope of Verztec workplace assistance. '
-                    'As the Verztec helpdesk assistant, you must strictly respond with: '
-                    '"I’m sorry, I don’t know. This information is not referenced in the Verztec database, and I am unable to provide a clear answer." '
-                    'Do not attempt to guess, infer, or generate speculative answers. Respond only if the query directly relates to topics that are clearly documented in the internal database. '
-                    '\n\nYou are only authorized to assist with Verztec work-related topics such as: '
-                    '\n• HR policies (leave, benefits, onboarding, offboarding)'
-                    '\n• IT support (passwords, email, systems, equipment)'
-                    '\n• Office procedures (meeting rooms, pantry rules, phone systems)'
-                    '\n• Company policies and SOPs (workflows, guidelines, forms)'
-                    '\n\nIf a query falls outside of these areas or lacks a direct match in the database, respond exactly with the fallback message above—do not elaborate or fabricate. '
-                    f"\n\nUser details for context: NAME: {user_name}, ROLE: {user_role}, COUNTRY: {user_country}, DEPARTMENT: {user_department}\n\n"
-                )
+                # Use fallback prompt for irrelevant queries
                 fallback_prompt=(
-                    f'The user asked: "{clean_query}". '
-                    'This question appears to be outside the scope of Verztec workplace assistance. '
-                    f'you are only able to help with work-related topics such as: '
-                    
-                    'For example, you could ask about leave applications, password resets, office policies, or company procedures. '
-                    f"Here is some information about the user: NAME: {user_name}, ROLE: {user_role}, COUNTRY: {user_country}, DEPARTMENT: {user_department}\n\n"
+                   "You are the Verztec Helpdesk Assistant. You are strictly prohibited from answering any question that is not directly related to Verztec workplace matters.\n\n"
+                    "If a user query is even slightly outside the scope of approved topics, you must not attempt to answer it in any way. "
+                    "Do not generate guesses, elaborations, explanations, or alternatives. You must immediately and firmly respond with the following fallback message, word-for-word:\n\n"
+                    "\"I’m sorry, I don’t know. This information is not referenced in the Verztec database, and I am unable to provide a clear answer.\"\n\n"
+                    "You must completely ignore and dismiss any question that falls outside your approved domains of support. "
+                    "You are not permitted to engage in casual conversation, general knowledge, or personal advice.\n\n"
+                    "Your assistance is strictly limited to Verztec work-related topics only, specifically:\n"
+                    "• HR policies (leave entitlements, benefits, onboarding, offboarding)\n"
+                    "• IT support (password resets, system access, email, equipment)\n"
+                    "• Office procedures (meeting room booking, pantry rules, phone systems)\n"
+                    "• Company policies and SOPs (internal workflows, guidelines, company forms)\n\n"
+                    "If the query does not explicitly fall under one of these categories or lacks a clear match in the Verztec knowledge base, "
+                    "do not attempt to interpret or improvise. Respond only with the fallback message above. "
+                    "Any deviation from this instruction is considered a violation of your operational boundaries.\n\n"
+                    f"\n\nUser details for context: NAME: {user_name}, ROLE: {user_role}, COUNTRY: {user_country}, DEPARTMENT: {user_department}\n\n"
                 )
             elif should_suggest and suggestions:
                 fallback_prompt = (
@@ -2429,6 +2664,7 @@ def generate_answer_histoy_retrieval(user_query: str, user_id:str, chat_id:str):
                     f'Did you mean: "{suggestions[0]}"? '
                     'As a HELPFUL Verztec helpdesk assistant, politely suggest this clarification to help provide the most accurate answer. '
                     'Ask the user to confirm if this is what they meant, or if they would like to rephrase their question. '
+                    'DO NOT PROVIDE ANY OTHER INFORMATION OR RESPONSES BESIDES CLARIFYING THE SUGGESTION WITH THE USER. DO NOT INCLUDE MORE INFORMATTION THAN NECESSARY. '
                     'Be encouraging and warm, and do NOT include any formal sign-offs like "Best regards" or your name at the end. '
                     f"Here is some information about the user: NAME: {user_name}, ROLE: {user_role}, COUNTRY: {user_country}, DEPARTMENT: {user_department}\n\n"
                 )
@@ -2451,23 +2687,15 @@ def generate_answer_histoy_retrieval(user_query: str, user_id:str, chat_id:str):
             else:
                 fallback_prompt = (
                     #f'The user said: "{clean_query}". '
-                    'As a HELPFUL and FRIENDLY Verztec helpdesk assistant, respond with a polite and understanding reply. '
-                    'Explain that you might not have the exact information for this request, but encourage the user to try rephrasing '
-                    'or ask about specific Verztec policies, procedures, or workplace-related topics. '
-                    'Keep the tone supportive and conversational, and DO NOT include any formal sign-offs like "Best regards" or your name at the end. '
-                    f"Here is some information about the user: NAME: {user_name}, ROLE: {user_role}, COUNTRY: {user_country}, DEPARTMENT: {user_department}\n\n"
+                    'As a HELPFUL and FRIENDLY VERZTEC helpdesk assistant, respond with a light-hearted or polite reply — '
+                    'even if the message is small talk or out of scope (e.g., "how are you", "do you like pizza"). '
+                    'You do not need to greet the user, unless they greeted you first. '
+                    'Keep it human and warm (e.g., "I’m doing great, thanks for asking!"), then ***gently guide the user back to Verztec-related helpdesk topics***.'
+                    'DO NOT ANSWER ANY QUESTIONS OR PROVIDE INFORMATION THAT IS NOT DIRECTLY RELATED TO VERZTEC WORKPLACE ASSISTANCE. SIMPLY DISMISS THE QUERY IN A LIGHT HEARTED MANNER'
+                    f"Here is some information about the user, NAME:{user_name}, ROLE: {user_role}, COUNTRY: {user_country}, DEPARTMENT: {user_department}\n\n"
                 )
 
             
-            fallback_prompt_original = (
-                #f'The user said: "{clean_query}". '
-                'As a HELPFUL and FRIENDLY VERZTEC helpdesk assistant, respond with a light-hearted or polite reply — '
-                'even if the message is small talk or out of scope (e.g., "how are you", "do you like pizza"). '
-                'You do not need to greet the user, unless they greeted you first. '
-                'Keep it human and warm (e.g., "I’m doing great, thanks for asking!"), then ***gently guide the user back to Verztec-related helpdesk topics***.'
-                'Do not answer any questions that are not related to Verztec helpdesk topics'
-                f"Here is some information about the user, NAME:{user_name}, ROLE: {user_role}, COUNTRY: {user_country}, DEPARTMENT: {user_department}\n\n"
-                )
             hi = False
             if formatted_prev_docs: 
                 fallback_prompt += (

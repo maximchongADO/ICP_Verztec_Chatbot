@@ -47,6 +47,10 @@ def get_hr_mailing_list() -> List[str]:
     """
     Fetch HR mailing list from the database.
     
+    • Connects to MySQL chatbot_db database and retrieves all email addresses from mailing_list table
+    • Implements fallback mechanism using environment variables if database connection fails
+    • Returns cleaned list of unique, valid email addresses for HR notifications
+    
     Returns:
         List[str]: List of email addresses from the mailing list table
     """
@@ -116,6 +120,10 @@ def send_hr_escalation_email(escalation_id: str, user_id: str, chat_id: str,
                            hr_emails: List[str] = None) -> bool:
     """
     Send an email notification to HR about the escalation.
+    
+    • Composes and sends formatted email notifications to all HR representatives in the mailing list
+    • Uses SMTP with TLS encryption and environment-based configuration for secure email delivery
+    • Implements error handling and fallback mechanisms, returning success status based on delivery results
     
     Args:
         escalation_id (str): Unique escalation ID
@@ -261,6 +269,10 @@ def send_meeting_request_email(
 ) -> bool:
     """
     Send an email notification for a meeting request.
+    
+    • Creates and sends formatted meeting request emails with extracted meeting details and metadata
+    • Uses same SMTP configuration as HR escalation emails for consistent email delivery
+    • Logs meeting request details and returns boolean success status for error handling
     """
     try:
         smtp_server = os.getenv('SMTP_SERVER', 'smtp.gmail.com')
@@ -325,6 +337,10 @@ This meeting request has been initiated and is awaiting user confirmation.
 def extract_meeting_details(user_query: str) -> Dict[str, Any]:
     """
     Extract meeting details from natural language user query using LLM.
+    
+    • Uses ChatGroq LLM with structured prompts to parse meeting details from natural language input
+    • Implements intelligent date/time conversion with current context (today, tomorrow, next Monday, etc.)
+    • Provides fallback regex extraction if LLM fails, ensuring robust detail extraction with confidence scoring
     
     Args:
         user_query (str): User's natural language meeting request
@@ -519,6 +535,10 @@ def execute_confirmed_tool(
     """
     Execute the confirmed tool based on the tool identification.
     
+    • Main dispatcher function that routes tool execution requests to appropriate handler functions
+    • Validates tool availability and provides default tool configurations if not provided
+    • Returns standardized response format with execution status, results, and error handling
+    
     Args:
         tool_identified (str): The identified tool name from the decision layer
         user_query (str): The original user query
@@ -631,6 +651,10 @@ def execute_hr_escalation_tool(
 ) -> Dict[str, Any]:
     """
     Execute HR escalation tool with enhanced logging and response formatting.
+    
+    • Generates unique escalation ID and sends email notifications to all HR representatives
+    • Stores escalation details in both database and CSV backup with comprehensive logging
+    • Returns formatted response with escalation details, timeline expectations, and contact information
     
     Args:
         user_query (str): The original user query that triggered HR escalation
@@ -806,6 +830,10 @@ def execute_meeting_scheduling_tool(
 ) -> Dict[str, Any]:
     """
     Execute meeting scheduling tool with intelligent detail extraction and enhanced response formatting.
+    
+    • Uses LLM-powered extraction to parse meeting details from natural language user input
+    • Generates unique meeting request ID and sends email notifications to coordination team
+    • Returns interactive response with extracted details and user confirmation options (confirm/modify/cancel)
     
     Args:
         user_query (str): The original user query that triggered meeting scheduling
@@ -1041,6 +1069,10 @@ def handle_meeting_confirmation_response_2(
 ) -> Dict[str, Any]:
     """
     Handle user response to meeting confirmation (confirm, modify, or cancel).
+    
+    • Processes user responses to meeting confirmation prompts (confirm/modify/cancel actions)
+    • Updates meeting status in CSV records and database based on user decision
+    • Returns formatted responses with next steps and handles unclear user responses with clarification prompts
     
     Args:
         user_response (str): User's response to the meeting confirmation
@@ -1447,6 +1479,11 @@ from pathlib import Path
 def get_vacation_days(user_id: str, filename: str = r"leave.csv") -> int:
     """
     Reads leave.csv and returns the number of vacation days for the given user_id.
+    
+    • Parses CSV file to retrieve vacation day balance for specified user ID
+    • Handles file access errors and missing user records gracefully with zero return
+    • Uses UTF-8-sig encoding to handle potential BOM characters in CSV files
+    
     Assumes columns: user_id, vacation_days
     """
     try:
