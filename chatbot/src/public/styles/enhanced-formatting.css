@@ -1,79 +1,409 @@
-/* Enhanced formatting styles for chatbot responses */
+/* Enhanced formatting styles for professional chatbot responses */
 
-/* Bold text formatting */
+/* Typography Enhancements - Light Mode Default */
+.ai-message {
+  line-height: 1.7;
+  font-size: 0.95rem;
+  color: #000000; /* Black text for light mode */
+}
+
+/* Ensure all paragraph and direct text elements are black in light mode */
+.ai-message p {
+  color: #000000; /* Black for all paragraphs */
+}
+
+/* Bold text formatting - enhanced */
+.ai-message .text-bold,
 .ai-message strong {
-    font-weight: 700;
-    color: #2c3e50;
-    font-size: 1.05em;
+  font-weight: 700;
+  color: #000000; /* Black for light mode */
+  font-size: 1.02em;
+  letter-spacing: 0.01em;
 }
 
-/* Emphasis formatting */
+/* Emphasis formatting - enhanced */
+.ai-message .text-emphasis,
 .ai-message em {
-    font-style: italic;
-    color: #34495e;
+  font-style: italic;
+  color: #333333; /* Dark gray for light mode */
+  font-weight: 500;
 }
 
-/* Bullet point formatting */
-.ai-message ul {
-    margin: 10px 0;
-    padding-left: 20px;
-    list-style-type: disc;
+/* Headers - Clean professional styling like the image */
+.ai-message .response-header-1,
+.ai-message h1 {
+  font-size: 1.3em;
+  font-weight: 700; /* Bold but not excessive */
+  color: #000000; /* Black text in light mode */
+  margin: 1em 0 0.5em 0;
+  padding: 0;
+  border: none; /* Remove border for cleaner look */
 }
 
-.ai-message li {
-    margin: 5px 0;
-    line-height: 1.5;
-    color: #2c3e50;
+.ai-message .response-header-2,
+.ai-message h2 {
+  font-size: 1.2em;
+  font-weight: 700; /* Consistent bold weight */
+  color: #000000; /* Black text in light mode */
+  margin: 0.8em 0 0.4em 0;
+  padding: 0;
+  border: none; /* Remove border for cleaner look */
 }
 
-/* Numbered list formatting */
-.ai-message ol {
-    margin: 10px 0;
-    padding-left: 20px;
-    list-style-type: decimal;
+.ai-message .response-header-3,
+.ai-message h3 {
+  font-size: 1.1em;
+  font-weight: 700; /* Consistent bold weight */
+  color: #000000; /* Black text in light mode */
+  margin: 0.6em 0 0.3em 0;
 }
 
-.ai-message ol li {
-    margin: 5px 0;
-    line-height: 1.5;
-    color: #2c3e50;
+/* Paragraph styling */
+.ai-message .response-paragraph {
+  margin: 0.8em 0;
+  line-height: 1.7;
+  color: #000000; /* Black text for light mode */
 }
 
-/* Line break spacing */
-.ai-message br {
-    line-height: 1.6;
+/* Enhanced bullet point formatting - Clean style */
+.ai-message .response-list {
+  margin: 1em 0;
+  padding-left: 0;
+  list-style: none;
+}
+
+.ai-message .bullet-item {
+  position: relative;
+  margin: 0.5em 0;
+  padding-left: 1.5em;
+  line-height: 1.6;
+  color: #000000; /* Black text for light mode */
+}
+
+.ai-message .bullet-item::before {
+  content: "•";
+  position: absolute;
+  left: 0;
+  color: #000000; /* Black bullets like in the image */
+  font-weight: bold;
+  font-size: 1em;
+}
+
+/* Enhanced numbered list formatting - Clean like the image */
+.ai-message .response-numbered-list {
+  margin: 1em 0;
+  padding-left: 0;
+  list-style: none;
+  counter-reset: list-counter;
+}
+
+.ai-message .numbered-item {
+  position: relative;
+  margin: 0.5em 0;
+  padding-left: 2em;
+  line-height: 1.6;
+  color: #000000; /* Black text for light mode */
+  counter-increment: list-counter;
+}
+
+.ai-message .numbered-item::before {
+  content: counter(list-counter) ".";
+  position: absolute;
+  left: 0;
+  width: 1.5em;
+  color: #000000; /* Black numbers like in the image */
+  font-weight: 700; /* Bold numbers */
+  text-align: left;
+}
+
+/* Sub-list styling for bullets under numbered items */
+.ai-message .response-sub-list {
+  margin: 0.5em 0 0 0;
+  padding-left: 0;
+  list-style: none;
+}
+
+.ai-message .response-sub-list .bullet-item {
+  margin: 0.3em 0;
+  padding-left: 1.2em;
+  font-size: 0.95em;
+}
+
+.ai-message .response-sub-list .bullet-item::before {
+  content: "•";
+  position: absolute;
+  left: 0;
+  color: #000000;
+  font-weight: normal;
+  font-size: 0.9em;
+}
+
+/* Policy sections - Simplified clean style */
+.ai-message .policy-section {
+  background: none; /* Remove background for cleaner look */
+  border: none; /* Remove border */
+  padding: 0.5em 0;
+  margin: 0.5em 0;
+  border-radius: 0;
+  box-shadow: none; /* Remove shadow */
+}
+
+.ai-message .policy-label {
+  color: #000000; /* Black text like the rest */
+  font-weight: 700; /* Bold but not styled differently */
+  text-transform: none; /* Don't uppercase */
+  font-size: 1em;
+  letter-spacing: normal;
+}
+
+/* Information items (key-value pairs) - Simplified */
+.ai-message .info-item {
+  margin: 0.5em 0;
+  padding: 0;
+  border: none; /* Remove border */
+}
+
+.ai-message .info-item:last-child {
+  border-bottom: none;
+}
+
+.ai-message .info-label {
+  color: #000000; /* Black text */
+  font-weight: 600;
+  font-size: 1em;
+  text-transform: none; /* Don't uppercase */
+  letter-spacing: normal;
+}
+
+.ai-message .info-value {
+  color: #000000; /* Black text for light mode */
+  font-weight: 400; /* Normal weight */
+  margin-left: 0.5em;
+}
+
+/* Code formatting */
+.ai-message .code-block {
+  background: #f8f9fa;
+  border: 1px solid #e9ecef;
+  border-radius: 8px;
+  margin: 1em 0;
+  overflow-x: auto;
+}
+
+.ai-message .code-block pre {
+  margin: 0;
+  padding: 1em;
+  font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+  font-size: 0.9em;
+  line-height: 1.5;
+}
+
+.ai-message .inline-code {
+  background: #f1f3f4;
+  padding: 0.2em 0.4em;
+  border-radius: 4px;
+  font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+  font-size: 0.9em;
+  color: #d63384;
+  border: 1px solid #e9ecef;
+}
+
+/* Links */
+.ai-message .response-link {
+  color: #d4b24c;
+  text-decoration: none;
+  border-bottom: 1px dotted #d4b24c;
+  transition: all 0.3s ease;
+}
+
+.ai-message .response-link:hover {
+  color: #a08a3c;
+  border-bottom-style: solid;
+  background: rgba(212, 178, 76, 0.1);
+  padding: 0.1em 0.2em;
+  border-radius: 3px;
 }
 
 /* Enhanced spacing for policy responses */
 .ai-message p {
-    margin: 8px 0;
-    line-height: 1.6;
+  margin: 0.8em 0;
+  line-height: 1.7;
 }
 
 /* Nested list styling */
 .ai-message ul ul,
-.ai-message ol ol {
-    margin: 3px 0;
-    padding-left: 15px;
+.ai-message ol ol,
+.ai-message ul ol,
+.ai-message ol ul {
+  margin: 0.4em 0;
+  padding-left: 1.5em;
 }
 
-/* Special styling for policy sections */
-.ai-message .policy-section {
-    background-color: #f8f9fa;
-    border-left: 4px solid #d4b24c;
-    padding: 12px;
-    margin: 10px 0;
-    border-radius: 4px;
+/* Tables (if any data is formatted as tables) */
+.ai-message table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 1em 0;
+  border-radius: 8px;
+  overflow: hidden;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
 }
 
-.ai-message .policy-section strong {
-    color: #d4b24c;
+.ai-message th,
+.ai-message td {
+  padding: 0.8em 1em;
+  text-align: left;
+  border-bottom: 1px solid #e9ecef;
 }
 
-/* Highlight important terms */
-.ai-message .highlight {
-    background-color: #fff3cd;
-    padding: 2px 4px;
-    border-radius: 3px;
-    font-weight: 600;
+.ai-message th {
+  background: linear-gradient(135deg, #d4b24c 0%, #a08a3c 100%);
+  color: white;
+  font-weight: 600;
+  text-transform: uppercase;
+  font-size: 0.85em;
+  letter-spacing: 0.5px;
+}
+
+.ai-message tr:hover {
+  background: rgba(212, 178, 76, 0.05);
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+  .ai-message {
+    font-size: 0.9rem;
+  }
+  
+  .ai-message .response-header-1 {
+    font-size: 1.3em;
+  }
+  
+  .ai-message .response-header-2 {
+    font-size: 1.2em;
+  }
+  
+  .ai-message .bullet-item,
+  .ai-message .numbered-item {
+    padding-left: 1.5em;
+  }
+  
+  .ai-message .policy-section {
+    padding: 0.8em 1em;
+  }
+}
+
+/* Dark mode support - All text should be white */
+[data-theme="dark"] .ai-message {
+  color: #ffffff; /* White text for dark mode */
+}
+
+/* Ensure all paragraph and direct text elements are white in dark mode */
+[data-theme="dark"] .ai-message p {
+  color: #ffffff; /* White for all paragraphs in dark mode */
+}
+
+[data-theme="dark"] .ai-message .text-bold,
+[data-theme="dark"] .ai-message strong {
+  color: #ffffff; /* White bold text for dark mode */
+  font-weight: 700; /* Ensure bold is maintained */
+}
+
+[data-theme="dark"] .ai-message .text-emphasis,
+[data-theme="dark"] .ai-message em {
+  color: #e2e8f0; /* Light gray for emphasis in dark mode */
+}
+
+[data-theme="dark"] .ai-message .response-paragraph {
+  color: #ffffff; /* White paragraph text for dark mode */
+}
+
+[data-theme="dark"] .ai-message .bullet-item,
+[data-theme="dark"] .ai-message .numbered-item {
+  color: #ffffff; /* White list items for dark mode */
+}
+
+[data-theme="dark"] .ai-message .response-header-1,
+[data-theme="dark"] .ai-message h1 {
+  color: #ffffff; /* White headers in dark mode */
+  font-weight: 700; /* Maintain bold */
+}
+
+[data-theme="dark"] .ai-message .response-header-2,
+[data-theme="dark"] .ai-message h2 {
+  color: #ffffff; /* White headers in dark mode */
+  font-weight: 700; /* Maintain bold */
+}
+
+[data-theme="dark"] .ai-message .response-header-3,
+[data-theme="dark"] .ai-message h3 {
+  color: #ffffff; /* White headers in dark mode */
+  font-weight: 700; /* Maintain bold */
+}
+
+[data-theme="dark"] .ai-message .numbered-item::before {
+  color: #ffffff; /* White numbers in dark mode */
+}
+
+[data-theme="dark"] .ai-message .bullet-item::before {
+  color: #ffffff; /* White bullets in dark mode */
+}
+
+[data-theme="dark"] .ai-message .policy-label {
+  color: #ffffff; /* White labels in dark mode */
+}
+
+[data-theme="dark"] .ai-message .info-label {
+  color: #ffffff; /* White labels in dark mode */
+}
+
+[data-theme="dark"] .ai-message .info-value {
+  color: #ffffff; /* White info values for dark mode */
+}
+
+[data-theme="dark"] .ai-message .info-label {
+  color: #d1d5db; /* Light gray for labels in dark mode */
+}
+
+[data-theme="dark"] .ai-message .policy-section {
+  background: linear-gradient(135deg, #374151 0%, #4b5563 100%);
+  color: #ffffff; /* White text in policy sections for dark mode */
+}
+
+[data-theme="dark"] .ai-message .policy-label {
+  color: #fbbf24; /* Keep accent color for policy labels */
+}
+
+[data-theme="dark"] .ai-message .code-block {
+  background: #374151;
+  border-color: #4b5563;
+  color: #ffffff; /* White code text for dark mode */
+}
+
+[data-theme="dark"] .ai-message .code-block pre {
+  color: #ffffff; /* White preformatted text for dark mode */
+}
+
+[data-theme="dark"] .ai-message .inline-code {
+  background: #4b5563;
+  color: #fbbf24;
+  border-color: #6b7280;
+}
+
+[data-theme="dark"] .ai-message .response-link {
+  color: #fbbf24; /* Bright accent for links in dark mode */
+}
+
+/* Dark mode sub-list styling */
+[data-theme="dark"] .ai-message .response-sub-list .bullet-item {
+  color: #ffffff; /* White text for sub-items in dark mode */
+}
+
+[data-theme="dark"] .ai-message .response-sub-list .bullet-item::before {
+  color: #ffffff; /* White bullets for sub-items in dark mode */
+}
+
+[data-theme="dark"] .ai-message .response-link:hover {
+  color: #f59e0b;
+  background: rgba(251, 191, 36, 0.1);
 }

@@ -1,0 +1,180 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dark/Light Mode Text Color Test</title>
+    <link rel="stylesheet" href="chatbot/src/public/styles/enhanced-formatting.css" />
+    <style>
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            background: #f9fafb;
+            padding: 2rem;
+            margin: 0;
+            transition: all 0.3s ease;
+        }
+        
+        /* Dark mode styles */
+        [data-theme="dark"] body {
+            background: #1a1a1a;
+            color: #ffffff;
+        }
+        
+        .theme-toggle {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            padding: 10px 20px;
+            background: #d4b24c;
+            color: white;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: 600;
+        }
+        
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 16px;
+            box-shadow: 0 4px 16px rgba(0, 0, 0, 0.1);
+            overflow: hidden;
+            transition: all 0.3s ease;
+        }
+        
+        [data-theme="dark"] .container {
+            background: #2d2d2d;
+            box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3);
+        }
+        
+        .header {
+            background: linear-gradient(135deg, #d4b24c 0%, #a08a3c 100%);
+            color: white;
+            padding: 2rem;
+            text-align: center;
+        }
+        
+        .content {
+            padding: 2rem;
+        }
+        
+        .test-response {
+            background: #f8f9fa;
+            border: 1px solid #e9ecef;
+            border-radius: 12px;
+            padding: 1.5rem;
+            margin: 2rem 0;
+            transition: all 0.3s ease;
+        }
+        
+        [data-theme="dark"] .test-response {
+            background: #374151;
+            border-color: #4b5563;
+        }
+        
+        .mode-indicator {
+            background: #e3f2fd;
+            border: 1px solid #2196f3;
+            color: #1976d2;
+            padding: 1rem;
+            border-radius: 8px;
+            margin: 1rem 0;
+            text-align: center;
+            font-weight: 600;
+        }
+        
+        [data-theme="dark"] .mode-indicator {
+            background: #263238;
+            border-color: #37474f;
+            color: #81c784;
+        }
+    </style>
+</head>
+<body>
+    <button class="theme-toggle" onclick="toggleTheme()">🌓 Toggle Theme</button>
+    
+    <div class="container">
+        <div class="header">
+            <h1>Enhanced Chatbot Formatting Test</h1>
+            <p>Testing Dark/Light Mode Text Colors & Bold Headers</p>
+        </div>
+        
+        <div class="content">
+            <div class="mode-indicator" id="modeIndicator">
+                ☀️ Light Mode Active - Text should be black
+            </div>
+            
+            <div class="test-response">
+                <div class="ai-message">
+                    <h1 class="response-header-1">Main Header (Should be Bold)</h1>
+                    <p class="response-paragraph">This is regular paragraph text that should be <strong class="text-bold">black in light mode</strong> and <strong class="text-bold">white in dark mode</strong>.</p>
+                    
+                    <h2 class="response-header-2">Secondary Header (Should be Very Bold)</h2>
+                    <p>Testing text colors in different modes:</p>
+                    
+                    <ul class="response-list">
+                        <li class="bullet-item">Bullet item with <em class="text-emphasis">emphasis text</em></li>
+                        <li class="bullet-item">Another bullet item with <strong class="text-bold">bold text</strong></li>
+                        <li class="bullet-item">Third item for testing</li>
+                    </ul>
+                    
+                    <h3 class="response-header-3">Tertiary Header (Should be Bold)</h3>
+                    <ol class="response-numbered-list">
+                        <li class="numbered-item">First numbered item</li>
+                        <li class="numbered-item">Second numbered item with <strong class="text-bold">bold content</strong></li>
+                        <li class="numbered-item">Third numbered item</li>
+                    </ol>
+                    
+                    <div class="policy-section">
+                        <span class="policy-label">Policy:</span> This is a policy section that should have proper text colors
+                    </div>
+                    
+                    <div class="info-item">
+                        <span class="info-label">Important Info:</span> 
+                        <span class="info-value">This info value should be properly colored</span>
+                    </div>
+                    
+                    <p>Text with <code class="inline-code">inline code</code> and <span class="highlight-term">highlighted terms</span>.</p>
+                    
+                    <div class="code-block">
+                        <pre><code>This is a code block
+It should have proper colors
+In both light and dark modes</code></pre>
+                    </div>
+                </div>
+            </div>
+            
+            <div style="margin-top: 2rem; padding: 1rem; background: #fff3cd; border: 1px solid #ffc107; border-radius: 8px;">
+                <h3 style="margin-top: 0; color: #856404;">Testing Checklist:</h3>
+                <ul style="color: #856404;">
+                    <li>✅ All headers should be properly bold (h1=800, h2=750, h3=700)</li>
+                    <li>✅ Light mode: All text should be black (#000000)</li>
+                    <li>✅ Dark mode: All text should be white (#ffffff)</li>
+                    <li>✅ Accent colors should remain visible in both modes</li>
+                    <li>✅ Bold text should maintain proper weight</li>
+                </ul>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Toggle between light and dark themes
+        function toggleTheme() {
+            const html = document.documentElement;
+            const indicator = document.getElementById('modeIndicator');
+            
+            if (html.getAttribute('data-theme') === 'dark') {
+                html.setAttribute('data-theme', 'light');
+                indicator.innerHTML = '☀️ Light Mode Active - Text should be black';
+            } else {
+                html.setAttribute('data-theme', 'dark');
+                indicator.innerHTML = '🌙 Dark Mode Active - Text should be white';
+            }
+        }
+        
+        // Initialize in light mode
+        document.documentElement.setAttribute('data-theme', 'light');
+    </script>
+</body>
+</html>

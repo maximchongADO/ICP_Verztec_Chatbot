@@ -840,32 +840,138 @@ function sendImages(images) {
 }
 
 
-// Enhanced text formatting function for policy responses
+// Enhanced text formatting function for professional HTML output
 function formatBoldText(text) {
   if (!text) return '';
   
-  // Convert **text** to <strong>text</strong> for proper bold formatting
-  let formatted = text.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
+  let formatted = text;
   
-  // Handle single asterisks for emphasis if needed
-  formatted = formatted.replace(/\*([^*]+)\*/g, '<em>$1</em>');
-  
-  // Handle line breaks for better readability
-  formatted = formatted.replace(/\n/g, '<br>');
-  
-  // Format bullet points with proper HTML structure
-  formatted = formatted.replace(/^- (.+)$/gm, '<li>$1</li>');
-  
-  // Wrap consecutive list items in ul tags
-  formatted = formatted.replace(/(<li>.*?<\/li>)(\s*<br>\s*<li>.*?<\/li>)*/g, function(match) {
-    return '<ul>' + match.replace(/<br>\s*/g, '') + '</ul>';
+  // 1. Handle code blocks first (preserve formatting)
+  const codeBlocks = [];
+  formatted = formatted.replace(/```([\s\S]*?)```/g, (match, code) => {
+    const index = codeBlocks.length;
+    codeBlocks.push(`<div class="code-block"><pre><code>${escapeHtml(code.trim())}</code></pre></div>`);
+    return `__CODE_BLOCK_${index}__`;
   });
   
-  // Format numbered lists
-  formatted = formatted.replace(/^\d+\. (.+)$/gm, '<li>$1</li>');
+  // 2. Handle inline code
+  formatted = formatted.replace(/`([^`]+)`/g, '<code class="inline-code">$1</code>');
   
-  // Clean up any double line breaks
-  formatted = formatted.replace(/<br>\s*<br>/g, '<br>');
+  // 3. Convert **text** to <strong>text</strong> for bold formatting
+  formatted = formatted.replace(/\*\*(.*?)\*\*/g, '<strong class="text-bold">$1</strong>');
+  
+  // 4. Handle single asterisks for emphasis
+  formatted = formatted.replace(/(?<!\*)\*([^*\n]+)\*(?!\*)/g, '<em class="text-emphasis">$1</em>');
+  
+  // 5. Format headers
+  formatted = formatted.replace(/^### (.*$)/gm, '<h3 class="response-header-3">$1</h3>');
+  formatted = formatted.replace(/^## (.*$)/gm, '<h2 class="response-header-2">$1</h2>');
+  formatted = formatted.replace(/^# (.*$)/gm, '<h1 class="response-header-1">$1</h1>');
+  
+  // 6. Handle lists more carefully to preserve proper numbering with sub-items
+  const lines = formatted.split('\n');
+  const processedLines = [];
+  
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    const trimmedLine = line.trim();
+    
+    // Check if it's a numbered item
+    const numberedMatch = trimmedLine.match(/^(\d+)\.\s+(.+)$/);
+    if (numberedMatch) {
+      processedLines.push(`<li class="numbered-item" data-number="${numberedMatch[1]}">${numberedMatch[2]}</li>`);
+      continue;
+    }
+    
+    // Check if it's a bullet point (sub-item)
+    const bulletMatch = trimmedLine.match(/^[-*•]\s+(.+)$/);
+    if (bulletMatch) {
+      processedLines.push(`<li class="bullet-item">${bulletMatch[1]}</li>`);
+      continue;
+    }
+    
+    // Regular line
+    processedLines.push(line);
+  }
+  
+  formatted = processedLines.join('\n');
+  
+  // 7. Wrap consecutive list items in proper ul/ol tags, handling mixed lists
+  formatted = formatted.replace(/(<li class="numbered-item".*?<\/li>)(\s*\n\s*(?:<li class="(?:numbered-item|bullet-item)".*?<\/li>))*\s*\n\s*/gs, function(match) {
+    // Check if this numbered list has sub-bullets
+    if (match.includes('bullet-item')) {
+      // Handle mixed numbered and bullet items
+      let result = '<ol class="response-numbered-list">';
+      const items = match.match(/<li class="(?:numbered-item|bullet-item)".*?<\/li>/g);
+      let currentNumberedItem = null;
+      
+      for (const item of items) {
+        if (item.includes('numbered-item')) {
+          if (currentNumberedItem) {
+            result += currentNumberedItem;
+          }
+          currentNumberedItem = item;
+        } else if (item.includes('bullet-item') && currentNumberedItem) {
+          // Add sub-list to current numbered item
+          if (!currentNumberedItem.includes('<ul')) {
+            currentNumberedItem = currentNumberedItem.replace('</li>', '<ul class="response-sub-list">' + item + '</ul></li>');
+          } else {
+            currentNumberedItem = currentNumberedItem.replace('</ul></li>', item + '</ul></li>');
+          }
+        }
+      }
+      
+      if (currentNumberedItem) {
+        result += currentNumberedItem;
+      }
+      
+      result += '</ol>';
+      return result + '\n';
+    } else {
+      // Pure numbered list
+      return '<ol class="response-numbered-list">' + match.replace(/\n\s*/g, '') + '</ol>\n';
+    }
+  });
+  
+  // 8. Handle standalone bullet lists
+  formatted = formatted.replace(/(<li class="bullet-item">.*?<\/li>)(\s*\n\s*<li class="bullet-item">.*?<\/li>)*/gs, function(match) {
+    return '<ul class="response-list">' + match.replace(/\n\s*/g, '') + '</ul>';
+  });
+  
+  // 9. Format policy sections and important information
+  formatted = formatted.replace(/^(Policy:|Important:|Note:|Warning:|Procedure:)\s*(.+)$/gm, 
+    '<div class="policy-section"><span class="policy-label">$1</span> $2</div>');
+  
+  // 10. Format key-value pairs (common in policy responses)
+  formatted = formatted.replace(/^([A-Za-z\s]+):\s*(.+)$/gm, 
+    '<div class="info-item"><span class="info-label">$1:</span> <span class="info-value">$2</span></div>');
+  
+  // 11. Handle line breaks and paragraphs
+  formatted = formatted.replace(/\n\s*\n/g, '</p><p class="response-paragraph">');
+  
+  // 12. Wrap content in paragraph tags if needed
+  if (!formatted.includes('<p') && !formatted.includes('<div') && !formatted.includes('<ul') && !formatted.includes('<ol')) {
+    formatted = '<p class="response-paragraph">' + formatted + '</p>';
+  } else if (formatted.includes('</p><p')) {
+    formatted = '<p class="response-paragraph">' + formatted + '</p>';
+  }
+  
+  // 13. Handle single line breaks within paragraphs
+  formatted = formatted.replace(/(?<!>)\n(?!<)/g, '<br>');
+  
+  // 14. Clean up multiple line breaks
+  formatted = formatted.replace(/(<br>\s*){3,}/g, '<br><br>');
+  
+  // 15. Restore code blocks
+  codeBlocks.forEach((block, index) => {
+    formatted = formatted.replace(`__CODE_BLOCK_${index}__`, block);
+  });
+  
+  // 16. Format links if any are detected
+  formatted = formatted.replace(/(https?:\/\/[^\s<>"]+)/g, '<a href="$1" target="_blank" class="response-link">$1</a>');
+  
+  // 17. Remove automatic highlighting - keep text clean like the image
+  // No automatic highlighting of terms
   
   return formatted;
 }
