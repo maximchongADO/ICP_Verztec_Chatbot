@@ -6,6 +6,7 @@ import difflib
 import json
 import logging
 import os
+import random
 import re
 import smtplib
 import threading
@@ -2665,12 +2666,20 @@ def generate_answer_histoy_retrieval(user_query: str, user_id:str, chat_id:str):
             # Handle different prompt types based on relevance analysis
             if should_dismiss_completely:
                 # Use fallback prompt for irrelevant queries
+                rand_replies = [
+                    "I'm sorry, I don't know. This information is not referenced in the Verztec database, and I am unable to provide a clear answer. Perhaps I could help you with something related to Verztec?",
+                    "I'm unable to find that information in our Verztec knowledge base. I can only assist with Verztec workplace matters. Is there something work-related I can help you with instead?",
+                    "That's outside my area of expertise. I'm specifically designed to help with Verztec workplace questions only. How can I assist you with something Verztec-related?",
+                    "I don't have access to that information. My knowledge is limited to Verztec workplace topics. What can I help you with regarding your work at Verztec?",
+                    "I'm not able to answer that question as it's not in the Verztec database. I'm here to help with company policies, procedures, and workplace matters. What would you like to know about Verztec?"
+                ]
+                selected_reply = random.choice(rand_replies)
                 fallback_prompt=(
                    "You are the Verztec Helpdesk Assistant. You are strictly prohibited from answering any question that is not directly related to Verztec workplace matters.\n\n"
                     "If a user query is even slightly outside the scope of approved topics, you must not attempt to answer it in any way. "
                     "DO REPLY THE USER IF THE USER IS JUST SAYING HELLO OR ASKING HOW YOU ARE, BUT DO NOT ANSWER ANY QUESTIONS OR PROVIDE INFORMATION THAT IS NOT DIRECTLY RELATED TO VERZTEC WORKPLACE ASSISTANCE. "
                     "Do not generate guesses, elaborations, explanations, or alternatives. You must immediately and firmly respond with the following fallback message, word-for-word NO THINKING PROCESS OR CHAIN OF THOUGHT:\n\n"
-                    "\"I’m sorry, I don’t know. This information is not referenced in the Verztec database, and I am unable to provide a clear answer.Perhaps i could help you with something related to Verztec?\"\n\n"
+                    f"\"{selected_reply}\"\n\n"
                     "You must completely ignore and dismiss any question that falls outside your approved domains of support. "
                     "You are not permitted to engage in casual conversation, general knowledge, or personal advice.\n\n"
                     "Your assistance is strictly limited to Verztec work-related topics only, specifically:\n"
