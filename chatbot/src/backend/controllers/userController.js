@@ -13,7 +13,12 @@ const hashPassword = async (password) => {
 
 const generateAccessToken = (user) => {
     const secret = process.env.JWT_SECRET || 'fallback-secret-key';
-    return jwt.sign({ userId: user.id, role: user.role }, secret, { expiresIn: '1h' });
+    return jwt.sign({ 
+        userId: user.id, 
+        role: user.role,
+        country: user.country,
+        department: user.department
+    }, secret, { expiresIn: '1h' });
 }
 
 const getAllUsers = async (req, res) => {
@@ -104,13 +109,20 @@ const adminCreateUser = async (req, res) => {
     if (!req.user || req.user.role !== 'admin') {
         return res.status(403).json({ message: 'Admin access required' });
     }
-    const { username, email, password, role, country, department } = req.body;
+    let { username, email, password, role, country, department } = req.body;
     if (!username || !email || !password || !role) {
         return res.status(400).json({ message: 'Missing required fields' });
     }
     if (!['user', 'admin', 'manager'].includes(role)) {
         return res.status(400).json({ message: 'Role must be user, admin, or manager' });
     }
+    
+    // Admin users should not have country/department
+    if (role === 'admin') {
+        country = null;
+        department = null;
+    }
+    
     try {
         const hashedPassword = await hashPassword(password);
         const createdUser = await User.createUser({
@@ -138,19 +150,193 @@ const adminCreateUser = async (req, res) => {
     }
 };
 
+const getMailingList = async (req, res) => {
+    try {
+        const connection = await mysql.createConnection(dbConfig);
+        const [rows] = await connection.execute(
+            'SELECT id, name, email FROM mailing_list ORDER BY email'
+        );
+        await connection.end();
+        res.json(rows); // returns an array of {id, name, email}
+    } catch (error) {
+        console.error('Error fetching mailing list:', error);
+        res.status(500).json({ message: 'Internal server error' });
+    }
+};
+
+// Admin-only: add email to mailing list
+const addToMailingList = async (req, res) => {
+    if (!req.user || req.user.role !== 'admin') {
+        return res.status(403).json({ message: 'Admin access required' });
+    }
+
+    const { email } = req.body;
+    
+    if (!email) {
+        return res.status(400).json({ message: 'Email is required' });
+    }
+
+    // Basic email validation
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email)) {
+        return res.status(400).json({ message: 'Invalid email format' });
+    }
+
+    try {
+        const connection = await mysql.createConnection(dbConfig);
+        
+        // Check if email already exists
+        const [existing] = await connection.execute(
+            'SELECT id FROM mailing_list WHERE email = ?',
+            [email]
+        );
+
+        if (existing.length > 0) {
+            await connection.end();
+            return res.status(400).json({ message: 'Email already exists in mailing list' });
+        }
+
+        // Add email to mailing list
+        const [result] = await connection.execute(
+            'INSERT INTO mailing_list (email) VALUES (?)',
+            [email]
+        );
+
+        await connection.end();
+
+        res.json({ 
+            success: true, 
+            message: 'Email added to mailing list successfully',
+            id: result.insertId 
+        });
+    } catch (error) {
+        console.error('Error adding email to mailing list:', error);
+        res.status(500).json({ message: 'Internal server error' });
+    }
+};
+
+// Admin-only: update email in mailing list
+const updateMailingListEmail = async (req, res) => {
+    if (!req.user || req.user.role !== 'admin') {
+        return res.status(403).json({ message: 'Admin access required' });
+    }
+
+    const { id } = req.params;
+    const { email } = req.body;
+    
+    if (!email) {
+        return res.status(400).json({ message: 'Email is required' });
+    }
+
+    // Basic email validation
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email)) {
+        return res.status(400).json({ message: 'Invalid email format' });
+    }
+
+    try {
+        const connection = await mysql.createConnection(dbConfig);
+        
+        // Check if the ID exists
+        const [existing] = await connection.execute(
+            'SELECT id FROM mailing_list WHERE id = ?',
+            [id]
+        );
+
+        if (existing.length === 0) {
+            await connection.end();
+            return res.status(404).json({ message: 'Email not found in mailing list' });
+        }
+
+        // Check if new email already exists (excluding current record)
+        const [duplicate] = await connection.execute(
+            'SELECT id FROM mailing_list WHERE email = ? AND id != ?',
+            [email, id]
+        );
+
+        if (duplicate.length > 0) {
+            await connection.end();
+            return res.status(400).json({ message: 'Email already exists in mailing list' });
+        }
+
+        // Update email
+        await connection.execute(
+            'UPDATE mailing_list SET email = ? WHERE id = ?',
+            [email, id]
+        );
+
+        await connection.end();
+
+        res.json({ 
+            success: true, 
+            message: 'Email updated successfully' 
+        });
+    } catch (error) {
+        console.error('Error updating email in mailing list:', error);
+        res.status(500).json({ message: 'Internal server error' });
+    }
+};
+
+// Admin-only: delete email from mailing list
+const deleteFromMailingList = async (req, res) => {
+    if (!req.user || req.user.role !== 'admin') {
+        return res.status(403).json({ message: 'Admin access required' });
+    }
+
+    const { id } = req.params;
+
+    try {
+        const connection = await mysql.createConnection(dbConfig);
+        
+        // Check if the ID exists
+        const [existing] = await connection.execute(
+            'SELECT id FROM mailing_list WHERE id = ?',
+            [id]
+        );
+
+        if (existing.length === 0) {
+            await connection.end();
+            return res.status(404).json({ message: 'Email not found in mailing list' });
+        }
+
+        // Delete email
+        await connection.execute(
+            'DELETE FROM mailing_list WHERE id = ?',
+            [id]
+        );
+
+        await connection.end();
+
+        res.json({ 
+            success: true, 
+            message: 'Email deleted from mailing list successfully' 
+        });
+    } catch (error) {
+        console.error('Error deleting email from mailing list:', error);
+        res.status(500).json({ message: 'Internal server error' });
+    }
+};
+
 // Admin-only: update user profile
 const adminUpdateUser = async (req, res) => {
     if (!req.user || req.user.role !== 'admin') {
         return res.status(403).json({ message: 'Admin access required' });
     }
     const userId = req.params.id;
-    const { username, email, role, password, country, department } = req.body;
+    let { username, email, role, password, country, department } = req.body;
     if (!username && !email && !role && !password && !country && !department) {
         return res.status(400).json({ message: 'No fields to update' });
     }
     if (role && !['user', 'admin', 'manager'].includes(role)) {
         return res.status(400).json({ message: 'Role must be user, admin, or manager' });
     }
+    
+    // Admin users should not have country/department
+    if (role === 'admin') {
+        country = null;
+        department = null;
+    }
+    
     try {
         let updateFields = {};
         if (username) updateFields.username = username;
@@ -573,6 +759,163 @@ const getAllUsersAnalytics = async (req, res) => {
     }
 };
 
+// Manager-only: get users from same department and country
+const managerGetUsers = async (req, res) => {
+    if (!req.user || req.user.role !== 'manager') {
+        return res.status(403).json({ message: 'Manager access required' });
+    }
+    
+    try {
+        const connection = await mysql.createConnection(dbConfig);
+        const [rows] = await connection.execute(
+            'SELECT id, username, email, role, country, department FROM users WHERE country = ? AND department = ?',
+            [req.user.country, req.user.department]
+        );
+        await connection.end();
+        res.json(rows);
+    } catch (error) {
+        console.error('Error fetching users (manager):', error);
+        res.status(500).json({ message: 'Internal server error' });
+    }
+};
+
+// Manager-only: create user in same department and country
+const managerCreateUser = async (req, res) => {
+    if (!req.user || req.user.role !== 'manager') {
+        return res.status(403).json({ message: 'Manager access required' });
+    }
+    
+    let { username, email, password, role } = req.body;
+    if (!username || !email || !password || !role) {
+        return res.status(400).json({ message: 'Missing required fields' });
+    }
+    if (!['user', 'manager'].includes(role)) {
+        return res.status(400).json({ message: 'Managers can only create user or manager roles' });
+    }
+    
+    try {
+        const hashedPassword = await hashPassword(password);
+        const createdUser = await User.createUser({
+            username,
+            email,
+            password: hashedPassword,
+            role,
+            country: req.user.country,
+            department: req.user.department
+        });
+        res.status(201).json({
+            message: 'User created successfully',
+            user: {
+                id: createdUser.id,
+                username: createdUser.username,
+                email: createdUser.email,
+                role: createdUser.role,
+                country: createdUser.country,
+                department: createdUser.department
+            }
+        });
+    } catch (error) {
+        console.error('Error creating user (manager):', error);
+        res.status(500).json({ message: 'Internal server error' });
+    }
+};
+
+// Manager-only: update user in same department and country
+const managerUpdateUser = async (req, res) => {
+    if (!req.user || req.user.role !== 'manager') {
+        return res.status(403).json({ message: 'Manager access required' });
+    }
+    
+    const userId = req.params.id;
+    let { username, email, role, password } = req.body;
+    if (!username && !email && !role && !password) {
+        return res.status(400).json({ message: 'No fields to update' });
+    }
+    if (role && !['user', 'manager'].includes(role)) {
+        return res.status(400).json({ message: 'Managers can only set user or manager roles' });
+    }
+    
+    try {
+        // Check if user is in same department and country
+        const connection = await mysql.createConnection(dbConfig);
+        const [userRows] = await connection.execute(
+            'SELECT country, department FROM users WHERE id = ?',
+            [userId]
+        );
+        await connection.end();
+        
+        if (userRows.length === 0) {
+            return res.status(404).json({ message: 'User not found' });
+        }
+        
+        const user = userRows[0];
+        if (user.country !== req.user.country || user.department !== req.user.department) {
+            return res.status(403).json({ message: 'Can only manage users in your department and country' });
+        }
+        
+        let updateFields = {};
+        if (username) updateFields.username = username;
+        if (email) updateFields.email = email;
+        if (role) updateFields.role = role;
+        if (password) updateFields.password = await hashPassword(password);
+
+        const updatedUser = await User.updateUser(userId, updateFields);
+        if (!updatedUser) {
+            return res.status(404).json({ message: 'User not found' });
+        }
+        res.json({
+            message: 'User updated successfully',
+            user: updatedUser
+        });
+    } catch (error) {
+        console.error('Error updating user (manager):', error);
+        res.status(500).json({ message: 'Internal server error' });
+    }
+};
+
+// Manager-only: delete user in same department and country
+const managerDeleteUser = async (req, res) => {
+    if (!req.user || req.user.role !== 'manager') {
+        return res.status(403).json({ message: 'Manager access required' });
+    }
+    
+    const userId = req.params.id;
+    
+    try {
+        // Check if user is in same department and country
+        const connection = await mysql.createConnection(dbConfig);
+        const [userRows] = await connection.execute(
+            'SELECT country, department, role FROM users WHERE id = ?',
+            [userId]
+        );
+        await connection.end();
+        
+        if (userRows.length === 0) {
+            return res.status(404).json({ message: 'User not found' });
+        }
+        
+        const user = userRows[0];
+        if (user.country !== req.user.country || user.department !== req.user.department) {
+            return res.status(403).json({ message: 'Can only manage users in your department and country' });
+        }
+        
+        // Prevent managers from deleting other managers or admins
+        if (user.role === 'manager' || user.role === 'admin') {
+            return res.status(403).json({ message: 'Cannot delete users with manager or admin roles' });
+        }
+        
+        const deleted = await User.deleteUser(userId);
+        if (deleted) {
+            res.status(200).json({ message: 'User deleted successfully' });
+        } else {
+            res.status(404).json({ message: 'User not found' });
+        }
+    } catch (error) {
+        console.error('Error deleting user (manager):', error);
+        res.status(500).json({ message: 'Internal server error' });
+    }
+};
+
 module.exports = {
     getAllUsers,
     getUserById,
@@ -585,9 +928,17 @@ module.exports = {
     adminCreateUser,
     adminUpdateUser,
     adminDeleteUser,
+    managerGetUsers,
+    managerCreateUser,
+    managerUpdateUser,
+    managerDeleteUser,
     getUserAnalytics,
     getUserChats,
     getUserFeedback,
     getCompanyAnalytics,
-    getAllUsersAnalytics
+    getAllUsersAnalytics,
+    getMailingList,
+    addToMailingList,
+    updateMailingListEmail,
+    deleteFromMailingList
 };

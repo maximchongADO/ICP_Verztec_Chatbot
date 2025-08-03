@@ -8,6 +8,8 @@ const userRoute = (app) => {
   app.post("/users", userController.createUser);
   // User login route - matches frontend expectation
   app.post("/api/login", userController.loginUser);
+  // JWT decode route
+  app.get("/api/decode-jwt", userController.decodeJWT);
   // Get all users route
   app.get("/users", userController.getAllUsers);
   // Get user by ID route
@@ -26,6 +28,40 @@ const userRoute = (app) => {
     authenticateToken.requireAdmin,
     userController.adminUpdateUser
   );
+
+
+
+  app.get(
+    "/api/mailing-list",
+    authenticateToken,
+    authenticateToken.requireAdmin,
+    userController.getMailingList
+  );
+
+  // Admin-only: add email to mailing list (POST /api/mailing-list)
+  app.post(
+    "/api/mailing-list",
+    authenticateToken,
+    authenticateToken.requireAdmin,
+    userController.addToMailingList
+  );
+
+  // Admin-only: update email in mailing list (PUT /api/mailing-list/:id)
+  app.put(
+    "/api/mailing-list/:id",
+    authenticateToken,
+    authenticateToken.requireAdmin,
+    userController.updateMailingListEmail
+  );
+
+  // Admin-only: delete email from mailing list (DELETE /api/mailing-list/:id)
+  app.delete(
+    "/api/mailing-list/:id",
+    authenticateToken,
+    authenticateToken.requireAdmin,
+    userController.deleteFromMailingList
+  );
+
   // Admin-only: delete user (DELETE /api/users/:id)
   app.delete(
     "/api/users/:id",
@@ -33,6 +69,40 @@ const userRoute = (app) => {
     authenticateToken.requireAdmin,
     userController.adminDeleteUser
   );
+
+  
+  // Manager-only: get users in same department/country (GET /api/manager/users)
+  app.get(
+    "/api/manager/users",
+    authenticateToken,
+    authenticateToken.requireManager,
+    userController.managerGetUsers
+  );
+  
+  // Manager-only: create user in same department/country (POST /api/manager/users)
+  app.post(
+    "/api/manager/users",
+    authenticateToken,
+    authenticateToken.requireManager,
+    userController.managerCreateUser
+  );
+  
+  // Manager-only: update user in same department/country (PATCH /api/manager/users/:id)
+  app.patch(
+    "/api/manager/users/:id",
+    authenticateToken,
+    authenticateToken.requireManager,
+    userController.managerUpdateUser
+  );
+  
+  // Manager-only: delete user in same department/country (DELETE /api/manager/users/:id)
+  app.delete(
+    "/api/manager/users/:id",
+    authenticateToken,
+    authenticateToken.requireManager,
+    userController.managerDeleteUser
+  );
+  
   // Admin-only: batch upload users via Excel/CSV
   app.post(
     "/api/users/batch-upload",

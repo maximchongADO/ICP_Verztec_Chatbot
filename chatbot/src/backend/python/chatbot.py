@@ -1,52 +1,54 @@
 
-from collections import Counter
-import os, re, difflib, logging
-import os
-import re
+# Standard library imports
+import concurrent.futures
+import csv
 import difflib
-import time
-import concurrent.futures
-import logging
-import csv
-import uuid
-import numpy as np
-import pymysql
-import spacy
-import concurrent.futures
-from datetime import datetime
-from time import sleep
-from spacy.matcher import PhraseMatcher
-from typing import List
-from dotenv import load_dotenv
-from sentence_transformers import SentenceTransformer
-from transformers import AutoModelForSeq2SeqLM, AutoTokenizer
-from typing import Optional, Dict
-from langchain_groq import ChatGroq
-from langchain.schema import HumanMessage, AIMessage, Document
-from langchain.memory import ConversationBufferMemory
-from langchain.chains import ConversationalRetrievalChain
-from langchain_core.output_parsers import StrOutputParser
-from langchain_community.vectorstores import FAISS
-from langchain_community.embeddings import HuggingFaceEmbeddings
-from memory_retrieval import build_memory_from_results, retrieve_user_messages_and_scores
-from sentence_transformers import CrossEncoder
-from langchain.schema import BaseRetriever
-from langchain.agents import Tool, create_react_agent, AgentExecutor
-from langchain.agents.output_parsers import ReActSingleInputOutputParser
-from langchain_core.prompts import PromptTemplate
-from langchain_core.agents import AgentAction, AgentFinish
-from langchain.prompts import ChatPromptTemplate
-#from tool_executors import execute_confirmed_tool, execute_hr_escalation_tool, execute_meeting_scheduling_tool
-import csv
+import json
 import logging
 import os
 import re
 import smtplib
+import threading
+import time
+import uuid
+from collections import Counter
 from datetime import datetime, timedelta
-from typing import Optional, Dict, Any, List, Tuple
-from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
+from email.mime.text import MIMEText
+from time import sleep
+from typing import Any, Dict, List, Optional, Tuple
+
+# Third-party imports
+import numpy as np
+import pymysql
+import spacy
 from dotenv import load_dotenv
+from langdetect import detect, detect_langs
+from langdetect.lang_detect_exception import LangDetectException
+from pydantic import Field, ConfigDict
+from sentence_transformers import CrossEncoder, SentenceTransformer
+from spacy.matcher import PhraseMatcher
+from transformers import AutoModelForSeq2SeqLM, AutoTokenizer
+
+# LangChain imports
+from langchain.agents import AgentExecutor, Tool, create_react_agent
+from langchain.agents.output_parsers import ReActSingleInputOutputParser
+from langchain.chains import ConversationChain, ConversationalRetrievalChain, LLMChain
+from langchain.memory import ConversationBufferMemory
+from langchain.prompts import ChatPromptTemplate, SystemMessagePromptTemplate, HumanMessagePromptTemplate
+from langchain.retrievers import ContextualCompressionRetriever
+from langchain.retrievers.document_compressors import LLMChainFilter
+from langchain.schema import AIMessage, BaseRetriever, Document, HumanMessage
+from langchain_community.embeddings import HuggingFaceEmbeddings
+from langchain_community.vectorstores import FAISS
+from langchain_core.agents import AgentAction, AgentFinish
+from langchain_core.output_parsers import StrOutputParser
+from langchain_core.prompts import PromptTemplate
+from langchain_groq import ChatGroq
+
+# Local imports
+from memory_retrieval import build_memory_from_results, retrieve_user_messages_and_scores
+#from tool_executors import execute_confirmed_tool, execute_hr_escalation_tool, execute_meeting_scheduling_tool
 # Set up logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
@@ -55,12 +57,10 @@ logger = logging.getLogger(__name__)
 # Initialize models and clients
 embedding_model = SentenceTransformer('BAAI/bge-large-en-v1.5')
 load_dotenv()
-api_key='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'
-api_key="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"
-api_key="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"## backend api key
-api_key='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'
+api_key='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'
+# i love api keyyy
 model = "deepseek-r1-distill-llama-70b" 
-deepseek = ChatGroq(api_key=api_key, model=model, temperature = 0.4) # type: ignore
+deepseek = ChatGroq(api_key=api_key, model=model, temperature = 0) # type: ignore
 decisionlayer_model=ChatGroq(api_key=api_key, 
                             model="qwen/qwen3-32b",
                             temperature=0,                # ⬅ deterministic, no creativity
@@ -70,6 +70,7 @@ decisionlayer_model=ChatGroq(api_key=api_key,
                                 "presence_penalty": 0
                                 }
                             ) 
+cleaning_model = ChatGroq(api_key=api_key,  model="meta-llama/llama-4-scout-17b-16e-instruct", temperature=0.0) # type: ignore
 
 
 # Initialize memory
@@ -89,38 +90,110 @@ DB_CONFIG = {
     'autocommit': True
 }
 
-# Load FAISS index
+# Load all FAISS indices
+faiss_indices = {}
+regional_indices = {}
+
 try:
     script_dir = os.path.dirname(os.path.abspath(__file__))
-    faiss_index_path = os.path.join(script_dir, "faiss_master_index")
-    faiss_index_path2=os.path.join(script_dir, "faiss_GK_index")
     
-    if not os.path.exists(faiss_index_path):
-        raise FileNotFoundError(f"FAISS index not found at {faiss_index_path}")
-    
+    # Initialize embedding model once for all indices
     embedding_model = HuggingFaceEmbeddings(
         model_name="BAAI/bge-large-en-v1.5",
         encode_kwargs={'normalize_embeddings': True},
         model_kwargs={'device': 'cpu'}  # Explicitly set device to CPU
     )
     
-    index = FAISS.load_local(
-        faiss_index_path,
-        embedding_model,
-        allow_dangerous_deserialization=True
-    )
+    # Load existing master indices
+    faiss_index_path = os.path.join(script_dir, "faiss_master_index3")
+    faiss_index_path2 = os.path.join(script_dir, "faiss_GK_index")
     
-    index2=  FAISS.load_local(
-        faiss_index_path2,
-        embedding_model,
-        allow_dangerous_deserialization=True
-    )
-    logger.info("FAISS index loaded successfully on CPU")
+    if os.path.exists(faiss_index_path):
+        index = FAISS.load_local(
+            faiss_index_path,
+            embedding_model,
+            allow_dangerous_deserialization=True
+        )
+        faiss_indices['master_index3'] = index
+        logger.info("Loaded faiss_master_index3 successfully")
+    
+    if os.path.exists(faiss_index_path2):
+        index2 = FAISS.load_local(
+            faiss_index_path2,
+            embedding_model,
+            allow_dangerous_deserialization=True
+        )
+        faiss_indices['gk_index'] = index2
+        logger.info("Loaded faiss_GK_index successfully")
+    
+    # Load regional FAISS indices
+    faiss_indices_dir = os.path.join(script_dir, "faiss_indices")
+    
+    if os.path.exists(faiss_indices_dir):
+        # Load admin master index
+        admin_path = os.path.join(faiss_indices_dir, "admin_master", "faiss_index")
+        if os.path.exists(admin_path):
+            try:
+                admin_index = FAISS.load_local(
+                    admin_path,
+                    embedding_model,
+                    allow_dangerous_deserialization=True
+                )
+                regional_indices['admin_master'] = admin_index
+                faiss_indices['admin_master'] = admin_index
+                logger.info("Loaded admin_master FAISS index successfully")
+            except Exception as e:
+                logger.error(f"Failed to load admin_master index: {str(e)}")
+        
+        # Load regional indices (Singapore and China)
+        regions = ['singapore', 'china']
+        departments = ['hr', 'it']
+        
+        for region in regions:
+            regional_indices[region] = {}
+            for dept in departments:
+                dept_path = os.path.join(faiss_indices_dir, region, dept, "faiss_index")
+                if os.path.exists(dept_path):
+                    try:
+                        dept_index = FAISS.load_local(
+                            dept_path,
+                            embedding_model,
+                            allow_dangerous_deserialization=True
+                        )
+                        regional_indices[region][dept] = dept_index
+                        faiss_indices[f'{region}_{dept}'] = dept_index
+                        logger.info(f"Loaded {region} {dept} FAISS index successfully")
+                    except Exception as e:
+                        logger.error(f"Failed to load {region} {dept} index: {str(e)}")
+    
+    # Log summary of loaded indices
+    logger.info(f"Successfully loaded {len(faiss_indices)} total FAISS indices:")
+    for name, idx in faiss_indices.items():
+        doc_count = idx.index.ntotal if hasattr(idx, 'index') else 'unknown'
+        logger.info(f"  - {name}: {doc_count} documents")
+    
+    # Maintain backward compatibility - set primary indices
+    if 'master_index3' in faiss_indices:
+        index = faiss_indices['master_index3']
+    elif faiss_indices:
+        index = list(faiss_indices.values())[0]  # Use first available index
+        logger.warning("faiss_master_index3 not found, using first available index as primary")
+    else:
+        index = None
+        logger.error("No FAISS indices could be loaded")
+    
+    if 'gk_index' in faiss_indices:
+        index2 = faiss_indices['gk_index']
+    else:
+        index2 = None
+        logger.warning("faiss_GK_index not found")
     
 except Exception as e:
-    logger.error(f"Failed to load FAISS index: {str(e)}", exc_info=True)
+    logger.error(f"Failed to load FAISS indices: {str(e)}", exc_info=True)
     index = None
-    metadata = None
+    index2 = None
+    faiss_indices = {}
+    regional_indices = {}
     
     
     
@@ -158,7 +231,101 @@ def store_chat_log_updated(user_message, bot_response, query_score, relevance_sc
 
     cursor.close()
     conn.close()
+    
+def store_chat_log_updated(user_message, bot_response, query_score, relevance_score,
+                           chat_id, user_id, chat_name=None):
+    conn = pymysql.connect(**DB_CONFIG)
+    try:
+        with conn.cursor() as cursor:
+            # If caller didn’t supply a name (or it’s blank), try to reuse the earliest one
+            if not chat_name or not chat_name.strip():
+                select_query = """
+                    SELECT chat_name
+                    FROM chat_logs
+                    WHERE user_id = %s AND chat_id = %s
+                    ORDER BY timestamp ASC
+                    LIMIT 1;
+                """
+                cursor.execute(select_query, (user_id, chat_id))
+                row = cursor.fetchone()
+                if row and row[0] and row[0].strip():
+                    chat_name = row[0].strip()
 
+            insert_query = """
+                INSERT INTO chat_logs
+                    (timestamp, user_message, bot_response, feedback,
+                     query_score, relevance_score, user_id, chat_id, chat_name)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+            """
+            timestamp = datetime.utcnow()
+            feedback = None
+
+            cursor.execute(insert_query, (
+                timestamp, user_message, bot_response, feedback,
+                query_score, relevance_score, user_id, chat_id, chat_name
+            ))
+        conn.commit()
+        logger.info("Stored chat log for session %s %s at %s", user_id, chat_id, timestamp)
+        return chat_name  # handy if caller wants to know what was used
+    finally:
+        conn.close()
+def store_chat_log_updated(user_message, bot_response, query_score, relevance_score,
+                           chat_id, user_id, chat_name=None):
+    # Check for invalid float values
+    def is_invalid(val):
+        return val is None or np.isnan(val) or np.isinf(val)
+
+    # Log if any invalid values exist
+    if is_invalid(query_score) or is_invalid(relevance_score):
+        full_row = {
+            "user_message": user_message,
+            "bot_response": bot_response,
+            "query_score": query_score,
+            "relevance_score": relevance_score,
+            "chat_id": chat_id,
+            "user_id": user_id,
+            "chat_name": chat_name
+        }
+        logger.warning("❗ Invalid score detected in chat log entry:\n%s", full_row)
+        print("❗ Invalid score detected:\n", full_row)
+        return None  # Optionally skip insertion entirely
+
+    # Proceed with DB write
+    conn = pymysql.connect(**DB_CONFIG)
+    try:
+        with conn.cursor() as cursor:
+            # Reuse earliest name if not supplied
+            if not chat_name or not chat_name.strip():
+                select_query = """
+                    SELECT chat_name
+                    FROM chat_logs
+                    WHERE user_id = %s AND chat_id = %s
+                    ORDER BY timestamp ASC
+                    LIMIT 1;
+                """
+                cursor.execute(select_query, (user_id, chat_id))
+                row = cursor.fetchone()
+                if row and row[0] and row[0].strip():
+                    chat_name = row[0].strip()
+
+            insert_query = """
+                INSERT INTO chat_logs
+                    (timestamp, user_message, bot_response, feedback,
+                     query_score, relevance_score, user_id, chat_id, chat_name)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+            """
+            timestamp = datetime.utcnow()
+            feedback = None
+
+            cursor.execute(insert_query, (
+                timestamp, user_message, bot_response, feedback,
+                query_score, relevance_score, user_id, chat_id, chat_name
+            ))
+        conn.commit()
+        logger.info("Stored chat log for session %s %s at %s", user_id, chat_id, timestamp)
+        return chat_name
+    finally:
+        conn.close()
 
 def store_hr_escalation(escalation_id, user_id, chat_id, user_message, issue_summary, status="PENDING", priority="NORMAL", user_description=None):
     """
@@ -250,6 +417,98 @@ def get_user_info(user_id: str):
     except pymysql.Error as e:
         logger.error(f"Error fetching user info for {user_id}: {str(e)}")
         return None
+
+
+def get_user_specific_index(user_id: str):
+    """
+    Get the appropriate FAISS index for a user based on their role, country, and department.
+    
+    Priority:
+    1. Admin role -> admin_master index
+    2. Regional index (country + department) -> singapore_hr, china_it, etc.
+    3. Fallback to master_index3
+    
+    Args:
+        user_id (str): User identifier
+        
+    Returns:
+        FAISS index object or None if no suitable index found
+    """
+    try:
+        # Get user information
+        user_info = get_user_info(user_id)
+        if not user_info:
+            logger.warning(f"No user info found for {user_id}, using default master index")
+            return faiss_indices.get('master_index3', index)
+        
+        role = user_info.get('role', '').lower() if user_info.get('role') else ''
+        country = user_info.get('country', '').lower() if user_info.get('country') else ''
+        department = user_info.get('department', '').lower() if user_info.get('department') else ''
+        
+        logger.info(f"User {user_id} profile: role={role}, country={country}, department={department}")
+        
+        # 1. Admin override - use admin_master index
+        if role in ['admin', 'administrator', 'super_admin', 'superadmin']:
+            if 'admin_master' in faiss_indices:
+                logger.info(f"Using admin_master index for admin user {user_id}")
+                return faiss_indices['admin_master']
+            else:
+                logger.warning("Admin user detected but admin_master index not available, using master index")
+        
+        # 2. Try regional index (country + department)
+        if country and department:
+            # Map department variations to standard names
+            dept_mapping = {
+                'hr': 'hr',
+                'human resources': 'hr', 
+                'human_resources': 'hr',
+                'it': 'it',
+                'information technology': 'it',
+                'information_technology': 'it',
+                'tech': 'it',
+                'technology': 'it'
+            }
+            
+            # Map country variations to standard names
+            country_mapping = {
+                'singapore': 'singapore',
+                'sg': 'singapore',
+                'china': 'china',
+                'cn': 'china',
+                'prc': 'china'
+            }
+            
+            mapped_country = country_mapping.get(country, country)
+            mapped_dept = dept_mapping.get(department, department)
+            
+            # Try exact regional match
+            regional_key = f"{mapped_country}_{mapped_dept}"
+            if regional_key in faiss_indices:
+                logger.info(f"Using regional index {regional_key} for user {user_id}")
+                return faiss_indices[regional_key]
+            
+            # Try hierarchical access via regional_indices
+            if mapped_country in regional_indices and mapped_dept in regional_indices[mapped_country]:
+                logger.info(f"Using hierarchical regional index {mapped_country}/{mapped_dept} for user {user_id}")
+                return regional_indices[mapped_country][mapped_dept]
+            
+            logger.info(f"No regional index found for {mapped_country}/{mapped_dept}")
+        
+        # 3. Fallback to master index
+        if 'master_index3' in faiss_indices:
+            logger.info(f"Using fallback master_index3 for user {user_id}")
+            return faiss_indices['master_index3']
+        elif index:  # Global fallback
+            logger.info(f"Using global fallback index for user {user_id}")
+            return index
+        else:
+            logger.error(f"No suitable index found for user {user_id}")
+            return None
+            
+    except Exception as e:
+        logger.error(f"Error getting user-specific index for {user_id}: {str(e)}")
+        # Return default index as fallback
+        return faiss_indices.get('master_index3', index)
     
     
     
@@ -329,6 +588,250 @@ def is_query_score(text: str) -> float:
         return 0.0
 
 
+# Language detection configuration - easily configurable and extensible
+LANGUAGE_CONFIG = {
+    # Primary languages supported by the system
+    'supported_languages': {
+        'en': {'name': 'English', 'is_primary': True},
+        'zh-cn': {'name': 'Chinese (Simplified)', 'is_primary': False},
+        'zh-tw': {'name': 'Chinese (Traditional)', 'is_primary': False},
+        'es': {'name': 'Spanish', 'is_primary': False},
+        'fr': {'name': 'French', 'is_primary': False},
+        'de': {'name': 'German', 'is_primary': False},
+        'ja': {'name': 'Japanese', 'is_primary': False},
+        'ko': {'name': 'Korean', 'is_primary': False},
+    },
+    
+    # Common phrases per language - easily extensible
+    'common_phrases': {
+        'en': {
+            'hello', 'hi', 'hey', 'thanks', 'thank you', 'goodbye', 'bye',
+            'good morning', 'good afternoon', 'good evening', 'good night',
+            'how are you', 'what', 'why', 'when', 'where', 'who', 'how',
+            'yes', 'no', 'ok', 'okay', 'sure', 'please', 'sorry',
+            'help', 'can you', 'could you', 'would you', 'will you',
+            'i need', 'i want', 'i have', 'i am', 'i\'m', 'you are', 'you\'re'
+        },
+        'zh-cn': {
+            '你好', '谢谢', '再见', '早上好', '晚上好', '什么', '为什么', '怎么',
+            '哪里', '什么时候', '谁', '是的', '不是', '好的', '请', '对不起',
+            '帮助', '我需要', '我想要', '我有', '我是', '你是'
+        },
+        'es': {
+            'hola', 'gracias', 'adiós', 'buenos días', 'buenas noches', 'qué', 'por qué', 'cómo',
+            'dónde', 'cuándo', 'quién', 'sí', 'no', 'vale', 'por favor', 'lo siento',
+            'ayuda', 'necesito', 'quiero', 'tengo', 'soy', 'eres'
+        },
+        'fr': {
+            'bonjour', 'merci', 'au revoir', 'bonne nuit', 'quoi', 'pourquoi', 'comment',
+            'où', 'quand', 'qui', 'oui', 'non', 'd\'accord', 's\'il vous plaît', 'désolé',
+            'aide', 'j\'ai besoin', 'je veux', 'j\'ai', 'je suis', 'vous êtes'
+        }
+    },
+    
+    # Question starters per language
+    'question_starters': {
+        'en': ['what', 'why', 'when', 'where', 'who', 'how', 'can', 'could', 'would', 'will', 'do', 'does', 'did', 'is', 'are', 'was', 'were'],
+        'zh-cn': ['什么', '为什么', '怎么', '哪里', '什么时候', '谁', '是否', '可以', '能否', '会不会'],
+        'es': ['qué', 'por qué', 'cómo', 'dónde', 'cuándo', 'quién', 'puede', 'podría', 'será', 'es', 'son'],
+        'fr': ['quoi', 'pourquoi', 'comment', 'où', 'quand', 'qui', 'peut', 'pourrait', 'sera', 'est', 'sont']
+    },
+    
+    # Detection thresholds
+    'thresholds': {
+        'short_query_words': 2,  # Consider queries with <= 2 words as "short"
+        'very_short_chars': 10,  # Consider queries with <= 10 chars as "very short"
+        'confidence_threshold': 0.3,  # Minimum confidence for langdetect
+        'fallback_language': 'en'  # Default fallback language
+    }
+}
+
+
+def detect_language_improved(user_query: str, config: dict = None) -> tuple[str, bool]:
+    """
+    Improved language detection that handles short phrases and common words better.
+    Now configurable and extensible for multiple languages.
+    
+    Args:
+        user_query (str): The query to analyze
+        config (dict, optional): Configuration override. Defaults to LANGUAGE_CONFIG.
+    
+    Returns:
+        tuple[str, bool]: (detected_language_code, is_primary_language)
+    """
+    if config is None:
+        config = LANGUAGE_CONFIG
+    
+    query_lower = user_query.lower().strip()
+    thresholds = config['thresholds']
+    
+    # Check against common phrases for all supported languages
+    for lang_code, phrases in config['common_phrases'].items():
+        if query_lower in phrases:
+            is_primary = config['supported_languages'].get(lang_code, {}).get('is_primary', False)
+            logger.info(f"Matched common phrase '{query_lower}' to language: {lang_code}")
+            return lang_code, is_primary
+    
+    # Check question starters for all languages
+    first_word = query_lower.split()[0] if query_lower.split() else ''
+    for lang_code, starters in config['question_starters'].items():
+        if first_word in starters:
+            is_primary = config['supported_languages'].get(lang_code, {}).get('is_primary', False)
+            logger.info(f"Matched question starter '{first_word}' to language: {lang_code}")
+            return lang_code, is_primary
+    
+    # For short queries, be more conservative with langdetect
+    if len(user_query.split()) <= thresholds['short_query_words']:
+        try:
+            detections = detect_langs(user_query)
+            
+            # Check if any supported language is detected with reasonable confidence
+            for detection in detections:
+                if (detection.lang in config['supported_languages'] and 
+                    detection.prob > thresholds['confidence_threshold']):
+                    is_primary = config['supported_languages'][detection.lang].get('is_primary', False)
+                    logger.info(f"Short query detected as {detection.lang} with confidence {detection.prob:.3f}")
+                    return detection.lang, is_primary
+            
+            # For very short queries, default to fallback language
+            if len(user_query.strip()) <= thresholds['very_short_chars']:
+                fallback_lang = thresholds['fallback_language']
+                is_primary = config['supported_languages'].get(fallback_lang, {}).get('is_primary', False)
+                logger.info(f"Very short query, defaulting to {fallback_lang}")
+                return fallback_lang, is_primary
+                
+        except Exception as e:
+            logger.warning(f"Language detection failed for short query: {e}")
+            fallback_lang = thresholds['fallback_language']
+            is_primary = config['supported_languages'].get(fallback_lang, {}).get('is_primary', False)
+            return fallback_lang, is_primary
+    
+    # For longer queries, use standard langdetect
+    try:
+        detected_language = detect(user_query)
+        
+        # Check if detected language is in our supported list
+        if detected_language in config['supported_languages']:
+            is_primary = config['supported_languages'][detected_language].get('is_primary', False)
+            logger.info(f"Detected supported language: {detected_language}")
+            return detected_language, is_primary
+        else:
+            # Language detected but not in our supported list, fallback to primary
+            fallback_lang = thresholds['fallback_language']
+            is_primary = config['supported_languages'].get(fallback_lang, {}).get('is_primary', False)
+            logger.info(f"Detected unsupported language {detected_language}, falling back to {fallback_lang}")
+            return fallback_lang, is_primary
+            
+    except LangDetectException as e:
+        logger.warning(f"Language detection failed: {e}")
+        fallback_lang = thresholds['fallback_language']
+        is_primary = config['supported_languages'].get(fallback_lang, {}).get('is_primary', False)
+        return fallback_lang, is_primary
+
+
+def get_language_name(lang_code: str, config: dict = None) -> str:
+    """
+    Get the human-readable name for a language code.
+    
+    Args:
+        lang_code (str): Language code (e.g., 'en', 'zh-cn')
+        config (dict, optional): Configuration override
+    
+    Returns:
+        str: Human-readable language name
+    """
+    if config is None:
+        config = LANGUAGE_CONFIG
+    
+    return config['supported_languages'].get(lang_code, {}).get('name', lang_code.upper())
+
+
+def add_language_phrases(lang_code: str, phrases: set, config: dict = None) -> dict:
+    """
+    Dynamically add phrases for a language. Useful for runtime customization.
+    
+    Args:
+        lang_code (str): Language code
+        phrases (set): Set of phrases to add
+        config (dict, optional): Configuration to modify
+    
+    Returns:
+        dict: Updated configuration
+    """
+    if config is None:
+        config = LANGUAGE_CONFIG.copy()
+    
+    if lang_code not in config['common_phrases']:
+        config['common_phrases'][lang_code] = set()
+    
+    config['common_phrases'][lang_code].update(phrases)
+    logger.info(f"Added {len(phrases)} phrases for language {lang_code}")
+    
+    return config
+
+
+def load_language_config_from_file(config_path: str = None) -> dict:
+    """
+    Load language configuration from a JSON file for easier customization.
+    
+    Args:
+        config_path (str, optional): Path to JSON config file
+    
+    Returns:
+        dict: Language configuration
+    """
+    if config_path and os.path.exists(config_path):
+        try:
+            with open(config_path, 'r', encoding='utf-8') as f:
+                loaded_config = json.load(f)
+            
+            # Convert phrase lists to sets for faster lookup
+            if 'common_phrases' in loaded_config:
+                for lang_code, phrases in loaded_config['common_phrases'].items():
+                    if isinstance(phrases, list):
+                        loaded_config['common_phrases'][lang_code] = set(phrases)
+            
+            logger.info(f"Loaded language configuration from {config_path}")
+            return loaded_config
+            
+        except Exception as e:
+            logger.error(f"Failed to load language config from {config_path}: {e}")
+            logger.info("Using default language configuration")
+            return LANGUAGE_CONFIG
+    else:
+        return LANGUAGE_CONFIG
+
+
+def save_language_config_to_file(config: dict, config_path: str) -> bool:
+    """
+    Save current language configuration to a JSON file for persistence.
+    
+    Args:
+        config (dict): Language configuration to save
+        config_path (str): Path where to save the config
+    
+    Returns:
+        bool: True if successful, False otherwise
+    """
+    try:
+        # Convert sets to lists for JSON serialization
+        config_to_save = config.copy()
+        if 'common_phrases' in config_to_save:
+            for lang_code, phrases in config_to_save['common_phrases'].items():
+                if isinstance(phrases, set):
+                    config_to_save['common_phrases'][lang_code] = sorted(list(phrases))
+        
+        with open(config_path, 'w', encoding='utf-8') as f:
+            json.dump(config_to_save, f, indent=2, ensure_ascii=False)
+        
+        logger.info(f"Saved language configuration to {config_path}")
+        return True
+        
+    except Exception as e:
+        logger.error(f"Failed to save language config to {config_path}: {e}")
+        return False
+
+
 def clean_with_grammar_model(user_query: str) -> str:
     """
     Uses a GEC-tuned model to clean up grammar, spelling, and clarity issues from user input.
@@ -357,6 +860,462 @@ def get_avg_score(index, embedding_model, query, k=10):
     avg_score = np.mean(D[0]) if D.shape[1] > 0 else float('inf')
     logger.info(f"[L2] Average distance for query '{query}': {avg_score}")
     return avg_score
+
+
+# ========================================================================================
+# NEW ROBUST AI-DRIVEN SUGGESTION SYSTEM
+# ========================================================================================
+
+def extract_user_query_intent(user_query: str, user_index):
+    """
+    Extract and clarify the intended meaning from a potentially misspelled or malformed user query.
+    Uses AI to ONLY extract what the user is trying to ask, without reformatting or changing the intent.
+    
+    Args:
+        user_query (str): The original user query that may contain typos or unclear phrasing
+        user_index: The FAISS index for context understanding
+        
+    Returns:
+        str: The extracted/clarified query with corrected spelling and grammar but same intent
+    """
+    try:
+        # Get some relevant context from the knowledge base to help with extraction
+        results = user_index.similarity_search_with_score(user_query, k=8)
+        
+        # Extract context from top relevant documents
+        context_docs = []
+        for doc, score in results[:5]:  # Use top 5 documents for context
+            if score < 1.5:  # Only include reasonably relevant context
+                context_docs.append({
+                    'content': doc.page_content[:300],  # Limit content length
+                    'source': doc.metadata.get('source', 'Unknown')
+                })
+        
+        # Build context string for AI
+        context_str = ""
+        if context_docs:
+            context_str = "Relevant workplace context for reference:\n"
+            for i, doc in enumerate(context_docs[:3], 1):  # Limit to 3 docs
+                context_str += f"Context {i}: {doc['content'][:200]}...\n"
+        
+        # Create extraction prompt - focused ONLY on extraction, not reformation
+        extraction_prompt = f"""You are a text extraction specialist. Your ONLY job is to extract and clarify what the user is trying to ask, correcting spelling and grammar errors while preserving the original intent exactly.
+
+CRITICAL RULES:
+1. DO NOT rephrase or reformat the question
+2. DO NOT change the user's intended meaning or scope
+3. ONLY fix spelling, grammar, and clarity issues
+4. Keep the same question structure and style
+5. If the query is already clear, return it unchanged
+6. DO NOT add workplace terminology unless it was clearly intended
+
+Original user query: "{user_query}"
+
+{context_str}
+
+Task: Extract what the user is trying to ask by correcting only spelling and grammar errors. Return ONLY the corrected query, nothing else.
+
+Examples:
+- "how do i aply for anual leave?" → "How do I apply for annual leave?"
+- "wat is the panty rules?" → "What are the pantry rules?"
+- "can i get my pasword reset?" → "Can I get my password reset?"
+- "helo how are you" → "Hello how are you"
+
+Corrected query:"""
+        
+        # Use the decision layer model for deterministic extraction
+        response = decisionlayer_model.predict(extraction_prompt)
+        
+        # Clean the response
+        extracted_query = re.sub(r"<think>.*?</think>", "", response, flags=re.DOTALL).strip()
+        
+        # Remove any quotation marks that might have been added
+        extracted_query = extracted_query.strip('"\'')
+        
+        # Basic validation - ensure we still have a meaningful query
+        if len(extracted_query.strip()) < 3:
+            logger.warning(f"Extracted query too short: '{extracted_query}', using original")
+            return user_query
+        
+        # If extraction made the query significantly longer, it might have added unwanted content
+        if len(extracted_query) > len(user_query) * 2:
+            logger.warning(f"Extracted query significantly longer than original, using original")
+            return user_query
+        
+        logger.info(f"Query extraction: '{user_query}' → '{extracted_query}'")
+        return extracted_query
+        
+    except Exception as e:
+        logger.error(f"Error in query intent extraction: {str(e)}")
+        return user_query  # Return original query on error
+
+
+def check_query_relevance_to_verztec(query: str, user_index):
+    """
+    Determine whether the corrected query is relevant to internal Verztec topics 
+    (HR, IT support, SOPs, workplace policies, etc.) or is a general/casual query
+    that should get a friendly response.
+    
+    Args:
+        query (str): The extracted/corrected query
+        user_index: The FAISS index containing Verztec knowledge
+        
+    Returns:
+        str: 'relevant', 'general', or 'irrelevant'
+    """
+    try:
+        # First, use AI to classify the query type
+        classification_prompt = f"""You are a query classifier for a workplace helpdesk system. Classify the following user query into one of three categories:
+
+            1. "relevant" - Work-related queries about HR, IT, policies, procedures, workplace matters
+            2. "general" - Casual greetings, small talk, friendly conversation (e.g., "hi", "hello", "how are you", "good morning")  ONLY CLASSIFY GENERAL GREETINGS AS "general" DO NOT ATTEMPT TO ANSWER QUESTIONS PAST THAT
+            3. "irrelevant" - Completely unrelated topics (animals, jokes, movies, sports, songs, cooking, weather, random facts, etc.)
+
+            Query: "{query}"
+
+            Respond with ONLY one word: relevant, general, or irrelevant"""
+
+        try:
+            ai_response = decisionlayer_model.predict(classification_prompt)
+            logger.info(f"AI classification response: {ai_response}")
+            ai_classification = re.sub(r"<think>.*?</think>", "", ai_response, flags=re.DOTALL).strip().lower()
+            
+            # Clean and validate AI response
+            if 'general' in ai_classification:
+                classification = 'general'
+            elif 'irrelevant' in ai_classification:
+                classification = 'irrelevant'
+            elif 'relevant' in ai_classification:
+                classification = 'relevant'
+            
+            else:
+                # Fallback to rule-based classification
+                classification = None
+                
+            logger.info(f"AI classification for '{query}': {classification}")
+            
+        except Exception as e:
+            logger.warning(f"AI classification failed: {str(e)}, using fallback")
+            classification = None
+        
+        # If AI classification failed, use rule-based fallback
+        if classification is None:
+            # Check for obviously irrelevant queries first
+            if is_obviously_irrelevant(query):
+                classification = 'irrelevant'
+            else:
+                # Check for general/casual queries
+                casual_indicators = [
+                    'hi', 'hello', 'hey', 'good morning', 'good afternoon', 'good evening',
+                    'how are you', 'whats up', 'thanks', 'thank you', 'goodbye', 'bye',
+                    'ok', 'okay', 'yes', 'no', 'sure'
+                ]
+                
+                query_lower = query.lower().strip()
+                if any(indicator in query_lower for indicator in casual_indicators) and len(query.split()) <= 4:
+                    classification = 'general'
+                else:
+                    # Default to checking workplace relevance
+                    is_workplace_related = check_workplace_keywords(query)
+                    task_query_score = is_query_score(query)
+                    
+                    if is_workplace_related or task_query_score >= 0.4:
+                        classification = 'relevant'
+                    else:
+                        classification = 'irrelevant'
+        
+        # For relevant queries, also check FAISS similarity as additional validation
+        if classification == 'relevant':
+            results = user_index.similarity_search_with_score(query, k=10)
+            
+            if results:
+                best_score = results[0][1]
+                avg_top5_score = np.mean([score for _, score in results[:5]])
+                
+                logger.info(f"FAISS validation for '{query}': best_score={best_score:.3f}, avg_top5={avg_top5_score:.3f}")
+                
+                # If FAISS scores are very poor, might be irrelevant despite AI classification
+                if best_score > 1.5 and not check_workplace_keywords(query):
+                    logger.info(f"Overriding AI classification - FAISS scores too poor ({best_score:.3f})")
+                    classification = 'irrelevant'
+                else:
+                    relevant_sources = [doc.metadata.get('source', '') for doc, score in results[:3] if score < 1.0]
+                    logger.info(f"Query confirmed relevant to Verztec topics. Related sources: {relevant_sources}")
+        
+        logger.info(f"Final classification for '{query}': {classification}")
+        return classification
+        
+    except Exception as e:
+        logger.error(f"Error checking query relevance: {str(e)}")
+        return 'general'  # Default to general for error cases to avoid dismissing
+
+
+def is_obviously_irrelevant(query: str) -> bool:
+    """
+    Check if a query is obviously irrelevant to workplace/Verztec topics.
+    This catches common non-work queries that should be immediately dismissed.
+    
+    Args:
+        query (str): The query to check
+        
+    Returns:
+        bool: True if obviously irrelevant, False otherwise
+    """
+    query_lower = query.lower().strip()
+    
+    # Define patterns for obviously irrelevant queries
+    irrelevant_patterns = [
+        # Animals and pets
+        r'why.*cat.*cool',
+        r'why.*dog.*cute', 
+        r'why.*animal.*cool',
+        r'cat.*cool',
+        r'dog.*cute',
+        r'pet.*funny',
+        
+        # Entertainment and media
+        r'movie|film|song|music|game|tv show|series|anime|book|novel',
+        r'netflix|youtube|tiktok|instagram|facebook|twitter',
+        
+        # General knowledge/trivia
+        r'what.*color|what.*colour|what.*capital|what.*population',
+        r'who.*president|who.*prime minister|who.*celebrity|who.*famous',
+        r'when.*world war|when.*independence|when.*discovered',
+        
+        # Food and cooking (unless workplace pantry related)
+        r'recipe|cooking(?!.*pantry)|restaurant|meal(?!.*office)',
+        
+        # Weather and environment
+        r'weather|temperature|rain|sun|snow|climate',
+        
+        # Sports and hobbies
+        r'sport|football|basketball|tennis|golf|hobby|exercise|workout',
+        
+        # Personal life questions
+        r'what.*do.*weekend|what.*do.*evening|what.*do.*free time',
+        
+        # Technology (unless work-related)
+        r'smartphone|iphone|android(?!.*work)|gaming|video game',
+        
+        # Random facts and trivia
+        r'fun fact|interesting fact|did you know|random.*fact',
+        
+        # Philosophy and abstract concepts
+        r'meaning.*life|purpose.*life|what.*existence',
+    ]
+    
+    # Check against irrelevant patterns
+    for pattern in irrelevant_patterns:
+        if re.search(pattern, query_lower):
+            logger.info(f"Query '{query}' matches irrelevant pattern: {pattern}")
+            return True
+    
+    # Additional check for very generic questions that are clearly not work-related
+    generic_irrelevant = [
+        'why cats are cool',
+        'why dogs are cute',
+        'what is love',
+        'how to cook',
+        'best movie',
+        'favorite song',
+        'what is the weather',
+        'tell me a joke',
+        'random fact',
+        'interesting story',
+        'fun fact',
+        'did you know',
+    ]
+    
+    for irrelevant_phrase in generic_irrelevant:
+        if irrelevant_phrase in query_lower:
+            logger.info(f"Query '{query}' matches generic irrelevant phrase: {irrelevant_phrase}")
+            return True
+    
+    return False
+
+
+def check_workplace_keywords(query: str) -> bool:
+    """
+    Check if the query contains workplace-related keywords that indicate it's relevant to Verztec topics.
+    
+    Args:
+        query (str): The query to check
+        
+    Returns:
+        bool: True if contains workplace keywords, False otherwise
+    """
+    # Convert to lowercase for case-insensitive matching
+    query_lower = query.lower()
+    
+    # Define comprehensive workplace keywords
+    workplace_keywords = {
+        # HR and employee lifecycle
+        'leave', 'annual', 'vacation', 'holiday', 'sick', 'mc', 'medical', 'certificate',
+        'hr', 'human resources', 'onboarding', 'offboarding', 'resignation', 'benefits',
+        'payroll', 'salary', 'bonus', 'allowance', 'claim', 'reimbursement',
+        
+        # IT and technical
+        'laptop', 'computer', 'password', 'login', 'system', 'software', 'hardware',
+        'email', 'outlook', 'autoresponder', 'webmail', 'vpn', 'wifi', 'network',
+        'printer', 'scanner', 'equipment', 'technical', 'support', 'helpdesk',
+        
+        # Office and facilities
+        'office', 'pantry', 'kitchen', 'meeting', 'room', 'conference', 'booking',
+        'telephone', 'phone', 'extension', 'clean', 'desk', 'policy', 'procedure',
+        
+        # Work processes
+        'project', 'assignment', 'workflow', 'process', 'sop', 'standard', 'operating',
+        'transcription', 'quality', 'deadline', 'submission', 'approval', 'escalation',
+        
+        # Company specific
+        'verztec', 'company', 'management', 'supervisor', 'manager', 'department',
+        'guideline', 'rule', 'policy', 'document', 'form', 'application'
+    }
+    
+    # Check for any workplace keyword matches
+    matches = [keyword for keyword in workplace_keywords if keyword in query_lower]
+    
+    if matches:
+        logger.info(f"Found workplace keywords in query '{query}': {matches}")
+        return True
+    
+    # Additional pattern-based checks for common workplace phrases
+    workplace_patterns = [
+        r'\bhow (do|can) i\b',      # "how do I", "how can I"
+        r'\bwhat (is|are) the\b',   # "what is the", "what are the"
+        r'\bwhere (can|do) i\b',    # "where can I", "where do I"
+        r'\bwho should i\b',        # "who should I"
+        r'\bcan i (get|have|use)\b', # "can I get", "can I have", etc.
+    ]
+    
+    for pattern in workplace_patterns:
+        if re.search(pattern, query_lower):
+            logger.info(f"Found workplace pattern in query '{query}': {pattern}")
+            return True
+    
+    return False
+
+
+def generate_intelligent_query_suggestions(user_query: str, user_index, embedding_model):
+    """
+    Main function that orchestrates the robust AI-driven suggestion feature.
+    
+    Process:
+    1. Extract user intent from potentially malformed query
+    2. Check if the extracted query is relevant to Verztec topics
+    3. Return suggestion in "Did you mean: ..." format if relevant
+    4. Return None if irrelevant (query should be dismissed)
+    
+    Args:
+        user_query (str): Original user query
+        user_index: FAISS index for the user
+        embedding_model: Embedding model for similarity search
+        
+    Returns:
+        dict: Suggestion data with corrected query and metadata, or None if irrelevant
+    """
+    try:
+        logger.info(f"Starting robust suggestion analysis for: '{user_query}'")
+        
+        # Early check: if the original query is obviously irrelevant, skip processing
+        if is_obviously_irrelevant(user_query):
+            logger.info(f"Original query '{user_query}' is obviously irrelevant - skipping suggestion generation")
+            return None
+        
+        # Step 1: Extract user intent (correct spelling/grammar only)
+        extracted_query = extract_user_query_intent(user_query, user_index)
+        
+        # Step 2: Check if the extracted query is relevant to Verztec topics using new classification
+        relevance_classification = check_query_relevance_to_verztec(extracted_query, user_index)
+        
+        # Step 3: Generate suggestion based on classification
+        if relevance_classification == 'relevant' and extracted_query.strip().lower() != user_query.strip().lower():
+            suggestion_data = {
+                'original_query': user_query,
+                'suggested_query': extracted_query,
+                'is_relevant': True,
+                'confidence': 'high',
+                'suggestion_type': 'query_correction',
+                'classification': relevance_classification
+            }
+            
+            logger.info(f"Generated suggestion: '{user_query}' → '{extracted_query}'")
+            return suggestion_data
+            
+        elif relevance_classification in ['relevant', 'general'] and extracted_query.strip().lower() == user_query.strip().lower():
+            # Query is relevant/general but doesn't need correction
+            logger.info(f"Query is {relevance_classification} but doesn't need correction: '{user_query}'")
+            return None
+            
+        else:
+            # Query is irrelevant to Verztec topics
+            logger.info(f"Query classified as {relevance_classification}, dismissing: '{user_query}'")
+            return None
+            
+    except Exception as e:
+        logger.error(f"Error in intelligent query suggestions: {str(e)}")
+        return None
+
+
+
+def analyze_query_relevance(user_query: str, index, embedding_model, relevance_threshold=0.8):
+    """
+    Enhanced analysis to better identify what users might be asking about.
+    Treats general queries (greetings, casual phrases) as completely irrelevant.
+    Returns: (is_relevant, best_doc_score, should_suggest, intent_level)
+    """
+    found_match, found_matchabss=clean_q_3(user_query)
+    if found_match:
+        user_query+= "(offboarding policy,offboarding policy)"
+    elif found_matchabss:
+        user_query+= "(ABSS UPLOAD ABSS UPLOAD FILES )"
+    try:
+        # First check if this is a general/casual query using is_query_score
+        query_score = is_query_score(user_query)
+        
+        # Get top documents to analyze relevance with broader scope
+        results = index.similarity_search_with_score(user_query, k=10)
+        
+        if not results:
+            return False, 2, False, 'none'
+        
+        best_score = results[0][1]  # Get the best (lowest) score
+        avg_top5_score = np.mean([score for _, score in results[:5]])
+        avg_top10_score = np.mean([score for _, score in results[:10]])
+        
+        # Enhanced relevance determination with multiple levels
+        is_directly_relevant = best_score < relevance_threshold  # 0.8
+        is_somewhat_relevant = best_score < 1.0  # Somewhat related
+        is_loosely_relevant = best_score < 1.3   # Might be workplace-related
+        
+        # Determine intent level and suggestion strategy
+        if is_directly_relevant:
+            intent_level = 'high'
+            should_suggest = False  # Direct relevance - proceed normally
+        elif is_somewhat_relevant:
+            intent_level = 'medium'
+            should_suggest = True   # Generate suggestions for clarification
+        elif is_loosely_relevant:
+            intent_level = 'low'
+            should_suggest = True   # Try to help with related topics
+        else:
+            intent_level = 'none'
+            should_suggest = False  # Completely irrelevant - dismiss
+        
+        # Additional check using task query score for enhanced filtering
+        # Override suggestion decision if task query score is very low
+        if query_score < 0.2 and best_score > 1.2:
+            should_suggest = False  # Too irrelevant to suggest
+            intent_level = 'none'
+        
+        logger.info(f"Enhanced relevance analysis - Best: {best_score:.4f}, Avg-5: {avg_top5_score:.4f}, Avg-10: {avg_top10_score:.4f}")
+        logger.info(f"Intent level: {intent_level}, Task score: {query_score:.4f}, Should suggest: {should_suggest}")
+        
+        return is_directly_relevant, best_score, should_suggest, intent_level
+        
+    except Exception as e:
+        logger.error(f"Error in enhanced query relevance analysis: {str(e)}")
+        return False, float('inf'), False, 'none'
 
 
 def build_memory_prompt(memory_obj, current_prompt):
@@ -705,8 +1664,6 @@ cross_encoder = CrossEncoder("BAAI/bge-reranker-large")
 
 
 
-from pydantic import Field, ConfigDict
-
 class HybridRetriever(BaseRetriever):
     # ---- Pydantic-declared fields --------------------------------
     retr_direct: BaseRetriever
@@ -771,349 +1728,298 @@ hybrid_retriever_obj = HybridRetriever(
                 top_k_final=5
             )
 
-## legacy   
-def generate_answer(user_query: str, chat_history: ConversationBufferMemory ):
-    """
-    Returns a tuple: (answer_text, image_list)
-    """
-    session_id = str(uuid.uuid4())
-    cleaned_answer = ""  # Ensure cleaned_answer is always defined
-    try:
-        total_start_time = time.time()  # Start timing for the whole query
 
-        parser = StrOutputParser()
-    
-        # Chain the Groq model with the parser
-        deepseek_chain = deepseek | parser
+class ContextAwareMemoryPruner:
+    def __init__(self, embedding_model, enable_detailed_logging=True, cache_embeddings=True):
+        self.embedding_model = embedding_model
+        self.reranker = CrossEncoder("BAAI/bge-reranker-large")
+        self.enable_detailed_logging = enable_detailed_logging
+        self.cache_embeddings = cache_embeddings
+        self.embedding_cache = {}  # Cache message embeddings
         
+    def intelligent_prune(self, messages, current_query, user_id):
+        """Prune memory based on relevance, not just recency"""
         
+        start_time = time.time()
         
-        ## INCASE HAVE TO SWITCH BACK TO SINGLE RETRIEVER 
-        #  THIS HAS NO GENERAL KNOWLEDGE RETRIEVER
-        retriever = index.as_retriever(
-            search_type="similarity",
-            search_kwargs={"k": 10}
-        )
+        if self.enable_detailed_logging:
+            logger.info("="*80)
+            logger.info(f"MEMORY PRUNING STARTED for user {user_id}")
+            logger.info(f"Current query: '{current_query}'")
+            logger.info(f"Input message count: {len(messages)}")
+            
+            # Log the full conversation before pruning
+            logger.info("CONVERSATION BEFORE PRUNING:")
+            for i, msg in enumerate(messages):
+                msg_type = "Human" if isinstance(msg, HumanMessage) else "AI"
+                content_preview = msg.content[:100] + "..." if len(msg.content) > 100 else msg.content
+                logger.info(f"  [{i}] {msg_type}: {content_preview}")
         
+        # Calculate relevance scores for each message pair
+        query_embedding = self._get_cached_embedding(current_query)
         
+        # Collect all turn relevance data first
+        turn_data = []
+        for i in range(0, len(messages), 2):  # Process human-ai pairs
+            if i + 1 < len(messages):
+                human_msg = messages[i]
+                ai_msg = messages[i + 1]
+                
+                # Calculate relevance to current query
+                relevance_score = self._calculate_relevance(
+                    human_msg.content, current_query, query_embedding
+                )
+                
+                turn_data.append({
+                    'index': i,
+                    'human_msg': human_msg,
+                    'ai_msg': ai_msg,
+                    'relevance': relevance_score,
+                    'turn_number': i//2 + 1
+                })
         
+        # Sort by relevance (higher is better)
+        turn_data.sort(key=lambda x: x['relevance'], reverse=True)
         
-        avg_score = get_avg_score(index, embedding_model, user_query)
-        avg_score_gk = get_avg_score(index2, embedding_model, user_query)
+        if self.enable_detailed_logging:
+            logger.info("🔍 RELEVANCE ANALYSIS:")
         
+        # Intelligent selection strategy
+        relevant_messages = []
+        max_turns = min(5, len(turn_data))  # Limit to 5 turns maximum (10 messages)
         
+        # Always keep the most recent turn
+        recent_turn_index = len(messages) - 2  # Most recent human-ai pair
+        recent_turn = next((t for t in turn_data if t['index'] == recent_turn_index), None)
         
+        if recent_turn:
+            relevant_messages.extend([recent_turn['human_msg'], recent_turn['ai_msg']])
+            selected_indices = {recent_turn['index']}
+            
+            if self.enable_detailed_logging:
+                logger.info(f"  ⭐ Turn {recent_turn['turn_number']}: relevance={recent_turn['relevance']:.3f}, recent=True, keep=True (MOST RECENT)")
+                logger.info(f"    👤: {recent_turn['human_msg'].content[:80]}...")
+                logger.info(f"    🤖: {recent_turn['ai_msg'].content[:80]}...")
+        else:
+            selected_indices = set()
         
-        ## QA chain setup with mrmory 
-        qa_chain = ConversationalRetrievalChain.from_llm(
-            llm=deepseek_chain,
-            retriever=hybrid_retriever_obj,
-            memory=chat_history,
-            return_source_documents=True,
-            output_key="answer"
-        )
-        logger.info(memory)
-    
-        
-        # Refine query
-       
-        clean_query = clean_with_grammar_model(user_query)
-       
-        # Step 3: Search FAISS for context 
-        # for images, as well as for context relevance checks 
-        results = index.similarity_search_with_score(clean_query, k=5)
-        scores = [score for _, score in results]
-        avg_score = float(np.mean(scores)) if scores else 1.0
-        
-        
-        results_gk = index2.similarity_search_with_score(clean_query, k=5)
-        scores_gk = [score for _, score in results_gk]
-        avg_score_gk = float(np.mean(scores_gk)) if scores_gk else 1.0
-        logger.info(f"Average score for GK index: {avg_score_gk:.4f}")
-        
-        
-        
-        seen = set()
-        unique_docs = []
-
-        for doc, _ in results:
-            content = doc.page_content
-            if content not in seen:
-                seen.add(content)
-                unique_docs.append(doc)
-
-        logger.info(f"Retrieved {len(unique_docs)} documents with average score: {avg_score:.4f}")
-    
-        
-        ## retrieving images from top 3 chunks (if any)
-        # Retrieve images from top 3 chunks (if any)
-        THRESHOLD      = 0.70          # keep docs whose score < threshold   (lower L2 → more similar)
-        MAX_IMAGES     = 3             # cap images
-        sources_set    = set()         # remember unique source filenames
-        sources_list   = []            # ordered list of unique sources
-        seen_contents  = set()         # avoid duplicate page_content
-        top_docs       = []            # docs we actually keep
-        top_3_img      = []            # up to 3 image paths / URLs
-
-        for doc, score in results:
-            if score >= THRESHOLD:      # skip weak matches
-                continue
-
-            # ---- source handling ------------------------------------
-            src = doc.metadata.get("source")
-            if src and src not in sources_set:
-                sources_set.add(src)
-                sources_list.append(src)
-
-            # ---- unique doc content ---------------------------------
-            if doc.page_content not in seen_contents:
-                seen_contents.add(doc.page_content)
-                top_docs.append(doc)
-
-            # ---- gather up to 3 images ------------------------------
-            if len(top_3_img) < MAX_IMAGES:
-                for img in doc.metadata.get("images", []):
-                    top_3_img.append(img)
-                    if len(top_3_img) >= MAX_IMAGES:
-                        break
-
+        # Add most relevant turns up to the limit
+        for turn in turn_data:
+            if len(relevant_messages) >= max_turns * 2:  # 2 messages per turn
+                break
+                
+            if turn['index'] not in selected_indices:
+                # Dynamic threshold: only keep if relevance is meaningful
+                is_relevant = turn['relevance'] > 0.5 or len(relevant_messages) < 4  # Ensure minimum 2 turns
+                
+                if is_relevant:
+                    relevant_messages.extend([turn['human_msg'], turn['ai_msg']])
+                    selected_indices.add(turn['index'])
                     
-
-
-            # Ensures a flat list of strings
-        top_3_img = list(set(top_3_img))  # Remove duplicates
-        logger.info(f"Top 3 images: {top_3_img}")
-
-
-       
-        is_task_query = is_query_score(user_query)
-        logger.info(f"Query Score: {is_task_query}")
-        logger.info(f"Average Score: {avg_score}")
+                    if self.enable_detailed_logging:
+                        logger.info(f"  Turn {turn['turn_number']}: relevance={turn['relevance']:.3f}, recent=False, keep=True")
+                        logger.info(f"    👤: {turn['human_msg'].content[:80]}...")
+                        logger.info(f"    🤖: {turn['ai_msg'].content[:80]}...")
+                else:
+                    if self.enable_detailed_logging:
+                        logger.info(f"  Turn {turn['turn_number']}: relevance={turn['relevance']:.3f}, recent=False, keep=False (LOW RELEVANCE)")
         
-        soft_threshold = 0.7
-        SOFT_QUERY_THRESHOLD = 0.5
-        STRICT_QUERY_THRESHOLD = 0.2
-        HARD_AVG_SCORE_THRESHOLD = 1.01
+        # Sort the final messages back to chronological order
+        message_order = {}
+        for i, msg in enumerate(messages):
+            message_order[id(msg)] = i
         
-        #handle irrelevant query
-        logger.info(f"Clean Query at qa chain: {clean_query}")
-        if (
-            (is_task_query < SOFT_QUERY_THRESHOLD and avg_score >= soft_threshold) or
-            avg_score >= HARD_AVG_SCORE_THRESHOLD or
-            is_task_query < STRICT_QUERY_THRESHOLD
-        ):
-            if is_task_query < SOFT_QUERY_THRESHOLD and avg_score >= soft_threshold:
-                logger.info("[BYPASS_REASON] Tag: low_task_high_score — Query intent is kinda weak and query is slighlty irrelevant.")
-            elif avg_score >= HARD_AVG_SCORE_THRESHOLD:
-                logger.info("[BYPASS_REASON] Tag: high_score_threshold — Query is highly irrelevant to FAISS documents.")
-            elif is_task_query < STRICT_QUERY_THRESHOLD:
-                logger.info("[BYPASS_REASON] Tag: very_low_task_intent — Query clearly not a task query.")
-
-            logger.info("Bypassing QA chain for non-query with weak retrieval.")
-           # fallback_prompt = f"The user said, this query is out of scope: \"{clean_query}\". Respond appropriately as a POLITELY VERZTEC assistant, and ask how else you can help"
-            fallback_prompt = (
-                f'The user said: "{clean_query}". '
-                'As a HELPFUL and FRIENDLY VERZTEC helpdesk assistant, respond with a light-hearted or polite reply — '
-                'even if the message is small talk or out of scope (e.g., "how are you", "do you like pizza"). '
-                'Keep it human and warm (e.g., "I’m doing great, thanks for asking!"), then ***gently guide the user back to Verztec-related helpdesk topics***.'
-                'Do not answer any questions that are not related to Verztec helpdesk topics, and do not use any of the provided documents in your response. '
-            )
-
-            #modified_query = "You are a verztec helpdesk assistant. You will only use the provided documents in your response. If the query is out of scope, say so.\n\n" + clean_query
-            #messages = [HumanMessage(content=fallback_prompt)]
-            messages = build_memory_prompt(memory, fallback_prompt)
-            response = deepseek.generate([messages])
-
-            raw_fallback = response.generations[0][0].text.strip()
-
-            # Remove <think> block if present
-            think_block_pattern = re.compile(r"<think>.*?</think>", flags=re.DOTALL)
-            cleaned_fallback = think_block_pattern.sub("", raw_fallback).strip()
-            top_3_img = []  # No images for fallback response
-            # Store the fallback response in chat memory
-         
-            memory.chat_memory.add_user_message(fallback_prompt)
-            memory.chat_memory.add_ai_message(cleaned_fallback) 
-            # Clean up chat memory to keep it manageable
-            # Limit chat memory to last 4 turns (8 messages)
-            MAX_TURNS = 4
-            if len(memory.chat_memory.messages) > 2 * MAX_TURNS:
-                memory.chat_memory.messages = memory.chat_memory.messages[-2 * MAX_TURNS:]
-            # For the fallback response, we need dummy user_id and chat_id since they're not available in this function
-            dummy_user_id = "anonymous"
-            dummy_chat_id = session_id
-            store_chat_log_updated(user_message=user_query, bot_response=cleaned_fallback, query_score=is_task_query, relevance_score=avg_score, user_id=dummy_user_id, chat_id=dummy_chat_id)
-            #store_chat_log_updated(user_message=user_query, bot_response=cleaned_fallback, query_score=is_task_query, relevance_score=avg_score, user_id=user_id, chat_id=chat_id)
+        relevant_messages.sort(key=lambda msg: message_order.get(id(msg), 0))
+        
+        # Ensure minimum context (2 turns) and maximum (5 turns)
+        original_count = len(relevant_messages)
+        if len(relevant_messages) < 4:
+            # If we don't have enough, take the most recent turns
+            relevant_messages = messages[-4:] if len(messages) >= 4 else messages
+            if self.enable_detailed_logging:
+                logger.info("⚠️  Applied minimum context rule (kept last 2 turns)")
+        elif len(relevant_messages) > 10:
+            # If too many, keep most recent
+            relevant_messages = relevant_messages[-10:]
+            if self.enable_detailed_logging:
+                logger.info("⚠️  Applied maximum context rule (kept last 5 turns)")
+                
+        # Performance tracking
+        pruning_time = time.time() - start_time
+        
+        if self.enable_detailed_logging:
+            # Log the final conversation after pruning
+            logger.info("📋 CONVERSATION AFTER PRUNING:")
+            for i, msg in enumerate(relevant_messages):
+                msg_type = "👤 Human" if isinstance(msg, HumanMessage) else "🤖 AI"
+                content_preview = msg.content[:100] + "..." if len(msg.content) > 100 else msg.content
+                logger.info(f"  [{i}] {msg_type}: {content_preview}")
+            
+            # Summary statistics
+            pruned_count = len(messages) - len(relevant_messages)
+            retention_rate = (len(relevant_messages) / len(messages)) * 100 if messages else 0
+            
+            logger.info("📊 PRUNING SUMMARY:")
+            logger.info(f"  • Original messages: {len(messages)}")
+            logger.info(f"  • Kept messages: {len(relevant_messages)}")
+            logger.info(f"  • Pruned messages: {pruned_count}")
+            logger.info(f"  • Retention rate: {retention_rate:.1f}%")
+            logger.info(f"  • Pruning time: {pruning_time:.3f}s")
+            logger.info("🧠 MEMORY PRUNING COMPLETED")
+            logger.info("="*80)
+        else:
+            # Minimal logging for performance mode
+            pruned_count = len(messages) - len(relevant_messages)
+            logger.info(f"🧠 Memory pruned: {len(messages)}→{len(relevant_messages)} messages ({pruning_time:.3f}s)")
+            
+        return relevant_messages
     
-            return {
-                'text': cleaned_fallback,
-                'images': top_3_img,
-                'sources': []
-            }
-        
-        
-        
-        
-        logger.info("QA chain activated for query processing.")
-        # Step 4: Prepare full prompt and return LLM output
-        modified_query = "You are a  HELPFUL AND NICE verztec helpdesk assistant. You will only use the provided documents in your response. If the query is out of scope, say so.\n\n" + clean_query
-        modified_query = (
-            "You are a HELPFUL AND NICE Verztec helpdesk assistant. "
-            "You will only use the provided documents in your response. "
-            "If the query is out of scope, say so. "
-            "If there are any image tags or screenshots mentioned in the documents, "
-            "IF QUERY SHOULD BE ESCALATED TO HR, RESPOND WITH <ESCALATE> "
-            "please reference them in your response where appropriate, such as 'See Screenshot 1' or 'Refer to the image above'.\n\n"
-            + clean_query
-        )
-
-        qa_start_time = time.time()
-        response = qa_chain.invoke({"question": modified_query})
-        qa_elapsed_time = time.time() - qa_start_time
-        raw_answer = response['answer']
-        source_docs = response['source_documents']
-        logger.info(f"Source docs from QA chain: {source_docs}")
-        logger.info(f"Full response before cleanup: {raw_answer} (QA chain time taken: {qa_elapsed_time:.2f}s)")
-        
-        # Clean the chat memory to keep it manageable
-        # Limit chat memory to last 4 turns (8 messages)
-        MAX_TURNS = 4
-        if len(memory.chat_memory.messages) > 2 * MAX_TURNS:
-            memory.chat_memory.messages = memory.chat_memory.messages[-2 * MAX_TURNS:]
-
-        # Define regex pattern to match full <think>...</think> block
-        think_block_pattern = re.compile(r"<think>.*?</think>", flags=re.DOTALL)
-       
-        
-
-        # Check if full <think> block exists
-        has_think_block = bool(think_block_pattern.search(raw_answer))
-
-        # Clean the <think> block regardless
-        cleaned_answer = think_block_pattern.sub("", raw_answer).strip()
-        has_tag = False
-        import concurrent.futures
-
-        # Timeout logic for retry
-        def retry_qa_chain():
-            return qa_chain.invoke({"question": clean_query})['answer']
-
-        i = 1  # Ensure i is defined
-        while has_tag and i == 1:
-            if not has_think_block:
-                logger.warning("Missing full <think> block — retrying query once...")
-                try:
-                    retry_start = time.time()
-                    with concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor:
-                        future = executor.submit(retry_qa_chain)
-                        raw_answer_retry = future.result(timeout=30)
-                    retry_elapsed = time.time() - retry_start
-                    logger.info(f"Retry response: {raw_answer_retry} (Retry time taken: {retry_elapsed:.2f}s)")
-                    sleep(1)  # Optional: wait a bit before retrying
-                    cleaned_answer = think_block_pattern.sub("", raw_answer_retry).strip()
-                except concurrent.futures.TimeoutError:
-                    logger.error("QA chain retry timed out after 30 seconds.")
-                    cleaned_answer = "Sorry, the system took too long to generate a response. Please try again in a moment."
-                    break
-                except Exception as e:
-                    logger.error(f"Error during QA chain retry: {e}")
-                    cleaned_answer = f"Sorry, an error occurred while generating a response: {e}"
-                    break
-            else:
-                logger.info("Full <think> block found and removed successfully")
-            block_tag_pattern = re.compile(r"<([a-zA-Z0-9_]+)>.*?</\1>", flags=re.DOTALL)
-
-            # Check if there are any block tags at all
-            has_any_block_tag = bool(block_tag_pattern.search(raw_answer))
-            if has_any_block_tag:
-                logger.info("Block tags found in response, cleaning them up")
-
-            # Remove all block tags
-            cleaned_answer = block_tag_pattern.sub("", raw_answer).strip()
-            cleaned_answer = re.sub(r"^\s+", "", cleaned_answer)
-            has_any_block_tag = bool(block_tag_pattern.search(raw_answer))
-            if not has_any_block_tag:
-                has_tag = False
-            i += 1
-        ## one last cleanup to ensure no <think> tags remain
-        # Remove any remaining <think> tagsbetter have NO MOR NO MORE NO MO NO MOMRE 
-        cleaned_answer = re.sub(r"</?think>", "", cleaned_answer).strip()
-        cleaned_answer = re.sub(r"</?think>", "", cleaned_answer).strip()
-        cleaned_answer = re.sub(r'[\*#]+', '', cleaned_answer).strip()
-
+    def _get_cached_embedding(self, text):
+        """Get embedding with caching for performance"""
+        if not self.cache_embeddings:
+            return self.embedding_model.embed_query(text)
+            
+        # Use hash as cache key for consistent results
+        cache_key = hash(text)
+        if cache_key not in self.embedding_cache:
+            self.embedding_cache[cache_key] = self.embedding_model.embed_query(text)
+            
+        return self.embedding_cache[cache_key]
     
-        # For the main response, we need dummy user_id and chat_id since they're not available in this function
-        dummy_user_id = "anonymous"
-        dummy_chat_id = session_id
-        store_chat_log_updated(user_message=user_query, bot_response=cleaned_answer, query_score=is_task_query, relevance_score=avg_score, user_id=dummy_user_id, chat_id=dummy_chat_id)
-        # After generating the bot's response
-        final_response, source_docs = append_sources_with_links(cleaned_answer, top_docs)
-        print(final_response)
-        
-        # Log source documents for debugging
-        logger.info(f"Source documents data: {source_docs}")
-        
-        # Also append clickable links to text for backwards compatibility
-        for doc in source_docs:
-            if doc['is_clickable'] and doc['file_path']:
-                final_response += f"\n\n[Source: {doc['name']}]({doc['file_path']})"
-                logger.info(f"Added clickable source: {doc['name']} -> {doc['file_path']}")
-            else:
-                final_response += f"\n\n[Source: {doc['name']}]"
-                logger.info(f"Added non-clickable source: {doc['name']}")
+    def _calculate_relevance(self, message_content: str, current_query: str, query_embedding):
+        """Calculate semantic relevance between a message and current query"""
+        try:
+            # Get embedding for the message (with caching)
+            message_embedding = self._get_cached_embedding(message_content)
+            
+            # Calculate cosine similarity
+            query_vec = np.array(query_embedding)
+            message_vec = np.array(message_embedding)
+            
+            # Cosine similarity
+            dot_product = np.dot(query_vec, message_vec)
+            norms = np.linalg.norm(query_vec) * np.linalg.norm(message_vec)
+            
+            if norms == 0:
+                return 0.0
+                
+            similarity = dot_product / norms
+            
+            # Convert similarity to relevance score (higher = more relevant)
+            # Cosine similarity ranges from -1 to 1, we normalize to 0-1
+            relevance_score = (similarity + 1) / 2
+            
+            return relevance_score
+            
+        except Exception as e:
+            logger.error(f"Error calculating relevance: {str(e)}")
+            return 0.0  # Return low relevance on error
 
-        total_elapsed_time = time.time() - total_start_time
-        logger.info(f"Total time taken for query processing: {total_elapsed_time:.2f}s")
-
-        # Return structured data for frontend
-        return {
-            'text': final_response,
-            'images': top_3_img,
-            'sources': source_docs  # Include source file data for frontend
-        }
-    except Exception as e:
-        return {
-            'error': f"I encountered an error while processing your request: {str(e)}", 
-            'text': f"I encountered an error while processing your request: {str(e)}", 
-            'images': [], 
-            'sources': []
-        }
+# Initialize the memory pruner with performance options
+memory_pruner = ContextAwareMemoryPruner(
+    embedding_model, 
+    enable_detailed_logging=True,   # Enable detailed logging to see improved pruning
+    cache_embeddings=True           # Cache embeddings for repeated messages
+)
 
 memory_store = {}
+
 global_tools = {
     "raise_to_hr": {
-        "description": "Raise the query to HR — ONLY for serious complaints, legal issues, or sensitive workplace matters. DO NOT use this tool for general HR queries (e.g., leave balance, benefits, policies), questions about entitlements, or non-sensitive issues.",
-        "prompt_style": "ONLY use this tool for workplace issues that are serious, sensitive, involve harassment, discrimination, legal matters, or require confidential escalation. DO NOT use this tool for general HR questions such as leave balance, entitlements, policies, routine HR matters, or informational queries about HR processes.",
+        "description": (
+            "Raise the query to HR — ONLY for serious complaints, legal issues, or sensitive workplace matters. "
+            "DO NOT use this tool for general HR queries such as leave balance, benefits, offboarding policies, termination procedures, "
+            "or entitlement questions. This tool is for confidential escalation to HR. "
+            "ONLY CALL IT IF THE USER INDICATES HARASSMENT, DISCRIMINATION, ILLEGAL BEHAVIOR, OR REQUESTS ESCALATION. "
+            "DO NOT CALL THIS FOR 'what is the offboarding policy' or 'what do I do if I get fired'."
+        ),
+        "prompt_style": (
+            "ONLY use this tool for workplace issues that are serious, sensitive, involve harassment, discrimination, legal matters, "
+            "or require confidential escalation. DO NOT use this tool for general HR questions such as leave balance, entitlements, "
+            "offboarding policies, or routine HR procedures like resignations or termination steps."
+        ),
         "response_tone": "supportive_professional"
     },
     "schedule_meeting": {
-        "description": "Set up a meeting — for coordination involving multiple stakeholders or recurring issues.",
-        "prompt_style": "You are an efficient scheduling and coordination assistant. When handling meeting requests, focus on practical logistics, available time slots, and clear next steps. Be organized and detail-oriented in your responses, asking for necessary information like preferred dates, attendees, and meeting purpose.",
+        "description": (
+            "Set up a meeting — for coordination involving multiple stakeholders or recurring issues. "
+            "DO NOT use this tool for basic HR policy or FAQ-type questions like 'how to offboard' or 'what to do if I get fired'."
+        ),
+        "prompt_style": (
+            "You are an efficient scheduling and coordination assistant. When handling meeting requests, focus on practical logistics, "
+            "available time slots, and clear next steps. Be organized and detail-oriented in your responses, asking for necessary information "
+            "like preferred dates, attendees, and meeting purpose. ONLY use for true coordination needs, not general HR queries."
+        ),
         "response_tone": "organized_efficient"
+    },
+    "vacation_check": {
+        "description": (
+            "Check vacation balance — for inquiries about remaining leave days and entitlements. "
+            "ONLY CALL THIS TOOL WHEN THE USER EXPLICITLY ASKS ABOUT THEIR LEAVE BALANCE. NOT WHEN USERS ASK ABOUT POLICY, OR RULES "
+            "DO NOT USE THIS FOR LEAVE POLICY QUESTIONS, OFFBOARDING, OR TERMINATION-RELATED QUESTIONS."
+        ),
+        "prompt_style": (
+            "ONLY CALL THIS TOOL WHEN THE USER EXPLICITLY ASKS ABOUT VACATION OR LEAVE BALANCE. "
+            "You are a helpful assistant focused on vacation balance inquiries. "
+            "Do NOT use this tool for questions like 'how much notice do I give before resigning', "
+            "'what is the offboarding process', or 'what happens if I get fired'."
+        ),
+        "response_tone": "concise_direct"
     }
 }
-# Utility: Get last bot message from ConversationBufferMemory
-def get_last_bot_message(chat_history):
-    """
-    Returns the content of the last AI (bot) message from a ConversationBufferMemory object.
-    """
-    history = chat_history.load_memory_variables({}).get("chat_history", [])
-    # history is a list of HumanMessage and AIMessage objects (if return_messages=True)
-    for msg in reversed(history):
-        if hasattr(msg, 'content') and msg.__class__.__name__ == 'answer':
-            return msg.content
-    return None
 
-def get_last_human_message(chat_history):
+
+
+
+def get_last_human_message(chat_id, user_id):
     """
-    Returns the content of the last human message from a ConversationBufferMemory object.
+    Returns the content of the last human message from a sql database.
     """
-    history = chat_history.load_memory_variables({}).get("chat_history", [])
-    # history is a list of HumanMessage and AIMessage objects (if return_messages=True)
-    for msg in reversed(history):
-        if hasattr(msg, 'content') and msg.__class__.__name__ == 'HumanMessage':
-            return msg.content
+    conn = pymysql.connect(**DB_CONFIG)
+    cursor = conn.cursor()
+
+    select_query = '''
+        SELECT user_message
+        FROM chat_logs
+        WHERE chat_id = %s AND user_id = %s
+        ORDER BY timestamp DESC
+        LIMIT 1
+    '''
+    cursor.execute(select_query, (chat_id, user_id))
+    result = cursor.fetchone()
+
+    cursor.close()
+    conn.close()
+
+    if result:
+        return result[0]
     return None
+   
+
+def get_last_bot_message(chat_id, user_id):
+    """
+    Returns the content of the last bot message from a sql database.
+    """
+    conn = pymysql.connect(**DB_CONFIG)
+    cursor = conn.cursor()
+
+    select_query = '''
+        SELECT bot_response
+        FROM chat_logs
+        WHERE chat_id = %s AND user_id = %s
+        ORDER BY timestamp DESC
+        LIMIT 1
+    '''
+    cursor.execute(select_query, (chat_id, user_id))
+    result = cursor.fetchone()
+
+    cursor.close()
+    conn.close()
+
+    if result:
+        return result[0]
+    return None
+   
 
 def create_chat_name(user_id: str, chat_id: str, chat_history: ConversationBufferMemory, query: str):
     """
@@ -1132,11 +2038,12 @@ def create_chat_name(user_id: str, chat_id: str, chat_history: ConversationBuffe
             SELECT chat_name
             FROM chat_logs
             WHERE user_id = %s AND chat_id = %s
-            ORDER BY timestamp DESC
+            ORDER BY timestamp ASC -- earliest first, tie-break on PK
             LIMIT 1;
         """
         cursor.execute(select_query, (user_id, chat_id))
         result = cursor.fetchone()
+
 
         if result and result[0]:
             chat_name = result[0]
@@ -1144,6 +2051,7 @@ def create_chat_name(user_id: str, chat_id: str, chat_history: ConversationBuffe
             
         else:
             # Get conversation history
+            logger.info("No existing chat name found, generating a new one.")
 
             messages = chat_history.load_memory_variables({}).get("chat_history", "")
             # Handle both list (return_messages=True) and string cases
@@ -1218,11 +2126,198 @@ def create_chat_name(user_id: str, chat_id: str, chat_history: ConversationBuffe
         cursor.close()
         conn.close()
         
+def get_vacation_days(user_id: str, filename: str = r"chatbot\src\backend\python\leave.csv") -> int:
+    """
+    Reads leave.csv and returns the number of vacation days for the given user_id.
+    Assumes columns: user_id, vacation_days
+    """
+    try:
+        with open(filename, mode='r', encoding='utf-8') as csvfile:
+            reader = csv.DictReader(csvfile)
+            for row in reader:
+                if row.get('user_id') == user_id:
+                    return int(row.get('vacation_days', 0))
+        return 0  # User not found
+    except Exception as e:
+        print(f"Error reading {filename}: {e}")
+        return 0  
+def clean_q_2(org_query):
+    """
+    Cleans the query by removing specific patterns, trimming whitespace,
+    and replacing all variations of offboarding-related terms with 'offboarding process'.
+    Adds a disclaimer only if such a term is found and replaced.
+    """
+
+    # Step 1: Remove <think>...</think> and <image>...</image> blocks
+    org_query = re.sub(r"<think>.*?</think>", "", org_query, flags=re.DOTALL)
+    org_query = re.sub(r"<image>.*?</image>", "", org_query, flags=re.DOTALL)
+
+    # Step 2: Normalize offboarding-related language
+    offboarding_patterns = [
+        r"\b(was|were|been|being|got|getting|has been|have been)?\s*(fired|terminated|let go|dismissed|laid off|made redundant|retrenched|removed from (my|the)? job|separated|downsized|restructured|booted|axed|released|cut loose|shown the door|sacked|outplaced|out of a job|termination|terminated|sent packing|got the axe|get the axe|get the sack)\b",
+        r"\b(resign(ed|ing)?|resignation|quit|quitting|walked out|handed in (my|their)? notice|stepped down|left the (role|company|position|organization)|gave (my|their)? notice|departed)\b",
+        r"\b(end(ed)? of (my )?employment|termination (of employment)?|employment ended|no longer employed|no longer with the company|losing (my|their)? job|lost (my|their)? job|exit(ed)? the company|offboard(ed|ing)?)\b",
+        r"\b(employee separation|release from employment|HR action|contract (ended|terminated)|employment contract (ended|terminated)|forced to leave|involuntary exit)\b"
+    ]
+    abss_patterns = [
+        r"\babss\b",  # Core term
+        r"\b(abss )?(e-?invoice|einvoice)\b",
+        r"\bimport (supplier )?(e-?invoice|einvoice) to abss\b",
+        r"\bimport.*abss\b",
+        r"\bxtranet.*abss\b",
+        r"\bgenerate (abss )?(file|csv|text|txt)\b",
+        r"\bexport(ed)? abss file\b",
+        r"\bcopy.*excel.*to notepad\b",
+        r"\bmatch all\b",
+        r"\bimport data.*abss\b",
+        r"\bpurchase module\b",
+        r"\babss purchase\b",
+        r"\babss.*(log|error|plog\.txt)\b",
+        r"\bsupplier.*(not found|card id)\b",
+        r"\bduplicate.*supplier.*invoice\b",
+        r"\b(error )?(192|240)\b",
+        r"\bhow to import.*(xtranet|abss)\b",
+        r"\babss.*(single user|backup)\b",
+        r"\btxt file.*import\b",
+    ]
+
+    found_match = False
+    found_matchabss= False
+
+    for pattern in offboarding_patterns:
+        if re.search(pattern, org_query, flags=re.IGNORECASE):
+            #org_query = re.sub(pattern, "offboarding process", org_query, flags=re.IGNORECASE)
+            found_match = True
+    for pattern in abss_patterns:
+        if re.search(pattern, org_query, flags=re.IGNORECASE):
+            #org_query = re.sub(pattern, "abss", org_query, flags=re.IGNORECASE)
+            found_matchabss = True
+
+    # Step 3: Collapse redundant whitespace
+    org_query = re.sub(r"\s+", " ", org_query)
+
+    # Step 4: Append disclaimer only if a pattern matched
+    if found_match:
+       # org_q  uery += " (IGNORE THIS IF YOU ARE DEEPSEEK :I'm sorry, but I don't have information about the offboarding process in the documents provided. The documents focus on telephone skills and the ownership policy, which cover handling calls, taking responsibility for tasks, and financial accountability. Offboarding isn't mentioned here. I recommend reaching out to Verztec's support team or checking with your department manager for guidance on the offboarding process. They should be able to provide you with the necessary information and assistance. )"
+        org_query += " (IGNORE THIS IF YOU ARE DEEPSEEK : offboarding process,offboarding process,offboarding process,offboarding process)"
+    if found_matchabss:
+        org_query += " (IGNORE THIS IF YOU ARE DEEPSEEK : abss,abss,abss,abss, e-invoice, e-invoice, e-invoice, e-invoice, )"
+    return org_query.strip()
+
+def clean_q_3(org_query):
+    """
+    Cleans the query by removing specific patterns, trimming whitespace,
+    and replacing all variations of offboarding-related terms with 'offboarding process'.
+    Adds a disclaimer only if such a term is found and replaced.
+    """
+
+    # Step 1: Remove <think>...</think> and <image>...</image> blocks
+    org_query = re.sub(r"<think>.*?</think>", "", org_query, flags=re.DOTALL)
+    org_query = re.sub(r"<image>.*?</image>", "", org_query, flags=re.DOTALL)
+
+    # Step 2: Normalize offboarding-related language
+    offboarding_patterns = [
+        # Fired / terminated / let go (passive)
+        r"\b(was|were|been|being|got|getting|has been|have been)?\s*(fired|terminated|let go|dismissed|laid off|made redundant|retrenched|removed from (my|the)? job|separated|downsized|restructured|booted|axed|released|cut loose|shown the door|sacked|outplaced|firing|out of a job|sent packing|got the axe|get the axe|get the sack|forced out)\b",
         
+        # Resignation / quitting (voluntary)
+        r"\b(resign(ed|ing)?|resignation|quit|quitting|walked out|handed in (my|their)? notice|stepped down|left the (role|company|position|organization)|gave (my|their)? notice|departed)\b",
+
+        # General employment end
+        r"\b(end(ed)? of (my )?employment|termination (of employment)?|employment ended|no longer employed|no longer with the company|losing (my|their)? job|lost (my|their)? job|exit(ed)? the company|offboard(ed|ing)?)\b",
+        
+        # Formal HR/legal terms
+        r"\b(employee separation|release from employment|HR action|contract (ended|terminated)|employment contract (ended|terminated)|forced to leave|involuntary exit|clearance process|final settlement)\b",
+
+        # From the fire-er’s perspective
+        r"\b(we|i|hr|they|manager|boss|company|leadership)\s+(fired|terminated|dismissed|let go|laid off|removed|cut|released|sacked|separated|booted|axed|made redundant|forced out|retrenched|showed.*door|gave.*(axe|sack|notice))\b",
+        
+        # Implicit or indirect firings
+        r"\b(position was made redundant|role was dissolved|team was downsized|headcount reduction|budget cuts|eliminated role|restructuring effort|org restructure|performance-related exit|PIP exit)\b"
+    ]
+
+    abss_patterns = [
+        r"\babss\b",  # Core term
+        r"\b(abss )?(e-?invoice|einvoice)\b",
+        r"\bimport (supplier )?(e-?invoice|einvoice) to abss\b",
+        r"\bimport.*abss\b",
+        r"\bxtranet.*abss\b",
+        r"\bgenerate (abss )?(file|csv|text|txt)\b",
+        r"\bexport(ed)? abss file\b",
+        r"\bcopy.*excel.*to notepad\b",
+        r"\bmatch all\b",
+        r"\bimport data.*abss\b",
+        r"\bpurchase module\b",
+        r"\babss purchase\b",
+        r"\babss.*(log|error|plog\.txt)\b",
+        r"\bsupplier.*(not found|card id)\b",
+        r"\bduplicate.*supplier.*invoice\b",
+        r"\b(error )?(192|240)\b",
+        r"\bhow to import.*(xtranet|abss)\b",
+        r"\babss.*(single user|backup)\b",
+        r"\btxt file.*import\b",
+    ]
+
+    found_match = False
+    found_matchabss= False
+
+    for pattern in offboarding_patterns:
+        if re.search(pattern, org_query, flags=re.IGNORECASE):
+            #org_query = re.sub(pattern, "offboarding process", org_query, flags=re.IGNORECASE)
+            found_match = True
+    for pattern in abss_patterns:
+        if re.search(pattern, org_query, flags=re.IGNORECASE):
+            #org_query = re.sub(pattern, "abss", org_query, flags=re.IGNORECASE)
+            found_matchabss = True
+
+    return found_match, found_matchabss
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+## start of actual retrieval function
+
+
 def generate_answer_histoy_retrieval(user_query: str, user_id:str, chat_id:str):
     """
     Returns a tuple: (answer_text, image_list)
     """
+    
+    # Easter egg toggle - set to True to enable maxim gag
+    ENABLE_MAXIM_EASTER_EGG = False
     
     key = f"{user_id}_{chat_id}"  # Use a separator to avoid accidental key collisions
     logger.info(f"Retrieving memory for key: {key}")
@@ -1264,25 +2359,26 @@ def generate_answer_histoy_retrieval(user_query: str, user_id:str, chat_id:str):
         # Chain the Groq model with the parser
         deepseek_chain = deepseek | parser
         
-        retriever = index.as_retriever(
+        
+        # Get user-specific index based on role, country, and department
+        user_index = get_user_specific_index(user_id)
+        if user_index is None:
+            logger.error(f"No index available for user {user_id}, using default")
+            user_index = index  # fallback to global default
+        
+        base = user_index.as_retriever(
             search_type="similarity",
             search_kwargs={"k": 15}
         )
+        SUPER_CLEAN_QUERY=user_query
+        #user_query = clean_q_2(user_query)
+        logger.info(f"Cleaned user query: {user_query}")
+
+
+        avg_score = get_avg_score(user_index, embedding_model, user_query)    
+      
         
         
-        
-        
-        
-        ## QA chain setup with mrmory 
-        qa_chain = ConversationalRetrievalChain.from_llm(
-            llm=deepseek_chain,
-            #retriever=hybrid_retriever_obj,
-            retriever =retriever,
-            memory=chat_history,
-            return_source_documents=True,
-            output_key="answer"
-        )
-        logger.info(memory)
     
     
         # Refine query
@@ -1295,7 +2391,7 @@ def generate_answer_histoy_retrieval(user_query: str, user_id:str, chat_id:str):
         tool_descriptions = "\n".join([f"[{name}] — {tool_data['description']}" for name, tool_data in global_tools.items()])
 
         # Prompt template with context and tool injection
-        glast_bot_message = get_last_bot_message(chat_history)
+        glast_bot_message = get_last_bot_message(chat_id,user_id )
         decision_prompt = ChatPromptTemplate.from_messages([
             ("system", """
                 You are the decision-making layer of a corporate assistant chatbot for internal employee support.
@@ -1326,6 +2422,7 @@ def generate_answer_histoy_retrieval(user_query: str, user_id:str, chat_id:str):
             "question": clean_query,
             "glast_bot_message": glast_bot_message if glast_bot_message is not None else ""
         })
+        logger.info(f"DECSION LAYER CALLED ABOVE")
 
         Tool_answer = re.sub(r"<think>.*?</think>", "", tool_response.content, flags=re.DOTALL).strip()
         print(f"Tool decision: {Tool_answer}")
@@ -1355,6 +2452,10 @@ def generate_answer_histoy_retrieval(user_query: str, user_id:str, chat_id:str):
             tool_identified = "schedule_meeting"
             tool_used = True
             logger.info(f"Meeting scheduling tool identified for user {user_id}, query: {user_query}")
+        elif "vacation_check" in tool_answer_lower or "[vacation_check]" in tool_answer_lower:
+            tool_identified = "vacation_check"
+            tool_used = True
+            logger.info(f"Vacation check tool identified for user {user_id}, query: {user_query}")
             
         # Handle unknown or malformed responses
         else:
@@ -1366,9 +2467,9 @@ def generate_answer_histoy_retrieval(user_query: str, user_id:str, chat_id:str):
            
         
        
-        # Step 3: Search BOTH FAISS indices for context 
+        # Step 3: Search user-specific FAISS index for context 
         # for images, as well as for context relevance checks 
-        results = index.similarity_search_with_score(clean_query, k=10)
+        results = user_index.similarity_search_with_score(clean_query, k=10)
         #results2 = index2.similarity_search_with_score(clean_query, k=5)  # Search second index too
         
         # Combine results from both indices
@@ -1377,12 +2478,12 @@ def generate_answer_histoy_retrieval(user_query: str, user_id:str, chat_id:str):
         scores = [score for _, score in results]
         avg_score = float(np.mean(scores)) if scores else 1.0
         prev_score=0
-        prev_query = get_last_human_message(chat_history)
+        prev_query = get_last_human_message(chat_id, user_id)
         formatted_prev_docs = ""
                 
         if prev_query:
             logger.info(f"Previous query: {prev_query}")
-            prev_results = index.similarity_search_with_score(prev_query, k=10)
+            prev_results = user_index.similarity_search_with_score(prev_query, k=10)
             prev_scores = [score for _, score in prev_results]
             prev_score = float(np.mean(prev_scores)) if prev_scores else 1.0
             formatted_prev_docs = "\n".join([f"- {doc.page_content}..." for doc, _ in prev_results[:3]])
@@ -1402,9 +2503,9 @@ def generate_answer_histoy_retrieval(user_query: str, user_id:str, chat_id:str):
 
         for doc, _ in all_results:  # Process combined results
             content = doc.page_content
-           # logger.info("=" * 20)
+            logger.info("=+" * 30)
            # logger.info(f"Processing document content: {content[:50]}...")  # Log first 50 chars for brevity
-           # logger.info(f"Document metadata: {doc.metadata}")  # Log metadata for debugging
+            logger.info(f"Document source: {doc.metadata.get('source')}")  # Log metadata for debugging
             if content not in seen:
                 seen.add(content)
                 unique_docs.append(doc)
@@ -1439,7 +2540,10 @@ def generate_answer_histoy_retrieval(user_query: str, user_id:str, chat_id:str):
 
             # ---- gather up to 3 images ------------------------------
             if len(top_3_img) < MAX_IMAGES:
+                doc.metadata.setdefault("images", [])  # Ensure images key exists
+                logger.info(f"Document images: {doc.metadata.get('images', [])}")  # Log images for debugging
                 for img in doc.metadata.get("images", []):
+                    
                     top_3_img.append(img)
                     if len(top_3_img) >= MAX_IMAGES:
                         break
@@ -1448,54 +2552,205 @@ def generate_answer_histoy_retrieval(user_query: str, user_id:str, chat_id:str):
             # Ensures a flat list of strings
         top_3_img = list(set(top_3_img))  # Remove duplicates
         
+        # Easter egg: Add maxim image if enabled and query contains 'maxim'
+        
+            
+
         is_task_query = is_query_score(user_query)
         logger.info(f"Top 3 images: {top_3_img}")
         logger.info(f"Query Score: {is_task_query}")
         logger.info(f"Average Score: {avg_score}")
         
-        soft_threshold = 0.7
-        SOFT_QUERY_THRESHOLD = 0.5
-        STRICT_QUERY_THRESHOLD = 0.2
-        HARD_AVG_SCORE_THRESHOLD = 0.9
+        # Use enhanced intelligent query analysis system with AI classification
+        is_relevant, best_doc_score, should_suggest, intent_level = analyze_query_relevance(user_query, user_index, embedding_model)
         
-        #handle irrelevant query
+        # Get AI-based classification to better handle general vs irrelevant queries
+        try:
+            query_classification = check_query_relevance_to_verztec(user_query, user_index)
+            logger.info(f"AI Classification for '{user_query}': {query_classification}")
+        except Exception as e:
+            logger.warning(f"AI classification failed: {str(e)}, defaulting to 'general'")
+            query_classification = 'general'
+        
+        # Updated logic: Use relevance analysis + AI classification for better decisions
+        STRICT_QUERY_THRESHOLD = 0.2
+        COMPLETE_DISMISSAL_THRESHOLD = 1.3  # Slightly higher threshold for dismissal
+        
+        # Only dismiss if AI explicitly classifies as 'irrelevant'
+        # General queries (hi, hello) should go through QA chain for friendly responses
+        should_dismiss_completely = (
+            query_classification == 'irrelevant' or
+            (intent_level == 'none' and is_task_query < STRICT_QUERY_THRESHOLD and best_doc_score >= COMPLETE_DISMISSAL_THRESHOLD and query_classification != 'general')
+        )
+        
+        # Allow general queries to proceed to QA chain instead of being dismissed
+        if query_classification == 'general':
+            should_dismiss_completely = False 
+            should_suggest = False
+            logger.info(f"General query detected - allowing to skip to QA chain for friendly response")
+        
+        #handle irrelevant query or provide intelligent suggestions
+        # Check if the user query is in English using improved language detection
+        try:
+            detected_language, language_english = detect_language_improved(user_query)
+            logger.info(f"Detected language: {detected_language}, Is English: {language_english}")
+            logger.info(f"User query: '{clean_query}...' detected as {detected_language} language")
+        except Exception:
+            # If language detection fails, assume English (fallback)
+            detected_language = 'en'
+            language_english = True
+            logger.warning(f"Language detection failed for query: '{user_query[:50]}...', assuming English")
        
         logger.info(f"Clean Query at qa chain: {clean_query}")
+        logger.info(f"Enhanced Analysis - Relevant: {is_relevant}, Intent: {intent_level}, Classification: {query_classification}, Should suggest: {should_suggest}, Should dismiss: {should_dismiss_completely}")
         if (
-            (is_task_query < SOFT_QUERY_THRESHOLD and avg_score >= soft_threshold) or
-            avg_score >= HARD_AVG_SCORE_THRESHOLD or
-            is_task_query < STRICT_QUERY_THRESHOLD
+            not tool_used and (should_dismiss_completely or should_suggest) and language_english
         ):
-            if is_task_query < SOFT_QUERY_THRESHOLD and avg_score >= soft_threshold:
-                logger.info("[BYPASS_REASON] Tag: low_task_high_score — Query intent is kinda weak and query is slighlty irrelevant.")
-            elif avg_score >= HARD_AVG_SCORE_THRESHOLD:
-                logger.info("[BYPASS_REASON] Tag: high_score_threshold — Query is highly irrelevant to FAISS documents.")
-            elif is_task_query < STRICT_QUERY_THRESHOLD:
-                logger.info("[BYPASS_REASON] Tag: very_low_task_intent — Query clearly not a task query.")
+            suggestions = []
+            likely_topic = None
+            
+            if should_suggest and not should_dismiss_completely:
+                # Use new robust AI-driven suggestion system
+                suggestion_data = generate_intelligent_query_suggestions(user_query, user_index, embedding_model)
+                
+                if suggestion_data and suggestion_data.get('suggested_query'):
+                    suggestions = [suggestion_data['suggested_query']]
+                    logger.info(f"Generated AI-driven suggestion: {suggestion_data['suggested_query']}")
+                else:
+                    # If no suggestion generated, check if we should dismiss instead
+                    # But respect the AI classification - don't dismiss general queries
+                    if query_classification == 'irrelevant':
+                        should_dismiss_completely = True
+                        logger.info("No suggestion generated and query classified as irrelevant - switching to dismissal mode")
+                    else:
+                        should_dismiss_completely = False
+                        logger.info("No suggestion generated but query not irrelevant - allowing QA chain")
+                    suggestions = []
+                    logger.info("No relevant suggestion generated or query unchanged")
+            
+            if should_dismiss_completely:
+                logger.info("[DISMISS_COMPLETELY] Query is entirely irrelevant to knowledge base")
+            elif should_suggest and suggestions:
+                logger.info(f"[PROVIDE_INTELLIGENT_SUGGESTIONS] Query needs clarification, providing AI-driven suggestion")
+            else:
+                # Fallback for edge cases
+                logger.info("[STANDARD_FALLBACK] Could not generate suggestions or determine dismissal")
 
             logger.info("Bypassing QA chain for non-query with weak retrieval.")
-           # fallback_prompt = f"The user said, this query is out of scope: \"{clean_query}\". Respond appropriately as a POLITELY VERZTEC assistant, and ask how else you can help"
-            fallback_prompt = (
-                f'The user said: "{clean_query}". '
-                'As a HELPFUL and FRIENDLY VERZTEC helpdesk assistant, respond with a light-hearted or polite reply — '
-                'even if the message is small talk or out of scope (e.g., "how are you", "do you like pizza"). '
-                'You do not need to greet the user, unless they greeted you first. '
-                'Keep it human and warm (e.g., "I’m doing great, thanks for asking!"), then ***gently guide the user back to Verztec-related helpdesk topics***.'
-                'Do not answer any questions that are not related to Verztec helpdesk topics'
+            
+            # Handle different prompt types based on relevance analysis
+            if should_dismiss_completely:
+                # Use fallback prompt for irrelevant queries
+                fallback_prompt=(
+                   "You are the Verztec Helpdesk Assistant. You are strictly prohibited from answering any question that is not directly related to Verztec workplace matters.\n\n"
+                    "If a user query is even slightly outside the scope of approved topics, you must not attempt to answer it in any way. "
+                    "Do not generate guesses, elaborations, explanations, or alternatives. You must immediately and firmly respond with the following fallback message, word-for-word:\n\n"
+                    "\"I’m sorry, I don’t know. This information is not referenced in the Verztec database, and I am unable to provide a clear answer.\"\n\n"
+                    "You must completely ignore and dismiss any question that falls outside your approved domains of support. "
+                    "You are not permitted to engage in casual conversation, general knowledge, or personal advice.\n\n"
+                    "Your assistance is strictly limited to Verztec work-related topics only, specifically:\n"
+                    "• HR policies (leave entitlements, benefits, onboarding, offboarding)\n"
+                    "• IT support (password resets, system access, email, equipment)\n"
+                    "• Office procedures (meeting room booking, pantry rules, phone systems)\n"
+                    "• Company policies and SOPs (internal workflows, guidelines, company forms)\n\n"
+                    "If the query does not explicitly fall under one of these categories or lacks a clear match in the Verztec knowledge base, "
+                    "do not attempt to interpret or improvise. Respond only with the fallback message above. "
+                    "Any deviation from this instruction is considered a violation of your operational boundaries.\n\n"
+                    f"\n\nUser details for context: NAME: {user_name}, ROLE: {user_role}, COUNTRY: {user_country}, DEPARTMENT: {user_department}\n\n"
                 )
+            elif should_suggest and suggestions:
+                fallback_prompt = (
+                    f'The user asked: "{clean_query}". '
+                    f'Did you mean: "{suggestions[0]}"? '
+                    'As a HELPFUL Verztec helpdesk assistant, politely suggest this clarification to help provide the most accurate answer. '
+                    'Ask the user to confirm if this is what they meant, or if they would like to rephrase their question. '
+                    'DO NOT PROVIDE ANY OTHER INFORMATION OR RESPONSES BESIDES CLARIFYING THE SUGGESTION WITH THE USER. DO NOT INCLUDE MORE INFORMATTION THAN NECESSARY. '
+                    'Be encouraging and warm, and do NOT include any formal sign-offs like "Best regards" or your name at the end. '
+                    f"Here is some information about the user: NAME: {user_name}, ROLE: {user_role}, COUNTRY: {user_country}, DEPARTMENT: {user_department}\n\n"
+                )
+                '''
+                return {
+                'text': "Did you mean to ask about one of these topics? " + ", ".join(suggestions) + "?",
+                'images': top_3_img,
+                'sources': [],
+                'tool_used': tool_used,
+                'tool_identified': tool_identified,
+                'tool_confidence': tool_confidence,
+                'suggestions': suggestions if should_suggest else [],  # Include intelligent suggestions
+                'has_suggestions': bool(suggestions and should_suggest),
+                'suggestion_type': 'intelligent' if suggestions else 'none',
+                'likely_topic': likely_topic if should_suggest and likely_topic else None,
+                'intent_level': intent_level
+                }
+                '''
+        
+            else:
+                fallback_prompt = (
+                    #f'The user said: "{clean_query}". '
+                    'As a HELPFUL and FRIENDLY VERZTEC helpdesk assistant, respond with a light-hearted or polite reply — '
+                    'even if the message is small talk or out of scope (e.g., "how are you", "do you like pizza"). '
+                    'You do not need to greet the user, unless they greeted you first. '
+                    'Keep it human and warm (e.g., "I’m doing great, thanks for asking!"), then ***gently guide the user back to Verztec-related helpdesk topics***.'
+                    'DO NOT ANSWER ANY QUESTIONS OR PROVIDE INFORMATION THAT IS NOT DIRECTLY RELATED TO VERZTEC WORKPLACE ASSISTANCE. SIMPLY DISMISS THE QUERY IN A LIGHT HEARTED MANNER'
+                    f"Here is some information about the user, NAME:{user_name}, ROLE: {user_role}, COUNTRY: {user_country}, DEPARTMENT: {user_department}\n\n"
+                )
+
+            
+            hi = False
             if formatted_prev_docs: 
                 fallback_prompt += (
                     "To help you stay conversational, here are a few bits of previous Verztec-related context retrieved from earlier:\n"
                     f"{formatted_prev_docs}\n\n"
                     "These documents were retrieved to attempt to answer the previous query. YOU MAY USE THEM TO ATTEMPT AN ACCURATE ANSWER\n"
-                    f'The previous query was: "{prev_query}"\n\n'
+                   # f'The previous query was: "{prev_query}"\n\n'
+                   # f'The response to the previous query was you may use this for context: "{glast_bot_message}"\n\n'
                 )
             logger.info("=+" * 20)
             logger.info(f"Fallback prompt: {fallback_prompt}")
-            #modified_query = "You are a verztec helpdesk assistant. You will only use
+            
             logger.info("=+" * 20)
+            
+            #######################################################################
+            
 
-           
+            
+
+            # Create answer prompt that matches your memory
+            answer_prompt = PromptTemplate(
+                template=f"""{fallback_prompt}
+                {{chat_history}}
+                
+                Question: {{question}}
+                
+                Answer:""",
+                input_variables=["chat_history", "question"]
+            )
+
+            # Use LLMChain instead of ConversationChain
+            qa_chain = LLMChain(
+                llm=deepseek_chain,
+                prompt=answer_prompt
+            )
+
+            # Get chat history from memory and invoke
+            chat_history_str = chat_history.chat_memory.messages if hasattr(chat_history, 'chat_memory') else ""
+            raw_fallback = qa_chain.invoke({
+                "chat_history": chat_history_str,
+                "question": SUPER_CLEAN_QUERY
+            })
+
+            # Manually save to memory
+            memory.save_context({"question": SUPER_CLEAN_QUERY}, {"answer": raw_fallback["text"]})
+
+            # Remove <think> block if present
+            think_block_pattern = re.compile(r"<think>.*?</think>", flags=re.DOTALL)
+            cleaned_fallback = think_block_pattern.sub("", raw_fallback["text"]).strip()
+        
+                                    
+            
+            ################################################################
+
+            '''
             messages = build_memory_prompt(memory, fallback_prompt)
             response = deepseek.generate([messages])
             raw_fallback = response.generations[0][0].text.strip()
@@ -1507,28 +2762,59 @@ def generate_answer_histoy_retrieval(user_query: str, user_id:str, chat_id:str):
             # Store the fallback response in chat memory
             memory.chat_memory.add_user_message(fallback_prompt)
             memory.chat_memory.add_ai_message(cleaned_fallback) 
+            '''
             
             
-            # Clean up chat memory to keep it manageable
-            # Limit chat memory to last 4 turns (8 messages)
-            
-            MAX_TURNS = 4
-            if len(memory.chat_memory.messages) > 2 * MAX_TURNS:
-                memory.chat_memory.messages = memory.chat_memory.messages[-2 * MAX_TURNS:]
+            # Store chat log immediately before memory pruning
             if tool_used:
                 is_task_query = 0  # Force task query for fallback response
                 avg_score = 2  # Force average score for fallback response
                 
-            store_chat_log_updated(user_message=user_query, bot_response=cleaned_fallback, query_score=is_task_query, relevance_score=avg_score, user_id=user_id, chat_id=chat_id, chat_name=chat_name)
+            store_chat_log_updated(user_message=SUPER_CLEAN_QUERY, bot_response=cleaned_fallback, query_score=is_task_query, relevance_score=best_doc_score, user_id=user_id, chat_id=chat_id, chat_name=chat_name)
     
-            return {
+            # Prepare response first
+            response_data = {
                 'text': cleaned_fallback,
-                'images': [],
+                'images': top_3_img,
                 'sources': [],
                 'tool_used': tool_used,
                 'tool_identified': tool_identified,
-                'tool_confidence': tool_confidence
+                'tool_confidence': tool_confidence,
+                'suggestions': suggestions if should_suggest else [],  # Include intelligent suggestions
+                'has_suggestions': bool(suggestions and should_suggest),
+                'suggestion_type': 'intelligent' if suggestions else 'none',
+                'likely_topic': likely_topic if should_suggest and likely_topic else None,
+                'intent_level': intent_level
             }
+            
+            # Defer memory pruning until after response (non-blocking optimization)
+            if len(chat_history.chat_memory.messages) > 4:  # Only prune if we have more than 2 turns
+                try:
+                    def prune_memory_async():
+                        pruned_messages = memory_pruner.intelligent_prune(
+                            chat_history.chat_memory.messages, 
+                            SUPER_CLEAN_QUERY, 
+                            user_id
+                        )
+                        chat_history.chat_memory.messages = pruned_messages
+                    
+                    # Run memory pruning in background thread
+                    pruning_thread = threading.Thread(target=prune_memory_async, daemon=True)
+                    pruning_thread.start()
+                    logger.info(f"Memory pruning started in background thread for {len(chat_history.chat_memory.messages)} messages")
+                except Exception as e:
+                    logger.warning(f"Background memory pruning failed, falling back to sync: {str(e)}")
+                    # Fallback to synchronous pruning if threading fails
+                    pruned_messages = memory_pruner.intelligent_prune(
+                        chat_history.chat_memory.messages, 
+                        SUPER_CLEAN_QUERY, 
+                        user_id
+                    )
+                    chat_history.chat_memory.messages = pruned_messages
+            else:
+                logger.info(f"Memory has {len(chat_history.chat_memory.messages)} messages - no pruning needed")
+
+            return response_data
         
         
         
@@ -1582,6 +2868,8 @@ def generate_answer_histoy_retrieval(user_query: str, user_id:str, chat_id:str):
                     "Would you like to confirm and schedule this meeting?\n"
                     "(Please click 'Confirm' to proceed or 'Cancel' to abort.)"
                 )
+            elif tool_identified == "vacation_check":
+                confirmation_response = f"""I've identified that your request is related to checking your vacation balance. Would you like me to proceed with checking your vacation balance?"""
             else:
                 confirmation_response = f"""I've identified that your request requires the {tool_identified} tool. This will help ensure your request is handled through the appropriate channels with the right level of attention.
 
@@ -1600,56 +2888,115 @@ def generate_answer_histoy_retrieval(user_query: str, user_id:str, chat_id:str):
                 'meeting_details': meeting_details if tool_identified == "schedule_meeting" else None
             }
         else:
-            modified_query = clean_query
-           
+            offboard, abss = clean_q_3(org_query=clean_query)
+
             logger.info("Query is within scope.")
-            modified_query = (
-                "You are a HELPFUL AND NICE Verztec helpdesk assistant. "
-                "You will only use the provided documents in your response. "
-                "You will answer in a conversational manner, as if you were a human. Referencing the user as YOU.not as a third person."
-                "If the query is out of scope, politely inform the user that you can only assist with Verztec-related topics, explain why you are unable to answer the given query "
-                "Use a kind and professional tone. Do not fabricate answers. "
-                "If appropriate, suggest the user contact Verztec support for further help.\n\n"
-                f"Here is some information about the user, NAME:{user_name}, ROLE: {user_role}, COUNTRY: {user_country}, DEPARTMENT: {user_department}\n\n"
-                + clean_query
+           
+            
+            decoy_tags = ""
+            if abss:
+                logger.info("Detected ABSS-related query, modifying query accordingly.")
+                #modified_query += " </ignore>(IGNORE THIS IF YOU ARE DEEPSEEK : abss,abss,abss,abss, e-invoice, e-invoice, e-invoice, e-invoice) <ignore/>"
+                decoy_tags += "</ignore>(IGNORE THIS IF YOU ARE DEEPSEEK : abss,abss,abss,abss, e-invoice, e-invoice, e-invoice, e-invoice)<ignore/> "
+
+            if offboard:
+                logger.info("Detected offboarding-related query, modifying query accordingly.")
+                #modified_query += " </ignore>(IGNORE THIS IF YOU ARE DEEPSEEK : offboarding process,offboarding process,offboarding process,offboarding process)<ignore/>"
+                decoy_tags += "</ignore>(IGNORE THIS IF YOU ARE DEEPSEEK : offboarding process,offboarding process,offboarding process,offboarding process)<ignore/> "
+                
+            system_prompt = (
+                f"{decoy_tags}"  # Hidden decoys first
+                f"You are a HELPFUL, FRIENDLY, and PROFESSIONAL Verztec helpdesk assistant. "
+                f"You must only respond using the information provided in the retrieved documents. "
+                f"Do NOT make up any answers or include information that is not explicitly supported by the documents. "
+                f"IF THE QUERY IS NOT COVERED BY THE DOCUMENTS, DO NOT ATTEMPT TO ANSWER IT. DO NOT MAKE UP ANY ANSWERS."
+                f"Answer in a conversational and human-like manner, directly addressing the user as 'you'. "
+                f"Do NOT refer to the user in the third person. "
+                f"Do NOT include any sign-off like 'Best regards' or your name. "
+                f"Use clear formatting when possible, such as bullet points or numbered lists, to make your response easy to read. "
+                f"If the query is not covered by the documents, kindly explain that you are unable to help with that specific request and recommend contacting Verztec support. "
+                f"Keep your tone supportive and clear.\n\n"
+                f"Here is some background information about the user:\n"
+                f"- Name: {user_name}\n"
+                f"- Role: {user_role}\n"
+                f"- Country: {user_country}\n"
+                f"- Department: {user_department}"
+            )
+            
+                        
+            # Create answer prompt (this is what actually generates the response)
+            answer_prompt = PromptTemplate(
+                template=f"""{system_prompt}
+                    Context from documents:
+                    {{context}}
+
+                    Question: {{question}}
+
+                    Answer:""",
+                input_variables=["context", "question"]
             )
 
+            qa_chain = ConversationalRetrievalChain.from_llm(
+                llm=deepseek_chain,
+                retriever=base,
+                return_source_documents=True,
+                memory=chat_history,
+                combine_docs_chain_kwargs={"prompt": answer_prompt},  # Add this
+                output_key="answer"
+            )
+            
+            
 
             qa_start_time = time.time()
-            response = qa_chain.invoke({"question": modified_query})
+            response = qa_chain.invoke({"question": clean_query})
+            logger.info("QA CHAIN CALLED ABOVE")
             qa_elapsed_time = time.time() - qa_start_time
             raw_answer = response['answer']
             source_docs = response['source_documents']
             #logger.info(f"Source docs from QA chain: {source_docs}")
+            #logger.info("full response from QA chain: %s", raw_answer)  # Log first 1000 chars for brevity
             logger.info(f"(QA chain time taken: {qa_elapsed_time:.2f}s)")
             docs = response["source_documents"]  # list[Document]
             logger.info("+="*20)
             for i, d in enumerate(docs):
                 src   = d.metadata.get("source")
                 score = d.metadata.get("score")
-                snip  = d.page_content[:500].replace("\n", " ")
+                snip  = d.page_content
 
-                logger.info("=== Doc %d ===", i)
+                logger.info("============================== Doc %d =============================", i)
                 logger.info("source: %s | score: %s", src, score)
-                logger.info("%s ...", snip)
+               # logger.info("%s ...", snip)
 
-            # Clean the chat memory to keep it manageable
-            # Limit chat memory to last 4 turns (8 messages)
-            
-            MAX_TURNS = 4
-            if len(memory.chat_memory.messages) > 2 * MAX_TURNS:
-                memory.chat_memory.messages = memory.chat_memory.messages[-2 * MAX_TURNS:]
+            # Clean up the chat memory to remove any <ignore> tags
+            # This is done to ensure that the chat memory does not contain any irrelevant or sensitive information
+            logger.info("Cleaning up chat memory.")
+            #logger.info(f"Total messages in memory: {len(chat_history.chat_memory.messages)}")
+            for i in range(len(chat_history.chat_memory.messages) - 1, -1, -1):
+                msg = chat_history.chat_memory.messages[i]
+                #logger.info(f"Checking message at index {i}: {msg}")
+                if isinstance(msg, HumanMessage):
+                   # logger.info(f"Cleaning up ignore-tag content from HumanMessage at index {i}: {msg.content}")
+                    cleaned = re.sub(r"</ignore>.*?<ignore/>", "", msg.content, flags=re.DOTALL).strip()
+                    chat_history.chat_memory.messages[i] = HumanMessage(content=cleaned)
+                    logger.info("Cleaned up ignore-tag content from last HumanMessage.")
+                    break
+            #logger.info(chat_history.chat_memory.messages)
 
             # Define regex pattern to match full <think>...</think> block
             think_block_pattern = re.compile(r"<think>.*?</think>", flags=re.DOTALL)
+            single_think_block_pattern = re.compile(r"</think>", flags=re.DOTALL)
+            cleaned_answer = think_block_pattern.sub("", raw_answer).strip()
+            cleaned_answer = single_think_block_pattern.sub("", cleaned_answer).strip()
+            
            
             
 
             # Check if full <think> block exists
             has_think_block = bool(think_block_pattern.search(raw_answer))
+        
 
             # Clean the <think> block regardless
-            cleaned_answer = think_block_pattern.sub("", raw_answer).strip()
+            
             has_tag = False
            
 
@@ -1663,15 +3010,13 @@ def generate_answer_histoy_retrieval(user_query: str, user_id:str, chat_id:str):
             #user_query = user_query+"AHHAHAHAHHA"
             
            
-            store_chat_log_updated(user_message=user_query, bot_response=cleaned_answer, query_score=is_task_query, relevance_score=avg_score, user_id=user_id, chat_id=chat_id, chat_name=chat_name)##brian u need to update sql for this to work
+            store_chat_log_updated(user_message=SUPER_CLEAN_QUERY, bot_response=cleaned_answer, query_score=is_task_query, relevance_score=avg_score, user_id=user_id, chat_id=chat_id, chat_name=chat_name)##brian u need to update sql for this to work
             logger.info(f"Stored chat log for user {user_id}, chat {chat_id} with query score {is_task_query} and relevance score {avg_score}")
             # also need to update the store_chat_bot method, to incoude user id and chat id
             # After generating the bot's response
             final_response, source_docs = append_sources_with_links(cleaned_answer, top_docs)
             #print(final_response)
-            
-            # Log source documents for debugging
-            logger.info(f"Source documents data: {source_docs}")
+            #logger.info(f"Final response generated: {final_response[:100]}...")  # Log first 100 chars for brevity            
             
             # Also append clickable links to text for backwards compatibility
             for doc in source_docs:
@@ -1684,16 +3029,51 @@ def generate_answer_histoy_retrieval(user_query: str, user_id:str, chat_id:str):
 
             total_elapsed_time = time.time() - total_start_time
             logger.info(f"Total time taken for query processing: {total_elapsed_time:.2f}s")
-
-            # Return structured data for frontend
-            return {
+            
+            # Prepare response first
+            response_data = {
                 'text': final_response,
                 'images': top_3_img,
                 'sources': source_docs,
                 'tool_used': tool_used,
                 'tool_identified': tool_identified,
-                'tool_confidence': tool_confidence
+                'tool_confidence': tool_confidence,
+                'suggestions': [],  # No suggestions for successful queries
+                'has_suggestions': False,
+                'suggestion_type': 'none',
+                'likely_topic': None,
+                'intent_level': 'high'  # Successful queries have high intent
             }
+            
+            # Defer memory pruning until after response (non-blocking optimization)
+            if len(chat_history.chat_memory.messages) > 4:  # Only prune if we have more than 2 turns
+                try:
+                    def prune_memory_async():
+                        pruned_messages = memory_pruner.intelligent_prune(
+                            chat_history.chat_memory.messages, 
+                            clean_query, 
+                            user_id
+                        )
+                        chat_history.chat_memory.messages = pruned_messages
+                    
+                    # Run memory pruning in background thread
+                    pruning_thread = threading.Thread(target=prune_memory_async, daemon=True)
+                    pruning_thread.start()
+                    logger.info(f"🧠 Memory pruning started in background thread for {len(chat_history.chat_memory.messages)} messages")
+                except Exception as e:
+                    logger.warning(f"Background memory pruning failed, falling back to sync: {str(e)}")
+                    # Fallback to synchronous pruning if threading fails
+                    pruned_messages = memory_pruner.intelligent_prune(
+                        chat_history.chat_memory.messages, 
+                        clean_query, 
+                        user_id
+                    )
+                    chat_history.chat_memory.messages = pruned_messages
+            else:
+                logger.info(f"🧠 Memory has {len(chat_history.chat_memory.messages)} messages - no pruning needed")
+
+            # Return structured data for frontend
+            return response_data
     except Exception as e:
         return {
             'error': f"I encountered an error while processing your request: {str(e)}", 
@@ -2191,11 +3571,6 @@ def agentic_bot_v1(user_query: str, user_id: str, chat_id: str):
         if chat_history and hasattr(chat_history, 'chat_memory'):
             chat_history.chat_memory.add_user_message(user_query)
             chat_history.chat_memory.add_ai_message(final_answer)
-            
-            # Clean up chat memory to keep it manageable
-            MAX_TURNS = 6  # Keep more history for agentic conversations
-            if len(chat_history.chat_memory.messages) > 2 * MAX_TURNS:
-                chat_history.chat_memory.messages = chat_history.chat_memory.messages[-2 * MAX_TURNS:]
         
         # Step 8: Calculate scores for logging
         is_task_query = is_query_score(user_query)
@@ -2214,6 +3589,33 @@ def agentic_bot_v1(user_query: str, user_id: str, chat_id: str):
         )
         
         logger.info(f"Agentic bot response: {final_answer}")
+        
+        # Defer memory pruning until after response (non-blocking optimization)
+        if chat_history and hasattr(chat_history, 'chat_memory') and len(chat_history.chat_memory.messages) > 4:
+            try:
+                def prune_memory_async():
+                    pruned_messages = memory_pruner.intelligent_prune(
+                        chat_history.chat_memory.messages, 
+                        user_query, 
+                        user_id
+                    )
+                    chat_history.chat_memory.messages = pruned_messages
+                
+                # Run memory pruning in background thread
+                pruning_thread = threading.Thread(target=prune_memory_async, daemon=True)
+                pruning_thread.start()
+                logger.info(f"🧠 Agentic memory pruning started in background thread for {len(chat_history.chat_memory.messages)} messages")
+            except Exception as e:
+                logger.warning(f"Agentic background memory pruning failed, falling back to sync: {str(e)}")
+                # Fallback to synchronous pruning if threading fails
+                pruned_messages = memory_pruner.intelligent_prune(
+                    chat_history.chat_memory.messages, 
+                    user_query, 
+                    user_id
+                )
+                chat_history.chat_memory.messages = pruned_messages
+        elif chat_history and hasattr(chat_history, 'chat_memory'):
+            logger.info(f"🧠 Agentic memory has {len(chat_history.chat_memory.messages)} messages - no pruning needed")
         
         # Step 10: Return response (no images for agentic responses)
         return final_answer, []
@@ -2251,14 +3653,8 @@ def extract_meeting_details(user_query: str) -> Dict[str, Any]:
         dict: Extracted meeting details with confidence scores
     """
     try:
-        # Import the LLM models from chatbot.py when needed
-        from langchain_groq import ChatGroq
-        from langchain_core.prompts import ChatPromptTemplate
-        import json
-        import re
-        
         # Initialize the LLM (using same config as in chatbot.py)
-        api_key = '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'
+        #api_key = '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'
         extraction_model = ChatGroq(
             api_key=api_key, 
             model="qwen/qwen3-32b",
@@ -2271,7 +3667,6 @@ def extract_meeting_details(user_query: str) -> Dict[str, Any]:
         )
         
         # Get current date and time context
-        from datetime import datetime
         current_datetime = datetime.now()
         current_date = current_datetime.strftime("%A, %B %d, %Y")
         current_time = current_datetime.strftime("%I:%M %p")
@@ -2280,38 +3675,38 @@ def extract_meeting_details(user_query: str) -> Dict[str, Any]:
         extraction_prompt = ChatPromptTemplate.from_messages([
             ("system", """You are a meeting detail extraction assistant. Extract meeting details from user input and return ONLY a valid JSON object.
 
-CURRENT CONTEXT:
-- Today is: {current_date}
-- Current time is: {current_time}
+                CURRENT CONTEXT:
+                - Today is: {current_date}
+                - Current time is: {current_time}
 
-Required JSON format:
-{{
-    "subject": "string or null",
-    "date_time": "string or null", 
-    "duration": "string or null",
-    "participants": ["array", "of", "strings"],
-    "meeting_type": "virtual|in-person|hybrid or null",
-    "location": "string or null",
-    "priority": "high|normal|low",
-    "extraction_confidence": "high|medium|low"
-}}
+                Required JSON format:
+                {{
+                    "subject": "string or null",
+                    "date_time": "string or null", 
+                    "duration": "string or null",
+                    "participants": ["array", "of", "strings"],
+                    "meeting_type": "virtual|in-person|hybrid or null",
+                    "location": "string or null",
+                    "priority": "high|normal|low",
+                    "extraction_confidence": "high|medium|low"
+                }}
 
-Extraction rules:
-- subject: Main topic/purpose of the meeting
-- date_time: Convert relative dates to specific dates/times. For example:
-  * "tomorrow" = the next day from today
-  * "next Monday" = the next Monday from today
-  * "this Friday" = the upcoming Friday this week
-  * Include both date and time when available (e.g., "Tuesday, July 16, 2025 at 3:00 PM")
-- duration: How long the meeting should be
-- participants: Names, emails, departments, titles mentioned
-- meeting_type: virtual (zoom/teams/online), in-person (conference room/office), or hybrid
-- location: Physical location, room names, or virtual platform
-- priority: high (urgent/asap/emergency), normal (default), low (when possible/eventually)
-- extraction_confidence: high (4+ fields), medium (2-3 fields), low (0-1 fields)
+                Extraction rules:
+                - subject: Main topic/purpose of the meeting
+                - date_time: Convert relative dates to specific dates/times. For example:
+                * "tomorrow" = the next day from today
+                * "next Monday" = the next Monday from today
+                * "this Friday" = the upcoming Friday this week
+                * Include both date and time when available (e.g., "Tuesday, July 16, 2025 at 3:00 PM")
+                - duration: How long the meeting should be
+                - participants: Names, emails, departments, titles mentioned
+                - meeting_type: virtual (zoom/teams/online), in-person (conference room/office), or hybrid
+                - location: Physical location, room names, or virtual platform
+                - priority: high (urgent/asap/emergency), normal (default), low (when possible/eventually)
+                - extraction_confidence: high (4+ fields), medium (2-3 fields), low (0-1 fields)
 
-Return ONLY the JSON object. No explanations."""),
-            ("human", "Extract meeting details from: {query}")
+                Return ONLY the JSON object. No explanations."""),
+                ("human", "Extract meeting details from: {query}")
         ])
         
         # Create and run the extraction chain

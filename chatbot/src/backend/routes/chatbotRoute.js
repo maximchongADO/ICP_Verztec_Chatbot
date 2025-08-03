@@ -1,3 +1,4 @@
+
 const chatbotController = require("../controllers/chatbotController.js");
 const authenticateToken = require("../middleware/authenticateToken.js");
 
@@ -29,6 +30,12 @@ const chatbotRoute = (app) => {
     "/api/chatbot/history",
     authenticateToken,
     chatbotController.clearChatHistory
+  );
+  // Add DELETE endpoint for specific chat_id
+  app.delete(
+    "/api/chatbot/history/:chat_id",
+    authenticateToken,
+    chatbotController.deleteChatById
   );
   // Add new feedback endpoint
   app.post(

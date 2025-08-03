@@ -156,7 +156,9 @@ function addMessageFromStorage(messageData) {
     if (messageData.images && messageData.images.length > 0) {
       imagesHtml = `<div class="ai-message-images">` +
         messageData.images.map(filename => {
-          return `<img src="/data/images/${filename}" alt="${filename}" class="chat-image" />`;
+          // Handle different image sources - if it starts with 'images/', serve from public, otherwise from data/images
+          const imageSrc = filename.startsWith('images/') ? `/${filename}` : `/data/images/${filename}`;
+          return `<img src="${imageSrc}" alt="${filename}" class="chat-image" />`;
         }).join("") +
         `</div>`;
     }
@@ -208,6 +210,9 @@ function handleKeyPress(event) {
     event.preventDefault();
     sendMessage();
   }
+  
+  // Update button state after any key press
+  setTimeout(updateActionButton, 0);
 }
 
 // Add these new variables at the top of the file with other global variables
@@ -218,20 +223,24 @@ let isCurrentlySpeaking = false;
 function isAvatarActive() {
     // Check if draggable avatar exists and is visible
     if (window.draggableAvatar && window.draggableAvatar.isAvatarVisible()) {
+        console.log('🎭 Draggable avatar is active');
         return true;
     }
     
     // Check if avatar iframe exists
     const avatarIframe = document.querySelector('iframe[src*="avatar"]');
     if (avatarIframe) {
+        console.log('🎭 Avatar iframe is active');
         return true;
     }
     
     // Check if avatar window is open
     if (window.avatarWindow && !window.avatarWindow.closed) {
+        console.log('🎭 Avatar window is active');
         return true;
     }
     
+    console.log('🎭 No avatar is active');
     return false;
 }
 
@@ -260,9 +269,9 @@ function sendMessage() {
   // Clear welcome message on first message
   clearWelcomeContent();
 
-  // Disable send button
-  const sendButton = document.getElementById("sendButton");
-  sendButton.disabled = true;
+  // Disable action button
+  const actionButton = document.getElementById("actionButton");
+  if (actionButton) actionButton.disabled = true;
   // const fullMessage = `${message} YABABDODD`;
 
   // Add user message to chat
@@ -271,6 +280,9 @@ function sendMessage() {
   // Clear input and reset height
   input.value = "";
   input.style.height = "auto";
+  
+  // Update action button state after clearing input
+  updateActionButton();
 
   // Show typing indicator with realistic staged status updates
   showTypingIndicator("Retrieving relevant documents...");
@@ -294,7 +306,12 @@ function sendMessage() {
           tool_used: response.tool_used || false,
           tool_identified: response.tool_identified || "none",
           tool_confidence: response.tool_confidence || "",
-          original_message: message // Store original message for reprocessing
+          original_message: message, // Store original message for reprocessing
+          suggestions: response.suggestions || [], // Include AI-generated suggestions
+          has_suggestions: response.has_suggestions || false, // Include suggestion flag
+          suggestion_type: response.suggestion_type || 'none', // Include suggestion type
+          likely_topic: response.likely_topic || null, // Include likely topic
+          intent_level: response.intent_level || 'none' // Include intent level
         };
         
         addMessage(messageData, "bot");
@@ -329,8 +346,9 @@ function sendMessage() {
       );
     })
     .finally(() => {
-      // Re-enable send button
-      sendButton.disabled = false;
+      // Re-enable action button
+      const actionButton = document.getElementById("actionButton");
+      if (actionButton) actionButton.disabled = false;
     });
 }
 
@@ -394,9 +412,20 @@ function renderChatHistorySidebar(chatLogs) {
 
     const actionsDiv = document.createElement("div");
     actionsDiv.className = "chat-history-item-actions";
-    actionsDiv.innerHTML = `
-      <button onclick="event.stopPropagation(); deleteChatHistory('${log.chat_id}')" title="Delete">×</button>
-    `;
+    
+    const deleteBtn = document.createElement("button");
+    deleteBtn.innerHTML = "×";
+    deleteBtn.title = "Delete this chat";
+    deleteBtn.style.cssText = "background: none; border: none; color: #d4b24c; cursor: pointer; padding: 6px 8px; border-radius: 6px; font-size: 12px; font-weight: 500; z-index: 1000; position: relative;";
+    
+    deleteBtn.onclick = function(event) {
+      console.log("Delete button clicked for chat:", log.chat_id);
+      event.stopPropagation();
+      event.preventDefault();
+      deleteChatHistory(log.chat_id);
+    };
+    
+    actionsDiv.appendChild(deleteBtn);
 
     item.appendChild(icon);
     item.appendChild(textDiv);
@@ -438,7 +467,7 @@ function loadChatHistory(chatId) {
       chatMessages.innerHTML = "";
       if (Array.isArray(chatLogs) && chatLogs.length > 0) {
         chatLogs.forEach(msg => {
-          addMessage(msg.message, msg.sender === "user" ? "user" : "bot");
+          addMessage(msg.message, msg.sender === "user" ? "user" : "bot", true); // true = isHistorical
         });
         
         // Save the loaded messages to localStorage for persistence
@@ -463,7 +492,27 @@ function loadChatHistory(chatId) {
 }
 
 function deleteChatHistory(chatId) {
-  if (!confirm("Are you sure you want to delete this chat?")) return;
+  console.log("deleteChatHistory called with chatId:", chatId);
+  
+  // Store the chatId for use in the confirmation handlers
+  window.pendingDeleteChatId = chatId;
+  
+  // Show the custom confirmation popup
+  const popup = document.getElementById('deleteChatConfirmPopup');
+  if (popup) {
+    popup.style.display = 'flex';
+  } else {
+    console.error("Delete confirmation popup not found, falling back to browser confirm");
+    // Fallback to browser confirm if popup doesn't exist
+    const confirmDelete = window.confirm("Are you sure you want to delete this chat? This action cannot be undone.");
+    if (confirmDelete) {
+      performDeleteChat(chatId);
+    }
+  }
+}
+
+function performDeleteChat(chatId) {
+  console.log("Proceeding with delete for chatId:", chatId);
   
   const userId = localStorage.getItem("userId") || "defaultUser";
   fetch(`/api/chatbot/history/${encodeURIComponent(chatId)}?user_id=${encodeURIComponent(userId)}`, {
@@ -473,15 +522,19 @@ function deleteChatHistory(chatId) {
     }
   })
     .then(res => {
+      console.log("Delete response status:", res.status);
       if (res.ok) {
+        // Show success message (optional)
+        console.log("Chat deleted successfully!");
         // Refresh the chat history list
         getChatHistorySidebar();
       } else {
-        throw new Error('Failed to delete chat');
+        throw new Error(`Failed to delete chat: ${res.status}`);
       }
     })
-    .catch(() => {
-      alert("Failed to delete chat history.");
+    .catch((error) => {
+      console.error("Delete error:", error);
+      alert("Failed to delete chat history: " + error.message);
     });
 }
 
@@ -496,11 +549,18 @@ async function get_frequentmsg() {
   ];
 
   try {
+    // Get user_id for regional filtering
+    const user_id = localStorage.getItem("userId") || "defaultUser";
+    
     const response = await fetch("http://localhost:3000/frequent", {
       method: "POST",
       headers: {
+        "Content-Type": "application/json",
         Authorization: `Bearer ${token}`,
       },
+      body: JSON.stringify({
+        user_id: user_id
+      })
     });
 
     if (!response.ok) {
@@ -508,7 +568,7 @@ async function get_frequentmsg() {
     }
 
     const data = await response.json();
-    console.log("Frequent Messages:", data);
+    console.log("Frequent Messages for user", user_id, ":", data);
 
     if (Array.isArray(data) && data.length > 2) {
       updateSuggestions(data);
@@ -561,7 +621,12 @@ async function callChatbotAPI(message,
         sources: data.sources || [], // Include sources data
         tool_used: data.tool_used || false, // Include tool_used flag
         tool_identified: data.tool_identified || "none", // Include tool identification
-        tool_confidence: data.tool_confidence || "" // Include tool confidence
+        tool_confidence: data.tool_confidence || "", // Include tool confidence
+        suggestions: data.suggestions || [], // Include AI-generated suggestions
+        has_suggestions: data.has_suggestions || false, // Include suggestion flag
+        suggestion_type: data.suggestion_type || 'none', // Include suggestion type
+        likely_topic: data.likely_topic || null, // Include likely topic
+        intent_level: data.intent_level || 'none' // Include intent level
       };
     } else {
       throw new Error("Invalid response format from chatbot");
@@ -581,7 +646,29 @@ async function clearChatHistory() {
   console.log("Clearing chat - user_id:", user_id, "chat_id:", chat_id);
   
   try {
-    // Clear local storage and session data first
+    // First, try to delete the current chat from the database
+    if (chat_id && chat_id !== "chat123") { // Don't try to delete default/fallback chat_id
+      try {
+        console.log("Deleting current chat from database:", chat_id);
+        const response = await fetch(`/api/chatbot/history/${encodeURIComponent(chat_id)}?user_id=${encodeURIComponent(user_id)}`, {
+          method: "DELETE",
+          headers: {
+            Authorization: `Bearer ${localStorage.getItem("token")}`
+          }
+        });
+        
+        if (response.ok) {
+          console.log("Successfully deleted chat from database");
+        } else {
+          console.warn(`Failed to delete chat from database: ${response.status} (continuing anyway)`);
+        }
+      } catch (dbError) {
+        console.warn("Failed to delete chat from database (continuing anyway):", dbError);
+        // Continue with local cleanup even if database deletion fails
+      }
+    }
+    
+    // Clear local storage and session data
     sessionStorage.removeItem("chatHistory");
     clearChatFromLocalStorage();
     
@@ -607,7 +694,7 @@ async function clearChatHistory() {
     // Refresh the chat history sidebar to reflect any changes
     getChatHistorySidebar();
     
-    console.log("Chat cleared successfully without server deletion");
+    console.log("Chat cleared successfully and deleted from database");
     
   } catch (error) {
     console.error("Error clearing chat history:", error);
@@ -753,13 +840,48 @@ function sendImages(images) {
 }
 
 
-function addMessage(textOrResponse, sender) {
+// Enhanced text formatting function for policy responses
+function formatBoldText(text) {
+  if (!text) return '';
+  
+  // Convert **text** to <strong>text</strong> for proper bold formatting
+  let formatted = text.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
+  
+  // Handle single asterisks for emphasis if needed
+  formatted = formatted.replace(/\*([^*]+)\*/g, '<em>$1</em>');
+  
+  // Handle line breaks for better readability
+  formatted = formatted.replace(/\n/g, '<br>');
+  
+  // Format bullet points with proper HTML structure
+  formatted = formatted.replace(/^- (.+)$/gm, '<li>$1</li>');
+  
+  // Wrap consecutive list items in ul tags
+  formatted = formatted.replace(/(<li>.*?<\/li>)(\s*<br>\s*<li>.*?<\/li>)*/g, function(match) {
+    return '<ul>' + match.replace(/<br>\s*/g, '') + '</ul>';
+  });
+  
+  // Format numbered lists
+  formatted = formatted.replace(/^\d+\. (.+)$/gm, '<li>$1</li>');
+  
+  // Clean up any double line breaks
+  formatted = formatted.replace(/<br>\s*<br>/g, '<br>');
+  
+  return formatted;
+}
+
+function addMessage(textOrResponse, sender, isHistorical = false) {
   let text = textOrResponse;
   let images = [];
   let tool_used = false;
   let tool_identified = "none";
   let tool_confidence = "";
   let original_message = null;
+  let suggestions = [];
+  let has_suggestions = false;
+  let suggestion_type = 'none';
+  let likely_topic = null;
+  let intent_level = 'none';
 
   // Check if it's an object with message and images
   if (typeof textOrResponse === "object" && textOrResponse !== null && "message" in textOrResponse) {
@@ -769,6 +891,11 @@ function addMessage(textOrResponse, sender) {
     tool_identified = textOrResponse.tool_identified || "none";
     tool_confidence = textOrResponse.tool_confidence || "";
     original_message = textOrResponse.original_message || null;
+    suggestions = textOrResponse.suggestions || [];
+    has_suggestions = textOrResponse.has_suggestions || false;
+    suggestion_type = textOrResponse.suggestion_type || 'none';
+    likely_topic = textOrResponse.likely_topic || null;
+    intent_level = textOrResponse.intent_level || 'none';
   } 
   
   // NEW: If it's a plain image filename string like "example.png"
@@ -850,11 +977,27 @@ function addMessage(textOrResponse, sender) {
     `;
   }
 
+  // Add suggestion HTML if suggestions are available
+  let suggestionsHtml = "";
+  if (has_suggestions && Array.isArray(suggestions) && suggestions.length > 0) {
+    suggestionsHtml = `
+      <div class="inline-suggestions">
+        <div class="suggestion-label">💡 Did you mean:</div>
+        <div class="suggestion-pills">
+          ${suggestions.map(suggestion => 
+            `<button class="suggestion-pill" onclick="sendSuggestion('${escapeHtml(suggestion).replace(/'/g, "&#39;")}')">${escapeHtml(suggestion)}</button>`
+          ).join('')}
+        </div>
+      </div>
+    `;
+  }
+
   messageDiv.innerHTML = `
     <div class="ai-message-avatar"></div>
     <div class="message-content ai-message">
-      ${escapeHtml(text)}${imagesHtml}
+      ${formatBoldText(text)}${imagesHtml}
       ${confirmationHtml}
+      ${suggestionsHtml}
       <button class="copy-btn" title="Copy response" onclick="copyMessage(this)">📋</button>
     </div>
     <div class="feedback-buttons">
@@ -867,8 +1010,86 @@ function addMessage(textOrResponse, sender) {
     </div>`;
 }
 
-  if (sender === "bot" && text && !tool_used) {
-    setTimeout(() => speakMessage(text), 100);
+  if (sender === "bot" && text && !tool_used && !isHistorical) {
+    console.log('🤖 ========== BOT MESSAGE TTS CHECK ==========');
+    console.log('🤖 Bot message detected, checking TTS status...');
+    console.log('🤖 isMuted status:', typeof isMuted !== 'undefined' ? isMuted : 'undefined');
+    console.log('🤖 localStorage tts_muted:', localStorage.getItem('tts_muted'));
+    
+    // Check if there's a mute state preventing TTS
+    if (typeof isMuted !== 'undefined' && isMuted) {
+        console.error('🤖 ❌ TTS is muted! Bot message will not generate TTS.');
+        console.error('🤖 ❌ This is likely why TTS stopped working after first stop.');
+        return; // Don't continue with TTS if muted
+    }
+    
+    // Check if avatar is available and active
+    const avatarActive = isAvatarActive();
+    console.log('🤖 Avatar active:', avatarActive);
+    console.log('🤖 Message text:', text.substring(0, 50) + '...');
+    
+    if (avatarActive) {
+      // Generate TTS first, then send audio to avatar (no duplication)
+      console.log('🎭 Generating TTS for avatar (single source)');
+      
+      // Show stop button when starting TTS generation
+      showStopTTSButton();
+      isTTSPlaying = true;
+      
+      try {
+        // Generate TTS with lipsync for avatar
+        const token = localStorage.getItem("token");
+        fetch("/api/tts/synthesize-enhanced", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({
+            text: text,
+            voice: 'en-GB-Standard-A',
+            languageCode: 'en-GB',
+            generateLipSyncData: true,
+            facialExpression: 'default',
+            animation: 'Talking_1'
+          }),
+        })
+        .then(response => response.json())
+        .then(data => {
+          if (data.success) {
+            console.log('🎭 TTS generated successfully, sending to avatar');
+            // Send the generated audio and lipsync to avatar
+            if (typeof sendMessageToAvatar === 'function') {
+              sendMessageToAvatar({
+                type: 'tts_with_lipsync',
+                text: text,
+                audio: data.audio,
+                lipsync: data.lipSyncData
+              });
+            }
+          } else {
+            console.error('🎭 TTS generation failed, falling back to local TTS');
+            // Fallback to local TTS
+            speakMessage(text);
+          }
+        })
+        .catch(error => {
+          console.error('🎭 TTS generation error, falling back to local TTS:', error);
+          // Fallback to local TTS
+          speakMessage(text);
+        });
+      } catch (error) {
+        console.error('🎭 TTS setup error, falling back to local TTS:', error);
+        speakMessage(text);
+      }
+    } else {
+      // Fallback to local TTS if no avatar is active
+      console.log('🔊 Using local TTS (no avatar active)');
+      // Show stop button for local TTS too
+      showStopTTSButton();
+      isTTSPlaying = true;
+      setTimeout(() => speakMessage(text), 100);
+    }
 
     // Disable all previous feedback buttons
     const allFeedbackGroups = chatMessages.querySelectorAll('.feedback-buttons');
@@ -1124,8 +1345,31 @@ function escapeHtml(text) {
 }
 
 function logout() {
+  // Clear authentication data
   localStorage.removeItem("token");
   localStorage.removeItem("userId");
+  
+  // Clear all chat-related data to prevent cross-user chat display
+  clearChatFromLocalStorage();
+  
+  // Clear any remaining chat-related items
+  sessionStorage.removeItem("chat_id");
+  localStorage.removeItem("chat_id");
+  localStorage.removeItem("chat_id_timestamp");
+  
+  // Clear chat messages for current chat_id if it exists
+  const currentChatId = sessionStorage.getItem("chat_id") || localStorage.getItem("chat_id");
+  if (currentChatId) {
+    localStorage.removeItem(`chat_messages_${currentChatId}`);
+    localStorage.removeItem(`chat_messages_${currentChatId}_timestamp`);
+  }
+  
+  // Clear the chat display
+  const chatMessagesContainer = document.getElementById("chat-messages");
+  if (chatMessagesContainer) {
+    chatMessagesContainer.innerHTML = "";
+  }
+  
   window.location.href = "/login.html";
 }
 
@@ -1178,7 +1422,7 @@ function handleFileUpload(event) {
   // Prevent default file input behavior
   event.preventDefault();
 
-  // Check admin before redirecting
+  // Check admin or manager access before redirecting
   fetch('/api/users/me', {
     headers: { 
       Authorization: `Bearer ${token}`,
@@ -1192,7 +1436,7 @@ function handleFileUpload(event) {
       return res.json();
     })
     .then(user => {
-      if (user && user.role === 'admin') {
+      if (user && (user.role === 'admin' || user.role === 'manager')) {
         window.location.href = "/fileupload.html";
       } else {
         showNoAccessPopup();
@@ -1209,7 +1453,7 @@ function showNoAccessPopup() {
   if (document.getElementById('noAccessPopup')) return;
   const popup = document.createElement('div');
   popup.id = 'noAccessPopup';
-  popup.textContent = "You do not have access to the file upload feature.";
+  popup.textContent = "Access Denied: File upload is restricted to managers and administrators only.";
   popup.style.position = "fixed";
   popup.style.top = "50%";
   popup.style.left = "50%";
@@ -1253,68 +1497,303 @@ window.addEventListener("resize", function () {
   }
 });
 
-// Add mute toggle functionality
-let isMuted = false;
+// Add stop TTS functionality
+let currentTTSAudio = null;
+let isTTSPlaying = false;
 
-function toggleMute() {
-    isMuted = !isMuted;
-    const toggleButton = document.getElementById('toggleSpeechButton');
-    const avatar = document.getElementById('chatbotAvatar');
-    
-    if (isMuted) {
-        window.googleTTS?.pause();
-        if (avatar) avatar.classList.add('muted');
-        if (toggleButton) {
-            toggleButton.classList.add('muted');
-            toggleButton.innerHTML = '<i class="fas fa-volume-mute"></i> Muted';
-        }
+function showStopTTSButton() {
+    const stopButton = document.getElementById('stopTtsButton');
+    console.log('STOP-TTS: Attempting to show button. Button found:', !!stopButton);
+    if (stopButton) {
+        stopButton.style.display = 'flex';
+        console.log('STOP-TTS: Button display set to flex');
+        console.log('STOP-TTS: Button current style:', stopButton.style.display);
+        console.log('STOP-TTS: Button visible:', stopButton.offsetWidth > 0 && stopButton.offsetHeight > 0);
     } else {
-        window.googleTTS?.resume();
-        if (avatar) avatar.classList.remove('muted');
-        if (toggleButton) {
-            toggleButton.classList.remove('muted');
-            toggleButton.innerHTML = '<i class="fas fa-volume-up"></i> Unmuted';
-        }
+        console.error('STOP-TTS: Button element not found!');
     }
 }
+
+function hideStopTTSButton() {
+    const stopButton = document.getElementById('stopTtsButton');
+    console.log('STOP-TTS: Attempting to hide button. Button found:', !!stopButton);
+    if (stopButton) {
+        stopButton.style.display = 'none';
+        console.log('STOP-TTS: Button hidden');
+    }
+}
+
+function stopCurrentTTS() {
+    console.log('STOP-TTS: Stopping current TTS...');
+    console.log('STOP-TTS: isMuted before stop:', typeof isMuted !== 'undefined' ? isMuted : 'undefined');
+    
+    // Stop Google TTS
+    if (window.googleTTS) {
+        window.googleTTS.pause();
+        console.log('STOP-TTS: Stopped Google TTS');
+    }
+    
+    // Stop HTML5 audio elements
+    const audioElements = document.querySelectorAll('audio');
+    audioElements.forEach(audio => {
+        if (!audio.paused) {
+            audio.pause();
+            audio.currentTime = 0;
+        }
+    });
+    console.log('STOP-TTS: Stopped HTML5 audio elements');
+    
+    // Send stop command to avatar (stops current audio without persistent mute)
+    if (typeof sendMessageToAvatar === 'function') {
+        sendMessageToAvatar({ type: 'mute_immediate' });
+        console.log('STOP-TTS: Sent stop command to avatar');
+    }
+    
+    // Reset TTS state
+    isTTSPlaying = false;
+    currentTTSAudio = null;
+    
+    // Hide the stop button
+    hideStopTTSButton();
+    
+    // Make sure isMuted is not accidentally set
+    if (typeof isMuted !== 'undefined') {
+        console.log('STOP-TTS: isMuted after stop:', isMuted);
+        if (isMuted) {
+            console.warn('STOP-TTS: ⚠️ isMuted is true - this might prevent future TTS!');
+        }
+    }
+    
+    console.log('STOP-TTS: Current TTS stopped successfully');
+}
+
+function toggleMute() {
+    console.log('=== TOGGLE MUTE CALLED ===');
+    console.log('Before toggle - isMuted:', isMuted);
+    
+    // Toggle the state
+    isMuted = !isMuted;
+    
+    console.log('After toggle - isMuted:', isMuted);
+    
+    // Get UI elements
+    const muteButton = document.getElementById('muteButton');
+    const muteIcon = document.getElementById('muteIcon');
+    const mutedIcon = document.getElementById('mutedIcon');
+    
+    if (!muteButton || !muteIcon || !mutedIcon) {
+        console.error('MISSING UI ELEMENTS:', {
+            muteButton: !!muteButton,
+            muteIcon: !!muteIcon, 
+            mutedIcon: !!mutedIcon
+        });
+        return;
+    }
+    
+    if (isMuted) {
+        console.log('APPLYING MUTE STATE');
+        
+        // Stop any current audio
+        if (window.googleTTS) {
+            window.googleTTS.pause();
+        }
+        
+        const audioElements = document.querySelectorAll('audio');
+        audioElements.forEach(audio => {
+            if (!audio.paused) {
+                audio.pause();
+                audio.currentTime = 0;
+            }
+        });
+        
+        // Send mute command to avatar
+        sendMessageToAvatar({
+            type: 'mute_immediate'
+        });
+        
+        // Update UI for muted state
+        muteButton.classList.add('muted');
+        muteIcon.style.display = 'none';
+        mutedIcon.style.display = 'block';
+        muteButton.title = 'Unmute TTS';
+        
+        console.log('MUTE STATE APPLIED');
+        
+    } else {
+        // UNMUTE - Allow new audio to play
+        console.log('🔊 Applying unmute...');
+        
+        // Resume Google TTS
+        if (window.googleTTS) {
+            window.googleTTS.resume();
+            console.log('  ✓ Google TTS resumed');
+        }
+        
+        // Send unmute command to avatar to allow audio
+        sendMessageToAvatar({
+            type: 'unmute'
+        });
+        console.log('  ✓ Unmute command sent to avatar');
+        
+        // Update UI for unmuted state
+        muteButton.classList.remove('muted');
+        muteIcon.style.display = 'block';
+        mutedIcon.style.display = 'none';
+        muteButton.title = 'Mute TTS';
+        
+        console.log('UNMUTE STATE APPLIED');
+    }
+    
+    // Save state to localStorage
+    localStorage.setItem('tts_muted', isMuted.toString());
+    console.log('Saved to localStorage:', localStorage.getItem('tts_muted'));
+    console.log('=== TOGGLE COMPLETE ===');
+    console.log('� Mute state saved to localStorage:', isMuted.toString());
+    
+    // Verify the save worked
+    const verification = localStorage.getItem('tts_muted');
+    console.log('✓ Verification - localStorage now contains:', verification);
+}
+
+// Initialize stop TTS button as hidden
+document.addEventListener('DOMContentLoaded', function() {
+    hideStopTTSButton();
+    console.log('STOP-TTS: Initialized with button hidden');
+    
+    // Listen for avatar TTS end events
+    window.addEventListener('message', function(event) {
+        if (event.data && event.data.type === 'avatar_tts_ended') {
+            console.log('STOP-TTS: ✅ Received avatar TTS ended event');
+            console.log('STOP-TTS: Resetting TTS state and hiding button');
+            isTTSPlaying = false;
+            hideStopTTSButton();
+        }
+    });
+    
+    // Test function to manually show button (for debugging)
+    window.testShowStopButton = function() {
+        console.log('TEST: Manually showing stop button');
+        showStopTTSButton();
+    };
+    
+    window.testHideStopButton = function() {
+        console.log('TEST: Manually hiding stop button');
+        hideStopTTSButton();
+    };
+    
+    console.log('STOP-TTS: Test functions available - testShowStopButton() and testHideStopButton()');
+});
 
 let currentMouthInterval = null; // Add this at the top level of your file
 
 async function speakMessage(text) {
-    if (!text || !text.trim()) return;
+    console.log('TTS: ========== speakMessage CALLED ==========');
+    console.log('TTS: Text to speak:', text ? text.substring(0, 50) + '...' : 'null');
+    console.log('TTS: isMuted status:', typeof isMuted !== 'undefined' ? isMuted : 'undefined');
+    console.log('TTS: isTTSPlaying status:', isTTSPlaying);
     
-    // Check if avatar is available and active - if so, skip main chatbot TTS
-    if (isAvatarActive()) {
-        console.log('Avatar is active, skipping main chatbot TTS');
+    if (!text || !text.trim()) {
+        console.log('TTS: No text provided, returning');
         return;
     }
     
-    const avatar = document.getElementById('chatbotAvatar');
-    const avatarOpen = document.getElementById('avatarOpen');
+    // Check if there's a mute state that's preventing TTS
+    if (typeof isMuted !== 'undefined' && isMuted) {
+        console.error('TTS: ❌ TTS is muted! This is why audio is not playing.');
+        console.error('TTS: ❌ isMuted =', isMuted, 'localStorage tts_muted =', localStorage.getItem('tts_muted'));
+        return;
+    }
     
-    // Store the current text being spoken
-    currentSpeechText = text;
+    console.log('TTS: About to check if should show stop button');
+    
+    // Check if avatar is available and active
+    const avatarActive = isAvatarActive();
+    console.log('TTS: Avatar active:', avatarActive);
+    
+    if (avatarActive) {
+        console.log('TTS: Avatar is active, sending message with TTS and lip sync');
+        // Always generate TTS for avatar so lipsync works
+        try {
+            // Show stop button when generating TTS for avatar
+            showStopTTSButton();
+            isTTSPlaying = true;
+            
+            const token = localStorage.getItem("token");
+            const response = await fetch("/api/tts/synthesize-enhanced", {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                    Authorization: `Bearer ${token}`,
+                },
+                body: JSON.stringify({
+                    text: text,
+                    voice: 'en-GB-Standard-A',
+                    languageCode: 'en-GB',
+                    generateLipSyncData: true,
+                    facialExpression: 'default',
+                    animation: 'Talking_1'
+                }),
+            });
+
+            if (response.ok) {
+                const data = await response.json();
+                if (data.success) {
+                    console.log('TTS: TTS generated, sending to avatar');
+                    sendMessageToAvatar({
+                        type: 'tts_with_lipsync',
+                        text: text,
+                        audio: data.audio,
+                        lipsync: data.lipSyncData
+                    });
+                    return; // Don't play locally when avatar is active
+                }
+            }
+        } catch (error) {
+            console.error('TTS: Failed to generate TTS for avatar:', error);
+            // Reset state on error
+            isTTSPlaying = false;
+            hideStopTTSButton();
+        }
+    }
+    
+    // Fallback to local TTS if avatar is not available or TTS failed
+    console.log('TTS: Playing TTS locally');
+    
+    const avatar = document.getElementById('chatbotAvatar');
     
     try {
         if (avatar) avatar.classList.add('speaking');
-        isCurrentlySpeaking = true;        // Use Google Cloud TTS instead of ResponsiveVoice
+        isCurrentlySpeaking = true;
+        isTTSPlaying = true;
+        
+        // Show stop button when TTS starts
+        showStopTTSButton();
+        
         if (window.googleTTS) {
           await window.googleTTS.speak(text, {
-            voice: 'en-GB-Standard-A',      // British English female voice
+            voice: 'en-GB-Standard-A',
             languageCode: 'en-GB',
-            volume: isMuted ? 0 : 1,
+            volume: 1,
+            generateLipSync: false, // Don't need lip sync for local playback
             onend: () => {
               currentSpeechText = null;
               isCurrentlySpeaking = false;
+              isTTSPlaying = false;
+              hideStopTTSButton(); // Hide stop button when TTS ends
               stopAvatarAnimation();
+              console.log('TTS: Local TTS ended');
             },
             onstart: () => {
               isCurrentlySpeaking = true;
+              isTTSPlaying = true;
               if (avatar) avatar.classList.add('speaking');
+              console.log('TTS: Local TTS started');
             }
           });
         } else {
           console.warn('Google TTS not loaded');
+          isTTSPlaying = false;
+          hideStopTTSButton();
           stopAvatarAnimation();
         }
         
@@ -1340,52 +1819,13 @@ function handleFeedback(button, isPositive) {
 
     const feedbackGroup = button.closest('.feedback-buttons');
     if (!feedbackGroup) return;
-
-    feedbackGroup.querySelectorAll('.feedback-btn').forEach(btn => {
-        btn.classList.remove('selected');
-    });
-
-    button.classList.add('selected');
-
-    // Get bot response text
-    const bot_response = messageContainer.querySelector('.message-content').textContent.trim();
-
-    // Get the previous user message (search backwards for .message-user)
-    let user_message = '';
-    let prev = messageContainer.previousElementSibling;
-    while (prev) {
-        if (prev.classList.contains('message-user')) {
-            user_message = prev.querySelector('.message-content').textContent.trim();
-            break;
-        }
-        prev = prev.previousElementSibling;
-    }
-
-    fetch('/api/chatbot/feedback', {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${token}`
-        },
-        body: JSON.stringify({
-            feedback: isPositive ? 'helpful' : 'not helpful'
-        })
-    }).catch(error => console.error('Error sending feedback:', error));
-
-    feedbackGroup.querySelectorAll('.feedback-btn').forEach(btn => {
-        btn.disabled = true;
-    });
-}
-
-// Render user message
-function appendUserMessage(userMessage) {
-  const userMessageDiv = document.createElement('div');
-  userMessageDiv.className = 'message message-user';
-  userMessageDiv.innerHTML = `
-    <div class="message-content user-message">${escapeHtml(userMessage)}</div>
-    <div class="user-message-avatar"></div>
-  `;
-  chatMessages.appendChild(userMessageDiv);
+    const userMessageDiv = document.createElement('div');
+    userMessageDiv.className = 'message message-user';
+    userMessageDiv.innerHTML = `
+        <div class="user-message-avatar"></div>
+        <div class="message-content user-message">${escapeHtml(userMessage)}</div>
+    `;
+    chatMessages.appendChild(userMessageDiv);
 }
 
 // Render AI message with copy button
@@ -1537,6 +1977,12 @@ function hideClearChatConfirmPopup() {
   if (popup) popup.style.display = "none";
 }
 
+function hideDeleteChatConfirmPopup() {
+  console.log("hideDeleteChatConfirmPopup called");
+  const popup = document.getElementById("deleteChatConfirmPopup");
+  if (popup) popup.style.display = "none";
+}
+
 // Attach popup logic on DOMContentLoaded
 window.addEventListener("DOMContentLoaded", function () {
   console.log("DOMContentLoaded - setting up clear chat popup handlers");
@@ -1550,6 +1996,26 @@ window.addEventListener("DOMContentLoaded", function () {
     clearChatHistory();
   };
   if (cancelBtn) cancelBtn.onclick = hideClearChatConfirmPopup;
+
+  // Set up delete chat popup handlers
+  console.log("Setting up delete chat popup handlers");
+  const deleteBtn = document.getElementById("confirmDeleteChatBtn");
+  const cancelDeleteBtn = document.getElementById("cancelDeleteChatBtn");
+  console.log("Delete button found:", deleteBtn);
+  console.log("Cancel delete button found:", cancelDeleteBtn);
+  if (deleteBtn) deleteBtn.onclick = function() {
+    console.log("Delete chat confirmed by user");
+    hideDeleteChatConfirmPopup();
+    if (window.pendingDeleteChatId) {
+      performDeleteChat(window.pendingDeleteChatId);
+      window.pendingDeleteChatId = null;
+    }
+  };
+  if (cancelDeleteBtn) cancelDeleteBtn.onclick = function() {
+    console.log("Delete chat cancelled by user");
+    hideDeleteChatConfirmPopup();
+    window.pendingDeleteChatId = null;
+  };
 });
 
 // Replace sidebar clear chat click to show popup
@@ -2235,5 +2701,259 @@ document.addEventListener('click', function(event) {
 
 // ==========================================
 // END THEME CUSTOMIZATION FUNCTIONALITY
+// ==========================================
+
+// ==========================================
+// SPEECH-TO-TEXT FUNCTIONALITY
+// ==========================================
+
+let speechToText = null;
+let isRecording = false;
+
+// Initialize speech recognition when DOM is loaded
+document.addEventListener('DOMContentLoaded', function() {
+  // Initialize SpeechToText (preferring browser API for faster response)
+  if (typeof SpeechToText !== 'undefined') {
+    speechToText = new SpeechToText(false); // false = prefer browser API over Google Cloud
+    
+    // Set up event listeners
+    speechToText.onResult = function(transcript, isFinal) {
+      console.log('Speech recognized:', transcript, 'Final:', isFinal);
+      
+      // Insert the transcript into the input field
+      const messageInput = document.getElementById('messageInput');
+      if (messageInput && isFinal) {
+        const currentValue = messageInput.value.trim();
+        const newValue = currentValue ? currentValue + ' ' + transcript : transcript;
+        messageInput.value = newValue;
+        
+        // Trigger input event to resize textarea if needed
+        messageInput.dispatchEvent(new Event('input'));
+        
+        // Update button state after adding text
+        updateActionButton();
+        
+        // Focus the input field
+        messageInput.focus();
+        
+        // Auto-stop recording after getting final result
+        stopSpeechRecognition();
+      }
+    };
+    
+    speechToText.onEnd = function() {
+      console.log('Speech recognition ended');
+      stopSpeechRecognition();
+    };
+    
+    speechToText.onError = function(error) {
+      console.error('Speech recognition error:', error);
+      showSpeechError(error);
+      stopSpeechRecognition();
+    };
+    
+    speechToText.onStart = function() {
+      console.log('Speech recognition started');
+      showSpeechStatus('Listening... Speak now');
+    };
+    
+    console.log('Speech-to-Text initialized with service:', speechToText.getServiceType());
+  } else {
+    console.warn('SpeechToText class not available');
+  }
+
+  // Initialize button state
+  updateActionButton();
+});
+
+// Handle the unified action button (mic/send)
+function handleActionButton() {
+  const messageInput = document.getElementById('messageInput');
+  const inputText = messageInput ? messageInput.value.trim() : '';
+  
+  console.log('Action button clicked:', { inputText, isRecording });
+  
+  if (isRecording) {
+    // If recording, stop it
+    console.log('Stopping speech recognition');
+    stopSpeechRecognition();
+  } else if (inputText) {
+    // If there's text, send message
+    console.log('Sending message:', inputText);
+    sendMessage();
+  } else {
+    // If no text, start speech recognition
+    console.log('Starting speech recognition');
+    startSpeechRecognition();
+  }
+}
+
+// Update action button based on input state
+function updateActionButton() {
+  const messageInput = document.getElementById('messageInput');
+  const actionButton = document.getElementById('actionButton');
+  const micIcon = document.getElementById('micIcon');
+  const recordingIcon = document.getElementById('recordingIcon');
+  const sendIcon = document.getElementById('sendIcon');
+  
+  if (!messageInput || !actionButton || !micIcon || !recordingIcon || !sendIcon) return;
+  
+  const inputText = messageInput.value.trim();
+  
+  if (isRecording) {
+    // Recording state
+    actionButton.classList.add('recording');
+    actionButton.classList.remove('send-mode');
+    actionButton.title = 'Click to stop recording';
+    micIcon.style.display = 'none';
+    recordingIcon.style.display = 'block';
+    sendIcon.style.display = 'none';
+  } else if (inputText) {
+    // Send mode
+    actionButton.classList.remove('recording');
+    actionButton.classList.add('send-mode');
+    actionButton.title = 'Send message';
+    micIcon.style.display = 'none';
+    recordingIcon.style.display = 'none';
+    sendIcon.style.display = 'block';
+  } else {
+    // Microphone mode
+    actionButton.classList.remove('recording', 'send-mode');
+    actionButton.title = 'Click to speak';
+    micIcon.style.display = 'block';
+    recordingIcon.style.display = 'none';
+    sendIcon.style.display = 'none';
+  }
+}
+
+// Toggle speech recognition (legacy function for keyboard shortcuts)
+function toggleSpeechRecognition() {
+  if (!speechToText || !speechToText.isSupported()) {
+    showSpeechError('Speech recognition not available in this browser');
+    return;
+  }
+  
+  if (isRecording) {
+    stopSpeechRecognition();
+  } else {
+    startSpeechRecognition();
+  }
+}
+
+// Start speech recognition
+function startSpeechRecognition() {
+  if (!speechToText || isRecording) return;
+  
+  try {
+    speechToText.startListening('en-GB');
+    isRecording = true;
+    updateActionButton();
+    showSpeechStatus('Listening... Speak now');
+    console.log('Started speech recognition');
+  } catch (error) {
+    console.error('Failed to start speech recognition:', error);
+    showSpeechError('Failed to start speech recognition: ' + error.message);
+  }
+}
+
+// Stop speech recognition
+function stopSpeechRecognition() {
+  if (!speechToText || !isRecording) return;
+  
+  try {
+    speechToText.stopListening();
+    isRecording = false;
+    updateActionButton();
+    hideSpeechStatus();
+    console.log('Stopped speech recognition');
+  } catch (error) {
+    console.error('Failed to stop speech recognition:', error);
+  }
+}
+
+// Update microphone button appearance (legacy function - now handled by updateActionButton)
+function updateMicrophoneButton(recording) {
+  updateActionButton();
+}
+
+// Show speech recognition status
+function showSpeechStatus(message) {
+  const speechStatus = document.getElementById('speechStatus');
+  const statusText = document.getElementById('statusText');
+  
+  if (speechStatus && statusText) {
+    statusText.textContent = message;
+    speechStatus.style.display = 'flex';
+  }
+}
+
+// Hide speech recognition status
+function hideSpeechStatus() {
+  const speechStatus = document.getElementById('speechStatus');
+  if (speechStatus) {
+    speechStatus.style.display = 'none';
+  }
+}
+
+// Show speech recognition error
+function showSpeechError(error) {
+  let errorMessage = 'Speech recognition error';
+  
+  if (typeof error === 'string') {
+    errorMessage = error;
+  } else if (error && error.error) {
+    switch (error.error) {
+      case 'no-speech':
+        errorMessage = 'No speech detected. Please try again.';
+        break;
+      case 'audio-capture':
+        errorMessage = 'Microphone not accessible. Please check permissions.';
+        break;
+      case 'not-allowed':
+        errorMessage = 'Microphone access denied. Please allow microphone access.';
+        break;
+      case 'network':
+        errorMessage = 'Network error. Please check your connection.';
+        break;
+      case 'service-not-allowed':
+        errorMessage = 'Speech recognition service not allowed.';
+        break;
+      default:
+        errorMessage = `Speech recognition error: ${error.error}`;
+    }
+  }
+  
+  console.error('Speech recognition error:', errorMessage);
+  
+  // Show error message temporarily
+  showSpeechStatus(errorMessage);
+  setTimeout(() => {
+    hideSpeechStatus();
+  }, 3000);
+}
+
+// Handle keyboard shortcuts for speech recognition
+document.addEventListener('keydown', function(event) {
+  // Ctrl + Shift + M or Cmd + Shift + M to toggle speech recognition
+  if ((event.ctrlKey || event.metaKey) && event.shiftKey && event.key === 'M') {
+    event.preventDefault();
+    const messageInput = document.getElementById('messageInput');
+    const inputText = messageInput ? messageInput.value.trim() : '';
+    
+    // Only start speech recognition if there's no text
+    if (!inputText) {
+      toggleSpeechRecognition();
+    }
+  }
+  
+  // Escape key to stop speech recognition
+  if (event.key === 'Escape' && isRecording) {
+    event.preventDefault();
+    stopSpeechRecognition();
+  }
+});
+
+// ==========================================
+// END SPEECH-TO-TEXT FUNCTIONALITY
 // ==========================================
 

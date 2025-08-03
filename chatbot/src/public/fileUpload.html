@@ -54,6 +54,150 @@
         margin: 0;
       }
 
+      /* Upload Configuration Styles */
+      .upload-config {
+        background: var(--background-card);
+        border: 2px solid rgba(212, 178, 76, 0.2);
+        border-radius: 16px;
+        padding: 2rem;
+        margin-bottom: 2rem;
+        box-shadow: var(--shadow);
+        transition: var(--transition);
+      }
+
+      .upload-config h3 {
+        font-size: 1.5rem;
+        font-weight: 700;
+        color: var(--text-primary);
+        margin-bottom: 0.5rem;
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+      }
+
+      .upload-config p {
+        color: var(--text-secondary);
+        margin-bottom: 1.5rem;
+        font-size: 1rem;
+      }
+
+      .config-row {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 1.5rem;
+        margin-bottom: 1rem;
+      }
+
+      .config-group {
+        display: flex;
+        flex-direction: column;
+        gap: 0.5rem;
+      }
+
+      .config-label {
+        font-weight: 600;
+        color: var(--text-primary);
+        font-size: 0.95rem;
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+      }
+
+      .config-label svg {
+        width: 18px;
+        height: 18px;
+        color: var(--primary-accent);
+      }
+
+      .access-value {
+        padding: 0.75rem 1rem;
+        background: var(--background-main);
+        border: 2px solid rgba(212, 178, 76, 0.2);
+        border-radius: 8px;
+        color: var(--text-primary);
+        font-size: 1rem;
+        font-weight: 500;
+        transition: all 0.2s ease;
+      }
+
+      .config-select {
+        padding: 0.75rem 1rem;
+        border: 2px solid rgba(212, 178, 76, 0.2);
+        border-radius: 8px;
+        background: var(--background-main);
+        color: var(--text-primary);
+        font-size: 1rem;
+        font-family: inherit;
+        transition: all 0.2s ease;
+        cursor: pointer;
+      }
+
+      .config-select:focus {
+        outline: none;
+        border-color: var(--primary-accent);
+        box-shadow: 0 0 0 3px rgba(212, 178, 76, 0.1);
+      }
+
+      .config-select:hover {
+        border-color: rgba(212, 178, 76, 0.4);
+      }
+
+      .config-info {
+        background: rgba(212, 178, 76, 0.1);
+        border: 1px solid rgba(212, 178, 76, 0.3);
+        border-radius: 8px;
+        padding: 1rem;
+        margin-top: 1rem;
+        transition: all 0.3s ease;
+      }
+
+      .info-content {
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+        color: var(--text-primary);
+        font-weight: 500;
+      }
+
+      .info-content svg {
+        width: 20px;
+        height: 20px;
+        color: var(--primary-accent);
+        flex-shrink: 0;
+      }
+
+      .upload-warning {
+        background: rgba(239, 68, 68, 0.1);
+        border: 1px solid rgba(239, 68, 68, 0.3);
+        border-radius: 8px;
+        padding: 1rem;
+        margin-top: 1rem;
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+        color: #ef4444;
+        font-weight: 500;
+      }
+
+      .upload-warning svg {
+        width: 20px;
+        height: 20px;
+        flex-shrink: 0;
+      }
+
+      /* Responsive design for config form */
+      @media (max-width: 768px) {
+        .config-row {
+          grid-template-columns: 1fr;
+          gap: 1rem;
+        }
+        
+        .upload-config {
+          padding: 1.5rem;
+          margin-bottom: 1.5rem;
+        }
+      }
+
       .upload-header {
         background: var(--background-header);
         box-shadow: var(--shadow);
@@ -188,6 +332,49 @@
         font-weight: 500;
       }
 
+      /* Bulk Upload Indicator Styles */
+      .bulk-upload-indicator {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 0.5rem;
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        border-radius: 8px;
+        padding: 0.75rem 1rem;
+        margin: 1rem 0;
+        color: white;
+        font-size: 0.9rem;
+        font-weight: 600;
+        box-shadow: 0 2px 10px rgba(102, 126, 234, 0.3);
+        transition: all 0.3s ease;
+      }
+
+      .bulk-upload-indicator svg {
+        width: 18px;
+        height: 18px;
+        stroke: currentColor;
+      }
+
+      .bulk-upload-indicator:hover {
+        transform: translateY(-1px);
+        box-shadow: 0 4px 15px rgba(102, 126, 234, 0.4);
+      }
+
+      .bulk-text {
+        font-weight: 600;
+        letter-spacing: 0.02em;
+      }
+
+      /* Dark theme for bulk indicator */
+      html[data-theme="dark"] .bulk-upload-indicator {
+        background: linear-gradient(135deg, #4a5568 0%, #2d3748 100%);
+        box-shadow: 0 2px 10px rgba(74, 85, 104, 0.3);
+      }
+
+      html[data-theme="dark"] .bulk-upload-indicator:hover {
+        box-shadow: 0 4px 15px rgba(74, 85, 104, 0.4);
+      }
+
       .supported-text {
         font-size: 0.9rem;
         color: var(--text-muted);
@@ -208,6 +395,71 @@
 
       .upload-list:empty {
         display: none;
+      }
+
+      /* Bulk Upload Header Styles */
+      .bulk-upload-header {
+        background: linear-gradient(90deg, #f6d365 0%, #fda085 100%);
+        border-radius: 10px;
+        padding: 1rem 1.5rem;
+        margin-bottom: 1.5rem;
+        color: #222;
+        box-shadow: 0 2px 10px rgba(246, 211, 101, 0.15);
+        display: flex;
+        flex-direction: column;
+        align-items: flex-start;
+        font-size: 1rem;
+        font-weight: 600;
+      }
+
+      .bulk-header-content {
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+        width: 100%;
+        margin-bottom: 0.5rem;
+      }
+
+      .bulk-header-content svg {
+        width: 22px;
+        height: 22px;
+        stroke: #f6d365;
+        background: #fff3;
+        border-radius: 50%;
+        padding: 2px;
+      }
+
+      .bulk-title {
+        font-size: 1.1rem;
+        font-weight: 700;
+        color: #b4690e;
+      }
+
+      .bulk-counter {
+        margin-left: auto;
+        font-size: 1rem;
+        color: #222;
+        background: #fff6;
+        border-radius: 6px;
+        padding: 0.2rem 0.7rem;
+        font-weight: 700;
+      }
+
+      .bulk-progress-bar {
+        width: 100%;
+        height: 8px;
+        background: #fff6;
+        border-radius: 5px;
+        overflow: hidden;
+        margin-top: 0.2rem;
+      }
+
+      .bulk-progress-fill {
+        height: 100%;
+        background: linear-gradient(90deg, #f6d365 0%, #fda085 100%);
+        width: 0%;
+        border-radius: 5px;
+        transition: width 0.4s cubic-bezier(0.4, 0, 0.2, 1);
       }
 
       .upload-item {
@@ -261,6 +513,34 @@
         font-size: 0.875rem;
         color: var(--text-secondary);
         margin: 0;
+      }
+
+      .file-destination {
+        font-size: 0.8rem;
+        color: var(--primary-accent);
+        font-weight: 500;
+        margin-top: 0.25rem;
+        padding: 0.25rem 0.5rem;
+        background: rgba(212, 178, 76, 0.1);
+        border-radius: 4px;
+        display: inline-block;
+      }
+
+      /* Dark mode styles for file destination */
+      html[data-theme="dark"] .upload-config {
+        background: #2a2a2a;
+        border-color: rgba(212, 178, 76, 0.3);
+      }
+
+      html[data-theme="dark"] .config-select {
+        background: #1f1f1f;
+        border-color: rgba(212, 178, 76, 0.3);
+        color: #e5e7eb;
+      }
+
+      html[data-theme="dark"] .config-info {
+        background: rgba(212, 178, 76, 0.15);
+        border-color: rgba(212, 178, 76, 0.4);
       }
 
       .file-actions {
@@ -1107,6 +1387,107 @@
         border-color: rgba(239, 68, 68, 0.3);
         color: #f87171;
       }
+
+      /* Admin Upload Options Styles */
+      .admin-upload-options {
+        margin-top: 1.5rem;
+        padding: 1.5rem;
+        background: linear-gradient(135deg, rgba(212, 178, 76, 0.05) 0%, rgba(212, 178, 76, 0.02) 100%);
+        border: 2px solid rgba(212, 178, 76, 0.2);
+        border-radius: 12px;
+        border-left: 4px solid #d4b24c;
+      }
+
+      .upload-mode-options {
+        display: flex;
+        flex-direction: column;
+        gap: 0.75rem;
+        margin-top: 0.5rem;
+      }
+
+      .radio-option {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        padding: 0.75rem 1rem;
+        background: var(--background-card);
+        border: 2px solid rgba(212, 178, 76, 0.15);
+        border-radius: 8px;
+        cursor: pointer;
+        transition: var(--transition);
+      }
+
+      .radio-option:hover {
+        border-color: rgba(212, 178, 76, 0.3);
+        background: rgba(212, 178, 76, 0.05);
+      }
+
+      .radio-option input[type="radio"] {
+        width: 1.2rem;
+        height: 1.2rem;
+        accent-color: #d4b24c;
+        cursor: pointer;
+      }
+
+      .radio-label {
+        font-weight: 500;
+        color: var(--text-primary);
+        cursor: pointer;
+        font-size: 0.95rem;
+      }
+
+      .admin-warning {
+        margin-top: 1rem;
+        padding: 1rem;
+        background: linear-gradient(135deg, rgba(239, 68, 68, 0.1) 0%, rgba(220, 38, 38, 0.05) 100%);
+        border: 2px solid rgba(239, 68, 68, 0.2);
+        border-radius: 8px;
+        border-left: 4px solid #ef4444;
+      }
+
+      .warning-content {
+        display: flex;
+        align-items: flex-start;
+        gap: 0.75rem;
+        color: #dc2626;
+      }
+
+      .warning-content svg {
+        width: 1.25rem;
+        height: 1.25rem;
+        flex-shrink: 0;
+        margin-top: 0.125rem;
+      }
+
+      .warning-content span {
+        font-size: 0.9rem;
+        font-weight: 500;
+        line-height: 1.4;
+      }
+
+      html[data-theme="dark"] .admin-upload-options {
+        background: linear-gradient(135deg, rgba(212, 178, 76, 0.08) 0%, rgba(212, 178, 76, 0.03) 100%);
+        border-color: rgba(212, 178, 76, 0.3);
+      }
+
+      html[data-theme="dark"] .radio-option {
+        background: #1a1a1a;
+        border-color: rgba(212, 178, 76, 0.2);
+      }
+
+      html[data-theme="dark"] .radio-option:hover {
+        border-color: rgba(212, 178, 76, 0.4);
+        background: rgba(212, 178, 76, 0.08);
+      }
+
+      html[data-theme="dark"] .admin-warning {
+        background: linear-gradient(135deg, rgba(239, 68, 68, 0.15) 0%, rgba(220, 38, 38, 0.08) 100%);
+        border-color: rgba(239, 68, 68, 0.3);
+      }
+
+      html[data-theme="dark"] .warning-content {
+        color: #f87171;
+      }
     </style>
 </head>
 <body>
@@ -1140,8 +1521,101 @@
                 </a>
             </div>
 
-            <!-- Upload interface for admins -->
+            <!-- Upload interface for managers and admins -->
             <div id="uploadInterface">
+                <!-- User Access Information -->
+                <div class="upload-config" id="userAccessInfo" style="display: none;">
+                    <h3>👤 Your Upload Access</h3>
+                    <div class="user-access-display" id="userAccessDisplay">
+                        <!-- User access info will be populated by JavaScript -->
+                    </div>
+                </div>
+
+                <!-- Country and Department Selection -->
+                <div class="upload-config" id="uploadConfig">
+                    <h3>📍 Document Classification</h3>
+                    <p>Select the country and department for this document to organize it in the knowledge base</p>
+                    
+                    <div class="config-row">
+                        <div class="config-group">
+                            <label for="countrySelect" class="config-label">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/>
+                                    <circle cx="12" cy="10" r="3"/>
+                                </svg>
+                                Country
+                            </label>
+                            <select id="countrySelect" class="config-select" required>
+                                <option value="">Select Country</option>
+                                <option value="china">🇨🇳 China</option>
+                                <option value="singapore">🇸🇬 Singapore</option>
+                            </select>
+                        </div>
+                        
+                        <div class="config-group">
+                            <label for="departmentSelect" class="config-label">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/>
+                                    <circle cx="9" cy="7" r="4"/>
+                                    <path d="M23 21v-2a4 4 0 00-3-3.87"/>
+                                    <path d="M16 3.13a4 4 0 010 7.75"/>
+                                </svg>
+                                Department
+                            </label>
+                            <select id="departmentSelect" class="config-select" required>
+                                <option value="">Select Department</option>
+                                <option value="hr">👥 Human Resources</option>
+                                <option value="it">💻 Information Technology</option>
+                            </select>
+                        </div>
+                    </div>
+                    
+                    <!-- Admin Bulk Upload Options -->
+                    <div class="admin-upload-options" id="adminUploadOptions" style="display: none;">
+                        <div class="config-row">
+                            <div class="config-group">
+                                <label class="config-label">
+                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                        <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/>
+                                    </svg>
+                                    Admin Upload Mode
+                                </label>
+                                <div class="upload-mode-options">
+                                    <label class="radio-option">
+                                        <input type="radio" name="uploadMode" value="specific" checked onchange="updateAdminUploadMode()">
+                                        <span class="radio-label">Upload to specific country/department</span>
+                                    </label>
+                                    <label class="radio-option">
+                                        <input type="radio" name="uploadMode" value="all" onchange="updateAdminUploadMode()">
+                                        <span class="radio-label">Upload to ALL knowledge bases</span>
+                                    </label>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="admin-warning" id="adminModeWarning" style="display: none;">
+                            <div class="warning-content">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/>
+                                    <line x1="12" y1="9" x2="12" y2="13"/>
+                                    <line x1="12" y1="17" x2="12.01" y2="17"/>
+                                </svg>
+                                <span>This will upload the document to ALL country/department knowledge bases. This action cannot be undone.</span>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="config-info" id="configInfo" style="display: none;">
+                        <div class="info-content">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <circle cx="12" cy="12" r="10"/>
+                                <path d="M12 6v6l4 2"/>
+                            </svg>
+                            <span id="configInfoText">Documents will be stored in: </span>
+                        </div>
+                    </div>
+                </div>
+
                 <div class="upload-area" id="dropZone">
                     <input type="file" id="fileInput" multiple accept=".pdf,.doc,.docx,.txt,.pptx" hidden>
                     <div class="upload-icon">
@@ -1150,6 +1624,16 @@
                         </svg>
                     </div>
                     <h3>Drag & Drop files here</h3>
+                    <div class="bulk-upload-indicator">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+                            <polyline points="14,2 14,8 20,8"/>
+                            <path d="M16 13H8"/>
+                            <path d="M16 17H8"/>
+                            <path d="M10 9H8"/>
+                        </svg>
+                        <span class="bulk-text">✨ Bulk upload supported - Select multiple files at once!</span>
+                    </div>
                     <p>or</p>
                     <button class="btn btn-primary upload-btn" onclick="document.getElementById('fileInput').click()">
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
@@ -1158,6 +1642,15 @@
                         <span>Browse Files</span>
                     </button>
                     <p class="supported-text">Supported formats: PDF, DOC, DOCX, TXT, PPTX (max 10MB per file)</p>
+                    
+                    <div class="upload-warning" id="uploadWarning" style="display: none;">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/>
+                            <line x1="12" y1="9" x2="12" y2="13"/>
+                            <line x1="12" y1="17" x2="12.01" y2="17"/>
+                        </svg>
+                        <span>Please select both country and department before uploading files</span>
+                    </div>
                 </div>
 
                 <div class="upload-list" id="uploadList">
@@ -1173,6 +1666,34 @@
                     <div class="section-header">
                         <h2>📚 Current Knowledge Base</h2>
                         <p>Documents stored in the FAISS vector database that the chatbot uses for responses</p>
+                        
+                        <!-- Knowledge Base Filter Selection -->
+                        <div class="config-row">
+                            <div class="config-group">
+                                <label for="viewCountrySelect" class="config-label">
+                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                        <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/>
+                                        <circle cx="12" cy="10" r="3"/>
+                                    </svg>
+                                    Filter by Country
+                                </label>
+                                <select id="viewCountrySelect" class="config-select" onchange="updateKnowledgeBaseView()">
+                                    <option value="">Select Country</option>
+                                </select>
+                            </div>
+                            <div class="config-group">
+                                <label for="viewDepartmentSelect" class="config-label">
+                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                        <path d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"/>
+                                    </svg>
+                                    Filter by Department
+                                </label>
+                                <select id="viewDepartmentSelect" class="config-select" onchange="updateKnowledgeBaseView()">
+                                    <option value="">Select Department</option>
+                                </select>
+                            </div>
+                        </div>
+                        
                         <button class="btn btn-primary" onclick="loadFAISSData()">
                             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                                 <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
@@ -1208,8 +1729,8 @@
                     <line x1="15" y1="9" x2="9" y2="15"/>
                     <line x1="9" y1="9" x2="15" y2="15"/>
                 </svg>
-                <h2>Admin Access Required</h2>
-                <p>Only admin users can upload files to the knowledge base.</p>
+                <h2>Access Restricted</h2>
+                <p>File upload is restricted to managers and administrators only.</p>
                 <div style="margin-top: 2rem;">
                     <a href="/chatbot.html" class="btn btn-primary">
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -1238,58 +1759,6 @@
             }
             setTheme(theme);
         })();
-
-        // Check admin access using actual backend API
-        async function checkAdminAccess() {
-            const token = localStorage.getItem("token");
-            if (!token) {
-                showAccessDenied();
-                return false;
-            }
-            
-            try {
-                const response = await fetch('/api/users/me', {
-                    headers: { 
-                        'Authorization': `Bearer ${token}`,
-                        'Content-Type': 'application/json'
-                    }
-                });
-                
-                if (!response.ok) {
-                    throw new Error(`HTTP error! status: ${response.status}`);
-                }
-                
-                const user = await response.json();
-                if (user && user.role === 'admin') {
-                    showUploadInterface();
-                    return true;
-                } else {
-                    showAccessDenied();
-                    return false;
-                }
-            } catch (error) {
-                console.error('Error checking admin access:', error);
-                showAccessDenied();
-                return false;
-            }
-        }
-        
-        function showUploadInterface() {
-            document.getElementById('uploadInterface').style.display = 'block';
-            document.getElementById('accessDenied').style.display = 'none';
-            document.getElementById('adminLink').style.display = 'inline-flex';
-        }
-        
-        function showAccessDenied() {
-            document.getElementById('uploadInterface').style.display = 'none';
-            document.getElementById('accessDenied').style.display = 'block';
-            document.getElementById('adminLink').style.display = 'none';
-        }
-        
-        // Initialize on page load
-        document.addEventListener('DOMContentLoaded', function() {
-            checkAdminAccess();
-        });
     </script>
 
     <style>

@@ -1,14 +1,23 @@
-from fastapi import FastAPI, HTTPException, Request, File, UploadFile, Security, Header
+from fastapi import FastAPI, HTTPException, Request, File, UploadFile, Security, Header, Form
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from fastapi.security import APIKeyHeader
 from pydantic import BaseModel
 from typing import List, Optional
 from datetime import datetime
+import pymysql
+from datetime import datetime, timedelta
+from fastapi.concurrency import run_in_threadpool
+from datetime import datetime
+import time
+import pymysql
+import asyncio
+
 import os
 import uvicorn
+import uuid
 from chatbot import (
-    generate_answer,
+   # generate_answer,
     generate_answer_histoy_retrieval,
     memory, 
     logger, 
@@ -16,9 +25,9 @@ from chatbot import (
     global_tools
 )
 from tool_executors import execute_confirmed_tool
-from memory_retrieval import (retrieve_user_messages_and_scores,get_all_chats_with_messages_for_user)
+from memory_retrieval import (retrieve_user_messages_and_scores,get_all_chats_with_messages_for_user, delete_messages_by_user_and_chat)
 from Freq_queries import (get_suggestions)
-from fileUpload import process_upload
+from fileUpload import process_upload, get_system_config
 from fastapi.staticfiles import StaticFiles
 app = FastAPI()
 app.mount("/images", StaticFiles(directory="data/images"), name="images")
@@ -59,6 +68,9 @@ class MeetingConfirmationRequest(BaseModel):
     user_id: str
     chat_id: str
     original_details: dict
+
+class FrequentRequest(BaseModel):
+    user_id: Optional[str] = None
 
 @app.exception_handler(Exception)
 async def global_exception_handler(request: Request, exc: Exception):
@@ -102,6 +114,83 @@ async def history_retreival(request: Request):
     results = retrieve_user_messages_and_scores(user_id, chat_id)
     results.reverse()  # Optional: oldest to newest
     return JSONResponse(content=results)
+
+@app.get("/api/chatbot/history")
+async def get_chatbot_history(user_id: str):
+    """
+    Frontend-compatible endpoint for retrieving all chat sessions for a user.
+    This endpoint matches the frontend's expected URL pattern.
+    """
+    try:
+        results = get_all_chats_with_messages_for_user(user_id)
+        results.reverse()  # Optional: oldest to newest
+        return JSONResponse(content=results)
+    except Exception as e:
+        logger.error(f"Error retrieving chats for user {user_id}: {str(e)}")
+        raise HTTPException(status_code=500, detail="Failed to retrieve chat history")
+
+@app.get("/api/chatbot/history/{chat_id}")
+async def get_specific_chatbot_history(chat_id: str, user_id: str):
+    """
+    Frontend-compatible endpoint for retrieving a specific chat's messages.
+    This endpoint matches the frontend's expected URL pattern.
+    """
+    try:
+        if not user_id or not chat_id:
+            raise HTTPException(status_code=400, detail="Missing user_id or chat_id")
+        
+        results = retrieve_user_messages_and_scores(user_id, chat_id)
+        results.reverse()  # Optional: oldest to newest
+        return JSONResponse(content=results)
+    except Exception as e:
+        logger.error(f"Error retrieving chat {chat_id} for user {user_id}: {str(e)}")
+        raise HTTPException(status_code=500, detail="Failed to retrieve chat messages")
+
+@app.delete("/api/chatbot/history/{chat_id}")
+async def delete_chatbot_history(chat_id: str, user_id: str):
+    """
+    Frontend-compatible endpoint for deleting a specific chat.
+    This endpoint matches the frontend's expected URL pattern.
+    """
+    try:
+        if not user_id or not chat_id:
+            raise HTTPException(status_code=400, detail="Missing user_id or chat_id")
+        
+        logger.info(f"Deleting chat {chat_id} for user {user_id}")
+        
+        # Use the existing function from memory_retrieval.py
+        delete_messages_by_user_and_chat(user_id, chat_id)
+        
+        logger.info(f"Successfully deleted chat {chat_id} for user {user_id}")
+        return {"success": True, "message": f"Chat {chat_id} deleted successfully"}
+        
+    except Exception as e:
+        logger.error(f"Error deleting chat {chat_id} for user {user_id}: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Failed to delete chat: {str(e)}")
+
+@app.post("/api/chatbot/newchat")
+async def create_new_chat(request: Request):
+    """
+    Frontend-compatible endpoint for creating a new chat session.
+    This endpoint matches the frontend's expected URL pattern.
+    """
+    try:
+        body = await request.json()
+        user_id = body.get("user_id", "defaultUser")
+        
+        import uuid
+        new_chat_id = str(uuid.uuid4())
+        
+        logger.info(f"Created new chat {new_chat_id} for user {user_id}")
+        return JSONResponse(content={
+            "success": True, 
+            "chat_id": new_chat_id,
+            "message": "New chat session created"
+        })
+        
+    except Exception as e:
+        logger.error(f"Error creating new chat: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Failed to create new chat: {str(e)}")
 
 @app.get("/chat_history")
 async def get_all_chats(user_id: str):
@@ -261,6 +350,76 @@ async def tool_confirmation(request: ChatRequest):
             "tool_identified": "none",
             "tool_confidence": "error"
         }
+DB_CONFIG = {
+    'host': 'localhost',
+    'user': 'chatbot_user',
+    'password': 'strong_password',
+    'database': 'chatbot_db',
+    'cursorclass': pymysql.cursors.Cursor,
+    'autocommit': True
+}
+
+def query_matching_response(message: str, after_time: str):
+    conn = pymysql.connect(**DB_CONFIG)
+    cursor = conn.cursor()
+    try:
+        cursor.execute("""
+            SELECT bot_response FROM chat_logs
+            WHERE user_message = %s AND timestamp > %s
+            ORDER BY timestamp DESC
+            LIMIT 1
+        """, (message, after_time))
+        result = cursor.fetchone()
+        return result[0] if result else None
+    finally:
+        cursor.close()
+        conn.close()
+
+@app.post("/avatar_msgmatchchatbot")
+async def avatar_msgmatchchatbot(request: ChatRequest):
+    logger.info(f"Received avatar message match request: {request}")
+    msg = request.message.strip()
+    time_now = datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S')
+
+    timeout_seconds = 60
+    polling_interval = 2  # how often to check, in seconds
+    end_time = datetime.utcnow() + timedelta(seconds=timeout_seconds)
+
+    while datetime.utcnow() < end_time:
+        try:
+            matched_response = await run_in_threadpool(query_matching_response, msg, time_now)
+            if matched_response:
+                return {
+                    "messages": [{
+                        "type": "bot",
+                        "text": matched_response,
+                        "id": f"match_{int(time.time() * 1000)}",
+                        "timestamp": datetime.utcnow().isoformat(),
+                        "audio": None,
+                        "lipsync": None
+                    }],
+                    "success": True,
+                    "error": None
+                }
+        except Exception as e:
+            logger.error(f"Database error during polling: {e}")
+            raise HTTPException(status_code=500, detail="Database polling error.")
+
+        await asyncio.sleep(polling_interval)
+
+    # Timeout occurred
+    return {
+        "messages": [{
+            "type": "bot",
+            "text": "An error occurred while processing your request. Please try again later.",
+            "id": f"error_{int(time.time() * 1000)}",
+            "timestamp": datetime.utcnow().isoformat(),
+            "audio": None,
+            "lipsync": None
+        }],
+        "success": False,
+        "error": "No matching record found within timeout."
+    }
 @app.post("/chatbot")
 async def chat_endpoint(request: ChatRequest):
     logger.info(f"Received chat request: {request}")
@@ -285,6 +444,11 @@ async def chat_endpoint(request: ChatRequest):
             tool_identified = response_data.get('tool_identified', 'none')
             tool_confidence = response_data.get('tool_confidence', '')
             meeting_confirmation = response_data.get('meeting_confirmation', None)
+            suggestions = response_data.get('suggestions', [])
+            has_suggestions = response_data.get('has_suggestions', False)
+            suggestion_type = response_data.get('suggestion_type', 'none')
+            likely_topic = response_data.get('likely_topic', None)
+            intent_level = response_data.get('intent_level', 'none')
         else:
             # Old tuple format (fallback)
             response_message, image_list = response_data
@@ -293,6 +457,11 @@ async def chat_endpoint(request: ChatRequest):
             tool_identified = 'none'
             tool_confidence = ''
             meeting_confirmation = None
+            suggestions = []
+            has_suggestions = False
+            suggestion_type = 'none'
+            likely_topic = None
+            intent_level = 'none'
         
         logger.info(f"Generated response: {response_message}")
         logger.info(f"Image list: {image_list}")
@@ -308,7 +477,12 @@ async def chat_endpoint(request: ChatRequest):
             "sources": sources,
             "tool_used": tool_used,
             "tool_identified": tool_identified,
-            "tool_confidence": tool_confidence
+            "tool_confidence": tool_confidence,
+            "suggestions": suggestions,
+            "has_suggestions": has_suggestions,
+            "suggestion_type": suggestion_type,
+            "likely_topic": likely_topic,
+            "intent_level": intent_level
         }
         
         # Add meeting_confirmation data if present
@@ -330,41 +504,50 @@ async def chat_endpoint(request: ChatRequest):
             "sources": [],
             "tool_used": False,
             "tool_identified": "none",
-            "tool_confidence": "error"
+            "tool_confidence": "error",
+            "suggestions": [],
+            "has_suggestions": False,
+            "suggestion_type": "none",
+            "likely_topic": None,
+            "intent_level": "none"
         }
         
 @app.post("/frequent")
-async def get_frequent_queries():
-    logger.info("Received request for frequent queries")
+async def get_frequent_queries(request: FrequentRequest):
+    logger.info(f"Received request for frequent queries from user: {request.user_id}")
 
     try:
         if index is None:
             logger.warning("Search index is not available")
             return JSONResponse(content=[], status_code=200)
 
-        top_queries = get_suggestions()
-        logger.info(f"Top frequent queries: {top_queries}")
+        # Pass user_id to get_suggestions for regional filtering
+        top_queries = get_suggestions(user_id=request.user_id)
+        logger.info(f"Top frequent queries for user {request.user_id}: {top_queries}")
 
-        # Fallback if no queries
-        fallback = [
-            "What are the pantry rules?",
-            "What is the leave policy?",
-            "How do I upload e-invoices?"
-        ]
+        # Regional fallbacks based on user info if available
+        fallback = get_regional_fallback(request.user_id)
+        
         if not isinstance(top_queries, list) or not top_queries:
             top_queries = fallback
 
         return JSONResponse(content=top_queries, status_code=200)
 
     except Exception as e:
-        logger.error(f"Error retrieving frequent queries: {str(e)}")
+        logger.error(f"Error retrieving frequent queries for user {request.user_id}: {str(e)}")
         # Also fallback on error
-        fallback = [
-            "What are the pantry rules?",
-            "What is the leave policy?",
-            "How do I upload e-invoices?"
-        ]
+        fallback = get_regional_fallback(request.user_id)
         return JSONResponse(content=fallback, status_code=200)
+
+
+def get_regional_fallback(user_id: Optional[str]) -> List[str]:
+    """Get fallback suggestions - always returns generic suggestions since we can't predict FAISS content"""
+    return [
+        "What are the pantry rules?",
+        "What is the leave policy?",
+        "How do I upload e-invoices?",
+        "How do I use the phone system?"
+    ]
 
 @app.delete("/history")
 async def clear_chat_history():
@@ -374,15 +557,45 @@ async def clear_chat_history():
         logger.error(f"Error clearing chat history: {str(e)}")
         raise HTTPException(status_code=500, detail="Failed to clear chat history")
 
+@app.delete("/history/{chat_id}")
+async def delete_specific_chat(chat_id: str, user_id: str):
+    """
+    Delete a specific chat by chat_id and user_id from the database.
+    """
+    try:
+        if not user_id or not chat_id:
+            raise HTTPException(status_code=400, detail="Missing user_id or chat_id")
+        
+        logger.info(f"Deleting chat {chat_id} for user {user_id}")
+        
+        # Use the existing function from memory_retrieval.py
+        delete_messages_by_user_and_chat(user_id, chat_id)
+        
+        logger.info(f"Successfully deleted chat {chat_id} for user {user_id}")
+        return {"success": True, "message": f"Chat {chat_id} deleted successfully"}
+        
+    except Exception as e:
+        logger.error(f"Error deleting chat {chat_id} for user {user_id}: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Failed to delete chat: {str(e)}")
+
 @app.post("/internal/upload")
 async def upload_file(
     file: UploadFile = File(...),
+    country: str = Form(...),
+    department: str = Form(...),
     authorization: str = Header(None)
 ):
-    """Internal endpoint to handle file uploads"""
+    """Internal endpoint to handle file uploads with country and department"""
     if not authorization or not authorization.startswith('Bearer '):
         raise HTTPException(status_code=403, detail="Invalid authorization")
-    return await process_upload(file)
+    return await process_upload(file, country, department)
+
+@app.get("/internal/upload/config")
+async def get_upload_config(authorization: str = Header(None)):
+    """Internal endpoint to get upload system configuration"""
+    if not authorization or not authorization.startswith('Bearer '):
+        raise HTTPException(status_code=403, detail="Invalid authorization")
+    return await get_system_config()
 
 @app.post("/meeting_confirmation")
 async def meeting_confirmation(request: MeetingConfirmationRequest):

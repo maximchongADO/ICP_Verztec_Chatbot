@@ -38,6 +38,10 @@ app.use(bodyParser.urlencoded({ extended: true }));
 app.use(bodyParser.json());
 
 route(app);
+
+// Internal API routes for Python FastAPI communication
+app.use('/internal', require('./backend/routes/internalRoutes.js'));
+
 // Serve Python image directory to frontend
 app.use('/data/images', express.static(path.join(__dirname, 'backend/python/data/images')));
 

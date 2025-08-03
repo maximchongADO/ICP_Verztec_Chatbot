@@ -14,25 +14,18 @@
       rel="stylesheet"
     />
     <script src="/scripts/google-tts.js"></script>
+    <script src="/scripts/speech-to-text.js"></script>
   </head>
   <body>
     <div class="app-container">
-      <!-- Add hover trigger area for sidebar slide-in -->
-      <div class="sidebar-trigger"></div>
       <div class="sidebar" id="sidebar">
         <!-- Main menu -->
         <nav class="sidebar-nav">
-          <div class="nav-item" onclick="triggerClearChat()">
+          <div class="nav-item" onclick="startNewChat()">
             <svg viewBox="0 0 24 24">
-              <path d="M3 6h18M8 6V4a2 2 0 012-2h4a2 2 0 012 2v2m3 0v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6h14zM10 11v6M14 11v6"/>
+              <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/>
             </svg>
-            Clear Chat
-          </div>
-          <div class="nav-item" onclick="exportChat()">
-            <svg viewBox="0 0 24 24">
-              <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M17 8l-5-5-5 5M12 3v12"/>
-            </svg>
-            Export Chat
+            New Chat
           </div>
           <div class="nav-item" onclick="handleFileUpload(event)">
             <svg viewBox="0 0 24 24">
@@ -46,11 +39,11 @@
             </svg>
             Avatar
           </div>
-          <div class="nav-item" onclick="startNewChat()">
+          <div class="nav-item" onclick="openUISettingsPopup()">
             <svg viewBox="0 0 24 24">
-              <path d="M20 2H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h4l4 4 4-4h4c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm-2 12H6v-2h12v2zm0-3H6V9h12v2zm0-3H6V6h12v2z"/>
+              <path d="M12 15.5A3.5 3.5 0 0 1 8.5 12A3.5 3.5 0 0 1 12 8.5a3.5 3.5 0 0 1 3.5 3.5 3.5 3.5 0 0 1-3.5 3.5m7.43-2.53c.04-.32.07-.64.07-.97 0-.33-.03-.66-.07-1l2.11-1.63c.19-.15.24-.42.12-.64l-2-3.46c-.12-.22-.39-.31-.61-.22l-2.49 1c-.52-.39-1.06-.73-1.69-.98l-.37-2.65A.506.506 0 0 0 14 2h-4c-.25 0-.46.18-.5.42l-.37 2.65c-.63.25-1.17.59-1.69.98l-2.49-1c-.22-.09-.49 0-.61.22l-2 3.46c-.13.22-.07.49.12.64L4.57 11c-.04.34-.07.67-.07 1 0 .33.03.65.07.97l-2.11 1.66c-.19.15-.25.42-.12.64l2 3.46c.12.22.39.3.61.22l2.49-1.01c.52.4 1.06.74 1.69.99l.37 2.65c.04.24.25.42.5.42h4c.25 0 .46-.18.5-.42l.37-2.65c.63-.26 1.17-.59 1.69-.99l2.49 1.01c.22.08.49 0 .61-.22l2-3.46c.12-.22.07-.49-.12-.64l-2.11-1.66Z"/>
             </svg>
-            New Chat
+            UI Settings
           </div>
         </nav>
         
@@ -90,7 +83,23 @@
       <!-- Main Chat Area -->
       <div class="chat-container">
         <div class="chat-header">
+          <button class="sidebar-toggle" id="sidebarToggle" onclick="toggleSidebar()" aria-label="Toggle sidebar">
+            <span class="hamburger-line"></span>
+            <span class="hamburger-line"></span>
+            <span class="hamburger-line"></span>
+          </button>
           <div class="chat-title">Chat Session</div>
+          <div class="header-buttons">
+            <button class="header-btn stop-tts-btn" id="stopTtsButton" onclick="stopCurrentTTS()" title="Stop TTS" style="display: none;">
+              <svg viewBox="0 0 24 24" width="16" height="16">
+                <rect x="6" y="4" width="4" height="16" fill="currentColor"/>
+                <rect x="14" y="4" width="4" height="16" fill="currentColor"/>
+              </svg>
+              Stop TTS
+            </button>
+            <button class="header-btn new-chat-btn" onclick="exportChat()">Export Chat</button>
+            <button class="header-btn clear-chat-btn" onclick="triggerClearChat()">Clear Chat</button>
+          </div>
         </div>  
 
         <div class="chat-messages" id="chatMessages">
@@ -107,19 +116,37 @@
         </div>
         <div class="chat-input-container">
           <div class="input-wrapper">
-            <textarea
-              class="chat-input"
-              id="messageInput"
-              placeholder="Type your message here..."
-              rows="1"
-              onkeydown="handleKeyPress(event)"
-              oninput="autoResize(this)"
-            ></textarea>
-            <button class="send-button" id="sendButton" onclick="sendMessage()">
-              <svg class="send-icon" viewBox="0 0 24 24">
-                <path d="M5 12l14-7-7 14v-5H5v-2h7V5z"/>
-              </svg>
-            </button>
+            <div class="input-with-button">
+              <textarea
+                class="chat-input"
+                id="messageInput"
+                placeholder="Type your message here or click the microphone to speak..."
+                rows="1"
+                onkeydown="handleKeyPress(event)"
+                oninput="autoResize(this); updateActionButton()"
+              ></textarea>
+              <button class="action-button" id="actionButton" onclick="handleActionButton()" title="Click to speak">
+                <!-- Microphone Icon -->
+                <svg class="mic-icon" id="micIcon" viewBox="0 0 24 24">
+                  <path d="M12 14c1.66 0 2.99-1.34 2.99-3L15 5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3zm5.3-3c0 3-2.54 5.1-5.3 5.1S6.7 14 6.7 11H5c0 3.41 2.72 6.23 6 6.72V21h2v-3.28c3.28-.48 6-3.3 6-6.72h-1.7z"/>
+                </svg>
+                <!-- Recording Icon -->
+                <svg class="recording-icon" id="recordingIcon" viewBox="0 0 24 24" style="display: none;">
+                  <circle cx="12" cy="12" r="3" fill="currentColor"/>
+                  <path d="M12 1v6M12 17v6M23 12h-6M7 12H1"/>
+                </svg>
+                <!-- Send Icon -->
+                <svg class="send-icon" id="sendIcon" viewBox="0 0 24 24" style="display: none;">
+                  <path d="M5 12l14-7-7 14v-5H5v-2h7V5z"/>
+                </svg>
+              </button>
+            </div>
+          </div>
+          <div class="speech-status" id="speechStatus" style="display: none;">
+            <div class="recording-indicator">
+              <div class="pulse"></div>
+            </div>
+            <span class="status-text" id="statusText">Listening...</span>
           </div>
         </div>
       </div>
@@ -144,6 +171,67 @@
     </div>
     <!-- End Confirmation Popup -->
 
+    <!-- Confirmation Popup for Deleting Chat History -->
+    <div id="deleteChatConfirmPopup" class="popup-overlay" style="display:none;">
+      <div class="popup-dialog">
+        <div class="popup-title">Delete Chat?</div>
+        <div class="popup-message">Are you sure you want to delete this chat? This action cannot be undone.</div>
+        <div class="popup-actions">
+          <button id="confirmDeleteChatBtn" class="popup-btn popup-btn-danger">Yes, delete</button>
+          <button id="cancelDeleteChatBtn" class="popup-btn">Cancel</button>
+        </div>
+      </div>
+    </div>
+    <!-- End Delete Chat Confirmation Popup -->
+
+    <!-- UI Settings Popup -->
+    <div id="uiSettingsPopup" class="popup-overlay" style="display:none;">
+      <div class="popup-dialog ui-settings-dialog">
+        <div class="popup-title">UI Settings</div>
+        <div class="ui-settings-content">
+          <!-- Theme Setting -->
+          <div class="ui-setting">
+            <div class="ui-setting-label">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <circle cx="12" cy="12" r="5"/>
+                <path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/>
+              </svg>
+              Theme
+            </div>
+            <div class="ui-setting-control">
+              <label class="theme-switch-ui">
+                <input type="checkbox" id="themeToggleSwitchUI" onchange="toggleThemeSwitchUI()" />
+                <span class="slider-ui"></span>
+              </label>
+              <span class="theme-label-ui" id="themeLabelUI">Light</span>
+            </div>
+          </div>
+
+          <!-- Font Size Setting -->
+          <div class="ui-setting">
+            <div class="ui-setting-label">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M4 7V4h16v3M9 20h6M12 4v16"/>
+              </svg>
+              Font Size
+            </div>
+            <div class="ui-setting-control font-size-control-wrapper">
+              <div class="font-size-control">
+                <button class="font-btn font-decrease" onclick="adjustFontSize(-1)" aria-label="Decrease font size">A-</button>
+                <span class="font-size-display" id="fontSizeDisplay">100%</span>
+                <button class="font-btn font-increase" onclick="adjustFontSize(1)" aria-label="Increase font size">A+</button>
+              </div>
+              <div class="font-preview-text" id="fontPreviewText">Sample Text</div>
+            </div>
+          </div>
+        </div>
+        <div class="popup-actions">
+          <button id="closeUISettingsBtn" class="popup-btn">Close</button>
+        </div>
+      </div>
+    </div>
+    <!-- End UI Settings Popup -->
+
     <!-- Profile Modal Popup -->
     <div id="profileModal" class="profile-modal-overlay" style="display:none;">
       <div class="profile-modal-dialog">
@@ -162,17 +250,6 @@
             <div class="profile-modal-id" id="modalProfileId"></div>
             <div class="profile-modal-email" id="modalProfileEmail"></div>
             <div class="profile-modal-role" id="modalProfileRole"></div>
-          </div>
-        </div>
-        
-        <!-- Theme Toggle Section -->
-        <div class="profile-modal-theme">
-          <div class="theme-toggle-container">
-            <span class="theme-label">Theme</span>
-            <label class="theme-switch-modal">
-              <input type="checkbox" id="themeToggleSwitchModal" onchange="toggleThemeSwitch()" />
-              <span class="slider-modal"></span>
-            </label>
           </div>
         </div>
 
@@ -299,8 +376,8 @@
           profileRoleEl.textContent = window.currentUser.role || defaultUser.role;
         }
         
-        // Set admin privileges
-        if (window.currentUser.role === 'admin') {
+        // Set admin and manager privileges
+        if (window.currentUser.role === 'admin' || window.currentUser.role === 'manager') {
           if (document.getElementById('adminAddUserBtn')) 
             document.getElementById('adminAddUserBtn').style.display = 'none';
           if (document.getElementById('adminAddUserModalBtn')) 
@@ -319,24 +396,144 @@
       function setTheme(theme) {
         document.documentElement.setAttribute('data-theme', theme);
         localStorage.setItem('theme', theme);
-        // Update both switch positions if they exist
+        // Update all switch positions if they exist
         const switchInput = document.getElementById('themeToggleSwitch');
-        const switchInputModal = document.getElementById('themeToggleSwitchModal');
-        if (switchInput) switchInput.checked = theme === 'dark';
-        if (switchInputModal) switchInputModal.checked = theme === 'dark';
+        const switchInputUI = document.getElementById('themeToggleSwitchUI');
+        const themeLabelUI = document.getElementById('themeLabelUI');
+        
+        const isDark = theme === 'dark';
+        if (switchInput) switchInput.checked = isDark;
+        if (switchInputUI) {
+          switchInputUI.checked = isDark;
+          if (themeLabelUI) themeLabelUI.textContent = isDark ? 'Dark' : 'Light';
+        }
       }
       function toggleThemeSwitch() {
         const current = document.documentElement.getAttribute('data-theme') || 'light';
         setTheme(current === 'dark' ? 'light' : 'dark');
       }
-      // On load, set theme from localStorage or system preference
-      (function() {
+      function toggleThemeSwitchUI() {
+        const current = document.documentElement.getAttribute('data-theme') || 'light';
+        setTheme(current === 'dark' ? 'light' : 'dark');
+      }
+
+      // Font size adjustment
+      let currentFontScale = parseFloat(localStorage.getItem('fontScale')) || 1.0;
+      
+      function applyFontScale(scale) {
+        document.documentElement.style.setProperty('--font-scale', scale);
+        const percentage = Math.round(scale * 100);
+        const fontSizeDisplay = document.getElementById('fontSizeDisplay');
+        if (fontSizeDisplay) {
+          fontSizeDisplay.textContent = percentage + '%';
+        }
+        
+        // Update the font preview text to reflect the current scale
+        const fontPreviewText = document.getElementById('fontPreviewText');
+        if (fontPreviewText) {
+          fontPreviewText.style.fontSize = `calc(1rem * ${scale})`;
+        }
+        
+        localStorage.setItem('fontScale', scale.toString());
+      }
+
+      function adjustFontSize(direction) {
+        const step = 0.1;
+        const minScale = 0.8;
+        const maxScale = 1.4;
+        
+        const newScale = Math.max(minScale, Math.min(maxScale, currentFontScale + (direction * step)));
+        
+        if (newScale !== currentFontScale) {
+          currentFontScale = newScale;
+          applyFontScale(currentFontScale);
+        }
+      }
+
+      // UI Settings popup functions
+      function openUISettingsPopup() {
+        const popup = document.getElementById('uiSettingsPopup');
+        if (popup) {
+          // Update the current theme state from localStorage
+          const currentTheme = localStorage.getItem('theme') || 'light';
+          const switchInputUI = document.getElementById('themeToggleSwitchUI');
+          const themeLabelUI = document.getElementById('themeLabelUI');
+          
+          if (switchInputUI && themeLabelUI) {
+            const isDark = currentTheme === 'dark';
+            switchInputUI.checked = isDark;
+            themeLabelUI.textContent = isDark ? 'Dark' : 'Light';
+            console.log('UI Settings popup theme state:', currentTheme);
+          }
+          
+          // Update font size display
+          applyFontScale(currentFontScale);
+          
+          popup.style.display = 'flex';
+        }
+      }
+
+      function closeUISettingsPopup() {
+        const popup = document.getElementById('uiSettingsPopup');
+        if (popup) {
+          popup.style.display = 'none';
+        }
+      }
+      // Initialize theme on page load - ensure persistence works
+      function initializeTheme() {
         let theme = localStorage.getItem('theme');
         if (!theme) {
           theme = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
         }
+        console.log('Initializing theme:', theme);
         setTheme(theme);
-      })();
+      }
+
+      // Call theme initialization immediately
+      initializeTheme();
+
+      // Sidebar toggle functionality
+      function toggleSidebar() {
+        const sidebar = document.getElementById('sidebar');
+        const chatContainer = document.querySelector('.chat-container');
+        const toggleBtn = document.getElementById('sidebarToggle');
+        
+        sidebar.classList.toggle('hidden');
+        chatContainer.classList.toggle('sidebar-hidden');
+        toggleBtn.classList.toggle('active');
+        
+        // Store sidebar state in localStorage
+        const isHidden = sidebar.classList.contains('hidden');
+        localStorage.setItem('sidebarHidden', isHidden);
+      }
+
+      // Initialize sidebar state on page load
+      document.addEventListener('DOMContentLoaded', function() {
+        // Ensure theme persistence on page load
+        initializeTheme();
+        
+        const isHidden = localStorage.getItem('sidebarHidden') === 'true';
+        if (isHidden) {
+          const sidebar = document.getElementById('sidebar');
+          const chatContainer = document.querySelector('.chat-container');
+          const toggleBtn = document.getElementById('sidebarToggle');
+          
+          sidebar.classList.add('hidden');
+          chatContainer.classList.add('sidebar-hidden');
+          toggleBtn.classList.add('active');
+        }
+
+        // Initialize font scale on page load
+        const savedFontScale = parseFloat(localStorage.getItem('fontScale')) || 1.0;
+        currentFontScale = savedFontScale;
+        applyFontScale(currentFontScale);
+
+        // Set up UI Settings popup close handler
+        const closeUISettingsBtn = document.getElementById('closeUISettingsBtn');
+        if (closeUISettingsBtn) {
+          closeUISettingsBtn.onclick = closeUISettingsPopup;
+        }
+      });
 
       // Make analytics dashboard clickable
       document.addEventListener("DOMContentLoaded", function () {
@@ -506,44 +703,60 @@
       function sendMessageToAvatar(message) {
         let messageSent = false;
         
-        // Cancel main chatbot TTS when sending to avatar
-        if (window.googleTTS) {
-          window.googleTTS.cancel();
-          console.log('Cancelled main chatbot TTS for avatar message');
+        console.log('� Sending message to avatar without TTS cancellation');
+        
+        // Handle different message types
+        let messageToSend;
+        
+        if (typeof message === 'string') {
+          messageToSend = {
+            type: 'chat_message',
+            payload: message
+          };
+        } else if (message.type === 'tts_with_lipsync') {
+          // Preserve tts_with_lipsync type for pre-generated audio
+          messageToSend = {
+            type: 'tts_with_lipsync',
+            text: message.text,
+            audio: message.audio,
+            lipsync: message.lipsync
+          };
+          console.log('📤 Sending pre-generated TTS to avatar');
+        } else {
+          messageToSend = {
+            type: message.type || 'chat_message',
+            payload: message.text || message.payload || message
+          };
         }
+        
+        console.log('📤 Sending to avatar:', messageToSend);
         
         // Priority 1: Send to draggable avatar if it exists
         if (window.draggableAvatar) {
-          window.draggableAvatar.sendMessageToAvatar(message);
+          window.draggableAvatar.sendMessageToAvatar(messageToSend.payload);
           messageSent = true;
-          console.log('Message sent to draggable avatar');
-          return; // Exit early to prevent double sending
+          console.log('✅ Message sent to draggable avatar');
+          return;
         }
         
-        // Priority 2: Send to avatar iframe if it exists and draggable avatar is not available
+        // Priority 2: Send to avatar iframe if it exists
         const avatarIframe = document.querySelector('iframe[src*="avatar"]');
         if (!messageSent && avatarIframe && avatarIframe.contentWindow) {
-          avatarIframe.contentWindow.postMessage({
-            type: 'chat_message',
-            payload: message
-          }, window.location.origin);
+          avatarIframe.contentWindow.postMessage(messageToSend, window.location.origin);
           messageSent = true;
-          console.log('Message sent to avatar iframe');
-          return; // Exit early to prevent double sending
+          console.log('✅ Message sent to avatar iframe');
+          return;
         }
         
-        // Priority 3: Send to avatar window if opened separately and no other avatar is available
+        // Priority 3: Send to avatar window if opened separately
         if (!messageSent && window.avatarWindow && !window.avatarWindow.closed) {
-          window.avatarWindow.postMessage({
-            type: 'chat_message',
-            payload: message
-          }, window.location.origin);
+          window.avatarWindow.postMessage(messageToSend, window.location.origin);
           messageSent = true;
-          console.log('Message sent to avatar window');
+          console.log('✅ Message sent to avatar window');
         }
         
         if (!messageSent) {
-          console.log('No avatar available to receive message');
+          console.log('⚠️ No avatar available to receive message');
         }
       }
       
@@ -612,97 +825,6 @@
     </style>
     
     <style>
-      /* Profile Modal Theme Toggle - Low Profile Design */
-      .profile-modal-theme {
-        margin: 16px 0 20px 0;
-        padding: 0;
-        border: none;
-      }
-
-      .theme-toggle-container {
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        gap: 12px;
-        padding: 12px 16px;
-        background: var(--background-secondary);
-        border-radius: 8px;
-        border: 1px solid var(--border-color);
-        transition: var(--transition);
-      }
-
-      .theme-label {
-        font-size: 0.9rem;
-        font-weight: 500;
-        color: var(--text-secondary);
-        transition: var(--transition);
-        opacity: 0.8;
-      }
-
-      .theme-switch-modal {
-        display: inline-block;
-        width: 40px;
-        height: 22px;
-        position: relative;
-        user-select: none;
-        flex-shrink: 0;
-      }
-
-      .theme-switch-modal input {
-        opacity: 0;
-        width: 0;
-        height: 0;
-      }
-
-      .theme-switch-modal .slider-modal {
-        position: absolute;
-        cursor: pointer;
-        top: 0;
-        left: 0;
-        right: 0;
-        bottom: 0;
-        background: #e5e7eb;
-        border: 1px solid #d1d5db;
-        border-radius: 12px;
-        transition: all 0.25s ease;
-        box-shadow: inset 0 1px 2px rgba(0,0,0,0.05);
-      }
-
-      .theme-switch-modal .slider-modal:before {
-        position: absolute;
-        content: "";
-        height: 16px;
-        width: 16px;
-        left: 2px;
-        bottom: 2px;
-        background: #ffffff;
-        border-radius: 50%;
-        transition: all 0.25s ease;
-        box-shadow: 0 1px 3px rgba(0,0,0,0.1);
-      }
-
-      .theme-switch-modal input:checked + .slider-modal {
-        background: #374151;
-        border-color: #4b5563;
-      }
-
-      .theme-switch-modal input:checked + .slider-modal:before {
-        transform: translateX(18px);
-        background: #fbbf24;
-        box-shadow: 0 1px 4px rgba(0,0,0,0.2);
-      }
-
-      .theme-toggle-container:hover .theme-switch-modal .slider-modal {
-        box-shadow: 
-          inset 0 1px 2px rgba(0,0,0,0.05),
-          0 1px 3px rgba(0,0,0,0.1);
-      }
-
-      .theme-toggle-container:hover .theme-label {
-        opacity: 1;
-        color: var(--text-primary);
-      }
-
       /* Elegant Close Button */
       .profile-modal-close {
         position: absolute;
@@ -747,34 +869,7 @@
         transform: rotate(90deg);
       }
 
-      /* Dark mode styles for theme toggle and close button */
-      [data-theme="dark"] .theme-toggle-container {
-        background: #374151;
-        border-color: #4b5563;
-      }
-
-      [data-theme="dark"] .theme-label {
-        color: #d1d5db;
-      }
-
-      [data-theme="dark"] .theme-toggle-container:hover .theme-label {
-        color: #f9fafb;
-      }
-
-      [data-theme="dark"] .theme-switch-modal .slider-modal {
-        background: #4b5563;
-        border-color: #6b7280;
-      }
-
-      [data-theme="dark"] .theme-switch-modal input:checked + .slider-modal {
-        background: #1f2937;
-        border-color: #d4b24c;
-      }
-
-      [data-theme="dark"] .theme-switch-modal input:checked + .slider-modal:before {
-        background: #d4b24c;
-      }
-
+      /* Dark mode styles for close button */
       [data-theme="dark"] .profile-modal-close {
         background: rgba(75, 85, 99, 0.2);
         color: #9ca3af;
@@ -998,8 +1093,464 @@
       }
 
       /* ...existing theme switch and other styles... */
+
+      /* UI Settings Popup Styles */
+      .ui-settings-dialog {
+        min-width: 400px;
+        max-width: 500px;
+      }
+
+      .ui-settings-content {
+        margin: 20px 0;
+        padding: 0;
+      }
+
+      .ui-setting {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 16px 0;
+        border-bottom: 1px solid var(--border-color, #e5e7eb);
+      }
+
+      .ui-setting:last-child {
+        border-bottom: none;
+      }
+
+      .ui-setting-label {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        font-size: 1rem;
+        font-weight: 600;
+        color: var(--text-primary, #374151);
+      }
+
+      .ui-setting-control {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+      }
+
+      /* Theme Switch in UI Settings */
+      .theme-switch-ui {
+        display: inline-block;
+        width: 50px;
+        height: 26px;
+        position: relative;
+        user-select: none;
+      }
+
+      .theme-switch-ui input {
+        opacity: 0;
+        width: 0;
+        height: 0;
+      }
+
+      .theme-switch-ui .slider-ui {
+        position: absolute;
+        cursor: pointer;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: #e5e7eb;
+        border: 1px solid #d1d5db;
+        border-radius: 15px;
+        transition: all 0.3s ease;
+        box-shadow: inset 0 1px 3px rgba(0,0,0,0.1);
+      }
+
+      .theme-switch-ui .slider-ui:before {
+        position: absolute;
+        content: "";
+        height: 20px;
+        width: 20px;
+        left: 2px;
+        bottom: 2px;
+        background: #ffffff;
+        border-radius: 50%;
+        transition: all 0.3s ease;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+      }
+
+      .theme-switch-ui input:checked + .slider-ui {
+        background: #374151;
+        border-color: #4b5563;
+      }
+
+      .theme-switch-ui input:checked + .slider-ui:before {
+        transform: translateX(24px);
+        background: #fbbf24;
+        box-shadow: 0 2px 6px rgba(0,0,0,0.3);
+      }
+
+      .theme-label-ui {
+        font-size: 0.9rem;
+        font-weight: 500;
+        color: var(--text-secondary, #6b7280);
+        min-width: 50px;
+        text-align: left;
+      }
+
+      /* Font Size Controls */
+      .font-size-control-wrapper {
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+        align-items: flex-end;
+      }
+
+      .font-size-control {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        background: var(--background-secondary, #f9fafb);
+        border: 1px solid var(--border-color, #e5e7eb);
+        border-radius: 8px;
+        padding: 4px 8px;
+      }
+
+      .font-preview-text {
+        font-size: calc(1rem * var(--font-scale));
+        color: var(--text-secondary, #6b7280);
+        font-weight: 500;
+        padding: 8px 12px;
+        background: var(--background-secondary, #f9fafb);
+        border: 1px solid var(--border-color, #e5e7eb);
+        border-radius: 6px;
+        transition: all 0.2s ease;
+        min-width: 100px;
+        text-align: center;
+        user-select: none;
+      }
+
+      .font-btn {
+        background: none;
+        border: none;
+        cursor: pointer;
+        padding: 6px 10px;
+        border-radius: 6px;
+        font-size: 14px;
+        font-weight: 600;
+        color: var(--primary-accent, #d4b24c);
+        transition: all 0.2s ease;
+        min-width: 35px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+      }
+
+      .font-btn:hover {
+        background: var(--primary-accent, #d4b24c);
+        color: white;
+        transform: scale(1.05);
+      }
+
+      .font-btn:active {
+        transform: scale(0.95);
+      }
+
+      .font-size-display {
+        font-size: 0.9rem;
+        font-weight: 600;
+        color: var(--text-primary, #374151);
+        min-width: 45px;
+        text-align: center;
+      }
+
+      /* Dark theme adjustments for UI Settings */
+      [data-theme="dark"] .ui-setting-label {
+        color: #f3f4f6;
+      }
+
+      [data-theme="dark"] .ui-setting {
+        border-bottom-color: #4b5563;
+      }
+
+      [data-theme="dark"] .theme-label-ui {
+        color: #d1d5db;
+      }
+
+      [data-theme="dark"] .font-size-control {
+        background: #374151;
+        border-color: #4b5563;
+      }
+
+      [data-theme="dark"] .font-preview-text {
+        background: #374151;
+        border-color: #4b5563;
+        color: #d1d5db;
+      }
+
+      [data-theme="dark"] .font-btn {
+        color: #fbbf24;
+      }
+
+      [data-theme="dark"] .font-btn:hover {
+        background: #fbbf24;
+        color: #000000;
+      }
+
+      [data-theme="dark"] .font-size-display {
+        color: #f3f4f6;
+      }
+
+      [data-theme="dark"] .theme-switch-ui .slider-ui {
+        background: #4b5563;
+        border-color: #6b7280;
+      }
+
+      [data-theme="dark"] .theme-switch-ui input:checked + .slider-ui {
+        background: #1f2937;
+        border-color: #fbbf24;
+      }
+
+      /* Font scaling CSS variables */
+      :root {
+        --font-scale: 1;
+      }
+
+      /* Apply font scaling to key elements */
+      body, .chat-messages, .chat-input, .nav-item, .popup-dialog, .profile-modal-dialog {
+        font-size: calc(1rem * var(--font-scale));
+      }
+
+      .chat-messages .message-content {
+        font-size: calc(0.95rem * var(--font-scale));
+      }
+
+      .welcome-message h2 {
+        font-size: calc(1.5rem * var(--font-scale));
+      }
+
+      .welcome-message p {
+        font-size: calc(1rem * var(--font-scale));
+      }
+
+      .popup-title {
+        font-size: calc(1.2rem * var(--font-scale));
+      }
+
+      .popup-message {
+        font-size: calc(1rem * var(--font-scale));
+      }
+
+      .nav-item {
+        font-size: calc(0.9rem * var(--font-scale));
+      }
+
+      /* Speech-to-Text Input Styles */
+      .input-with-button {
+        position: relative;
+        display: flex;
+        align-items: flex-end;
+        width: 100%;
+      }
+
+      .chat-input {
+        width: 100%;
+        padding-right: 55px !important; /* Make room for action button */
+        resize: none;
+      }
+
+      .action-button {
+        position: absolute;
+        right: 12px;
+        bottom: 50%;
+        transform: translateY(50%);
+        width: 36px;
+        height: 36px;
+        border: none;
+        border-radius: 50%;
+        background: linear-gradient(135deg, #64748b 0%, #475569 100%);
+        color: white;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        transition: all 0.3s ease;
+        z-index: 10;
+        box-shadow: 0 2px 8px rgba(100, 116, 139, 0.3);
+      }
+
+      .action-button:hover {
+        background: linear-gradient(135deg, #475569 0%, #334155 100%);
+        box-shadow: 0 4px 12px rgba(100, 116, 139, 0.4);
+      }
+
+      .action-button.send-mode {
+        background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
+        box-shadow: 0 2px 8px rgba(59, 130, 246, 0.3);
+      }
+
+      .action-button.send-mode:hover {
+        background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%);
+        box-shadow: 0 4px 12px rgba(59, 130, 246, 0.4);
+      }
+
+      .action-button.recording {
+        background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
+        animation: pulse-recording 1.5s infinite;
+        box-shadow: 0 4px 16px rgba(239, 68, 68, 0.6);
+      }
+
+      .action-button.recording:hover {
+        background: linear-gradient(135deg, #dc2626 0%, #b91c1c 100%);
+      }
+
+      .action-button:disabled {
+        opacity: 0.6;
+        cursor: not-allowed;
+        transform: translateY(50%) !important;
+      }
+
+      .action-button:disabled:hover {
+        background: linear-gradient(135deg, #64748b 0%, #475569 100%);
+        box-shadow: 0 2px 8px rgba(100, 116, 139, 0.3);
+      }
+
+      .mic-icon, .recording-icon, .send-icon {
+        width: 18px;
+        height: 18px;
+        fill: currentColor;
+        transition: all 0.2s ease;
+      }
+
+      .speech-status {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        padding: 12px 16px;
+        background: rgba(239, 68, 68, 0.1);
+        border: 1px solid rgba(239, 68, 68, 0.3);
+        border-radius: 12px;
+        margin-top: 8px;
+        animation: slideInUp 0.3s ease;
+      }
+
+      .recording-indicator {
+        width: 24px;
+        height: 24px;
+        position: relative;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+      }
+
+      .pulse {
+        width: 12px;
+        height: 12px;
+        background: #ef4444;
+        border-radius: 50%;
+        animation: pulse-dot 1.5s infinite;
+      }
+
+      .pulse::before {
+        content: '';
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        width: 12px;
+        height: 12px;
+        background: rgba(239, 68, 68, 0.6);
+        border-radius: 50%;
+        transform: translate(-50%, -50%);
+        animation: pulse-ring 1.5s infinite;
+      }
+
+      .status-text {
+        color: #ef4444;
+        font-weight: 600;
+        font-size: 0.9rem;
+      }
+
+      @keyframes pulse-recording {
+        0%, 100% {
+          transform: scale(1);
+          box-shadow: 0 4px 16px rgba(239, 68, 68, 0.6);
+        }
+        50% {
+          transform: scale(1.05);
+          box-shadow: 0 6px 24px rgba(239, 68, 68, 0.8);
+        }
+      }
+
+      @keyframes pulse-dot {
+        0%, 100% {
+          transform: scale(1);
+          opacity: 1;
+        }
+        50% {
+          transform: scale(1.2);
+          opacity: 0.8;
+        }
+      }
+
+      @keyframes pulse-ring {
+        0% {
+          transform: translate(-50%, -50%) scale(1);
+          opacity: 0.6;
+        }
+        100% {
+          transform: translate(-50%, -50%) scale(2.5);
+          opacity: 0;
+        }
+      }
+
+      @keyframes slideInUp {
+        from {
+          opacity: 0;
+          transform: translateY(10px);
+        }
+        to {
+          opacity: 1;
+          transform: translateY(0);
+        }
+      }
+
+      /* Dark theme support */
+      [data-theme="dark"] .action-button {
+        background: linear-gradient(135deg, #4b5563 0%, #374151 100%);
+        box-shadow: 0 2px 8px rgba(75, 85, 99, 0.3);
+      }
+
+      [data-theme="dark"] .action-button:hover {
+        background: linear-gradient(135deg, #374151 0%, #1f2937 100%);
+        box-shadow: 0 4px 12px rgba(75, 85, 99, 0.4);
+      }
+
+      [data-theme="dark"] .speech-status {
+        background: rgba(239, 68, 68, 0.15);
+        border-color: rgba(239, 68, 68, 0.4);
+      }
+
+      [data-theme="dark"] .status-text {
+        color: #f87171;
+      }
+
+      [data-theme="dark"] .pulse {
+        background: #f87171;
+      }
+
+      [data-theme="dark"] .pulse::before {
+        background: rgba(248, 113, 113, 0.6);
+      }
+
+      /* Responsive adjustments */
+      @media (max-width: 768px) {
+        .action-button {
+          width: 40px;
+          height: 40px;
+          right: 10px;
+          bottom: 50%;
+          transform: translateY(50%);
+        }
+        
+        .chat-input {
+          padding-right: 60px !important;
+        }
+      }
     </style>
-  </body>
-</html>
   </body>
 </html>

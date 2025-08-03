@@ -25,6 +25,7 @@ Note: To enable actual email sending in production:
 """
 
 import csv
+import json
 import logging
 import os
 import re
@@ -42,11 +43,87 @@ load_dotenv(dotenv_path=os.path.join(os.path.dirname(__file__), '..', '..', '..'
 logger = logging.getLogger(__name__)
 
 
+def get_hr_mailing_list() -> List[str]:
+    """
+    Fetch HR mailing list from the database.
+    
+    • Connects to MySQL chatbot_db database and retrieves all email addresses from mailing_list table
+    • Implements fallback mechanism using environment variables if database connection fails
+    • Returns cleaned list of unique, valid email addresses for HR notifications
+    
+    Returns:
+        List[str]: List of email addresses from the mailing list table
+    """
+    try:
+        import mysql.connector
+        from mysql.connector import Error
+        
+        # Database configuration - using same config as userController.js
+        db_config = {
+            'host': 'localhost',
+            'user': 'chatbot_user',
+            'password': 'strong_password',
+            'database': 'chatbot_db'
+        }
+        
+        connection = mysql.connector.connect(**db_config)
+        cursor = connection.cursor()
+        
+        # Query mailing list table
+        cursor.execute("SELECT id, name, email FROM mailing_list WHERE email IS NOT NULL AND email != ''")
+        mailing_list_records = cursor.fetchall()
+        
+        # Extract emails and log all found entries
+        email_list = []
+        logger.info(f"Found {len(mailing_list_records)} entries in mailing_list table:")
+        for record in mailing_list_records:
+            record_id, name, email = record
+            if email and email.strip():
+                clean_email = email.strip()
+                email_list.append(clean_email)
+                logger.info(f"Mailing list entry - ID: {record_id}, Name: {name}, Email: {clean_email}")
+            else:
+                logger.warning(f"Mailing list entry with empty email - ID: {record_id}, Name: {name}")
+        
+        connection.close()
+        
+        # Filter out duplicates and empty emails
+        unique_emails = list(set([email for email in email_list if email and '@' in email]))
+        logger.info(f"Total unique valid emails for HR notifications: {len(unique_emails)} - {unique_emails}")
+        
+        return unique_emails
+        
+    except Error as e:
+        logger.error(f"Database error while fetching mailing list: {e}")
+        # Fallback to environment variables if database fails
+        logger.warning("Falling back to environment variable email configuration")
+        fallback_emails = [
+            os.getenv('HR_EMAIL', 'jwwl6424@gmail.com'),
+            os.getenv('HR_EMAIL2', ''),
+            os.getenv('HR_EMAIL3', ''),
+            os.getenv('HR_EMAIL4', '')
+        ]
+        unique_emails = list(set([email.strip() for email in fallback_emails if email.strip()]))
+        logger.info(f"Fallback emails: {unique_emails}")
+        return unique_emails
+        
+    except Exception as e:
+        logger.error(f"Unexpected error while fetching mailing list: {e}")
+        # Emergency fallback to single email
+        emergency_email = os.getenv('HR_EMAIL', 'jwwl6424@gmail.com')
+        logger.info(f"Emergency fallback to single email: {emergency_email}")
+        return [emergency_email]
+
+
 def send_hr_escalation_email(escalation_id: str, user_id: str, chat_id: str, 
                            user_query: str, user_description: str = None,
-                           hr_email: str = None) -> bool:
+                           hr_emails: List[str] = None) -> bool:
     """
     Send an email notification to HR about the escalation.
+    
+    • Composes and sends formatted email notifications to all HR representatives in the mailing list
+    • Uses SMTP with TLS encryption and environment-based configuration for secure email delivery
+    • Implements error handling and fallback mechanisms, returning success status based on delivery results
     
     Args:
         escalation_id (str): Unique escalation ID
@@ -54,14 +131,14 @@ def send_hr_escalation_email(escalation_id: str, user_id: str, chat_id: str,
         chat_id (str): Chat session identifier
         user_query (str): Original user query
         user_description (str, optional): Additional description from user
-        hr_email (str): HR representative email address
+        hr_emails (List[str]): List of HR representative email addresses
         
     Returns:
-        bool: True if email was sent successfully, False otherwise
+        bool: True if email was sent successfully to at least one recipient, False otherwise
     """
     try:
         # Email configuration - Load from environment variables
-        # IMPORTANT: Configure these in your .env file!
+      
         smtp_server = os.getenv('SMTP_SERVER', 'smtp.gmail.com')
         smtp_port = int(os.getenv('SMTP_PORT', 587))
         sender_email = os.getenv('SENDER_EMAIL')
@@ -75,87 +152,101 @@ def send_hr_escalation_email(escalation_id: str, user_id: str, chat_id: str,
             logger.error("- SENDER_APP_PASSWORD=your_16_character_app_password")
             return False
         
-        # Use HR email from environment or fallback to parameter
-        if hr_email is None:
-            hr_email = os.getenv('HR_EMAIL', 'jwwl6424@gmail.com')
+        # Use provided HR emails or get from mailing list
+        if hr_emails is None or len(hr_emails) == 0:
+            hr_emails = get_hr_mailing_list()
         
-        # Create message
-        message = MIMEMultipart()
-        message["From"] = sender_email
-        message["To"] = hr_email
-        message["Subject"] = f"HR Escalation Alert - {escalation_id}"
+        if not hr_emails:
+            logger.error("No HR emails available for notification")
+            return False
         
         # Create email body
         issue_summary = user_description if user_description else user_query
         
         email_body = f"""
-HR ESCALATION ALERT
+            HR ESCALATION ALERT
 
-A new HR escalation has been submitted and requires your attention.
+            A new HR escalation has been submitted and requires your attention.
 
-ESCALATION DETAILS:
-• Reference ID: {escalation_id}
-• Date & Time: {datetime.now().strftime('%B %d, %Y at %I:%M %p')}
-• User ID: {user_id}
-• Chat ID: {chat_id}
+            ESCALATION DETAILS:
+            • Reference ID: {escalation_id}
+            • Date & Time: {datetime.now().strftime('%B %d, %Y at %I:%M %p')}
+            • User ID: {user_id}
+            • Chat ID: {chat_id}
 
-ORIGINAL QUERY:
-{user_query}
+            ORIGINAL QUERY:
+            {user_query}
 
-{f'''
-DETAILED DESCRIPTION:
-{user_description}
-''' if user_description else ''}
+            {f'''
+            DETAILED DESCRIPTION:
+            {user_description}
+            ''' if user_description else ''}
 
-ISSUE SUMMARY:
-{issue_summary[:500]}{'...' if len(issue_summary) > 500 else ''}
+            ISSUE SUMMARY:
+            {issue_summary[:500]}{'...' if len(issue_summary) > 500 else ''}
 
-PRIORITY: NORMAL
-STATUS: PENDING
+            PRIORITY: NORMAL
+            STATUS: PENDING
 
-Please log into the HR system to review this escalation and take appropriate action.
-The user has been informed that HR will contact them within 24 hours.
+            Please log into the HR system to review this escalation and take appropriate action.
+            The user has been informed that HR will contact them within 24 hours.
 
-For urgent matters, please contact the user directly using the provided User ID.
+            For urgent matters, please contact the user directly using the provided User ID.
 
-Best regards,
-Verztec AI Assistant
-        """
+            Best regards,
+            Verztec AI Assistant
+                    """
         
-        message.attach(MIMEText(email_body, "plain"))
+        # Send email to all HR contacts
+        successful_sends = 0
+        failed_sends = 0
         
-        # Actually send the email
-        try:
-            logger.info(f"Attempting to send email to {hr_email} using SMTP server {smtp_server}:{smtp_port}")
-            server = smtplib.SMTP(smtp_server, smtp_port)
-            logger.info("SMTP connection established")
-            
-            server.starttls()
-            logger.info("TLS encryption started")
-            
-            server.login(sender_email, sender_password)
-            logger.info(f"Successfully logged in as {sender_email}")
-            
-            text = message.as_string()
-            server.sendmail(sender_email, hr_email, text)
-            logger.info("Email sent successfully")
-            
-            server.quit()
-            logger.info("SMTP connection closed")
-            
-            logger.info(f"Email notification successfully sent to HR ({hr_email}) for escalation {escalation_id}")
-            return True
-            
-        except Exception as smtp_error:
-            logger.error(f"SMTP error sending email for {escalation_id}: {str(smtp_error)}")
-            logger.error(f"Error type: {type(smtp_error).__name__}")
-            logger.error(f"Full error details: {repr(smtp_error)}")
-            # Log the email content for debugging
-            logger.info(f"Failed to send - Email Content for {escalation_id}:")
-            logger.info(f"To: {hr_email}")
-            logger.info(f"Subject: HR Escalation Alert - {escalation_id}")
-            logger.info(f"Body: {email_body}")
-            return False
+        for hr_email in hr_emails:
+            try:
+                logger.info(f"Attempting to send email to {hr_email} using SMTP server {smtp_server}:{smtp_port}")
+                
+                # Create message for this recipient
+                message = MIMEMultipart()
+                message["From"] = sender_email
+                message["To"] = hr_email
+                message["Subject"] = f"HR Escalation Alert - {escalation_id}"
+                message.attach(MIMEText(email_body, "plain"))
+                
+                # Send the email
+                server = smtplib.SMTP(smtp_server, smtp_port)
+                logger.info("SMTP connection established")
+                
+                server.starttls()
+                logger.info("TLS encryption started")
+                
+                server.login(sender_email, sender_password)
+                logger.info(f"Successfully logged in as {sender_email}")
+                
+                text = message.as_string()
+                server.sendmail(sender_email, hr_email, text)
+                logger.info(f"Email sent successfully to {hr_email}")
+                
+                server.quit()
+                logger.info("SMTP connection closed")
+                
+                successful_sends += 1
+                logger.info(f"Email notification successfully sent to HR ({hr_email}) for escalation {escalation_id}")
+                
+            except Exception as smtp_error:
+                failed_sends += 1
+                logger.error(f"SMTP error sending email to {hr_email} for {escalation_id}: {str(smtp_error)}")
+                logger.error(f"Error type: {type(smtp_error).__name__}")
+                logger.error(f"Full error details: {repr(smtp_error)}")
+                # Log the email content for debugging
+                logger.info(f"Failed to send to {hr_email} - Email Content for {escalation_id}:")
+                logger.info(f"Subject: HR Escalation Alert - {escalation_id}")
+                logger.info(f"Body: {email_body}")
+        
+        # Return success if at least one email was sent successfully
+        total_recipients = len(hr_emails)
+        logger.info(f"Email sending summary for {escalation_id}: {successful_sends}/{total_recipients} successful, {failed_sends} failed")
+        
+        return successful_sends > 0
         
     except Exception as e:
         logger.error(f"Failed to send HR escalation email for {escalation_id}: {str(e)}")
@@ -178,6 +269,10 @@ def send_meeting_request_email(
 ) -> bool:
     """
     Send an email notification for a meeting request.
+    
+    • Creates and sends formatted meeting request emails with extracted meeting details and metadata
+    • Uses same SMTP configuration as HR escalation emails for consistent email delivery
+    • Logs meeting request details and returns boolean success status for error handling
     """
     try:
         smtp_server = os.getenv('SMTP_SERVER', 'smtp.gmail.com')
@@ -242,6 +337,10 @@ This meeting request has been initiated and is awaiting user confirmation.
 def extract_meeting_details(user_query: str) -> Dict[str, Any]:
     """
     Extract meeting details from natural language user query using LLM.
+    
+    • Uses ChatGroq LLM with structured prompts to parse meeting details from natural language input
+    • Implements intelligent date/time conversion with current context (today, tomorrow, next Monday, etc.)
+    • Provides fallback regex extraction if LLM fails, ensuring robust detail extraction with confidence scoring
     
     Args:
         user_query (str): User's natural language meeting request
@@ -436,6 +535,10 @@ def execute_confirmed_tool(
     """
     Execute the confirmed tool based on the tool identification.
     
+    • Main dispatcher function that routes tool execution requests to appropriate handler functions
+    • Validates tool availability and provides default tool configurations if not provided
+    • Returns standardized response format with execution status, results, and error handling
+    
     Args:
         tool_identified (str): The identified tool name from the decision layer
         user_query (str): The original user query
@@ -499,7 +602,16 @@ def execute_confirmed_tool(
                 user_query, 
                 user_id, 
                 chat_id,
-                user_description,  # Now pass the additional user input
+                user_description,
+                store_chat_log_updated
+            )
+        elif tool_identified == "vacation_check":
+            # Import the dependency function when needed
+            from chatbot import store_chat_log_updated
+            return execute_vacation_check_tool(
+                user_query, 
+                user_id, 
+                chat_id,  # Now pass the additional user input
                 store_chat_log_updated
             )
             
@@ -540,6 +652,10 @@ def execute_hr_escalation_tool(
     """
     Execute HR escalation tool with enhanced logging and response formatting.
     
+    • Generates unique escalation ID and sends email notifications to all HR representatives
+    • Stores escalation details in both database and CSV backup with comprehensive logging
+    • Returns formatted response with escalation details, timeline expectations, and contact information
+    
     Args:
         user_query (str): The original user query that triggered HR escalation
         user_id (str): User identifier
@@ -559,26 +675,31 @@ def execute_hr_escalation_tool(
         sanitized_issue = primary_issue.strip()[:800]  # Limit for better context
         escalation_id = f"ESC-{datetime.now().strftime('%Y%m%d-%H%M%S')}-{user_id[:8]}"
         
+        
         # Enhanced logging with structured data
         logger.info(f"HR Escalation initiated - ID: {escalation_id}, User: {user_id}, Chat: {chat_id}")
         if user_description:
             logger.info(f"User provided detailed description: {user_description[:200]}...")
         
-        # Send email notification to HR
+        # Get HR mailing list using the new function
+        hr_emails = get_hr_mailing_list()
+        logger.info(f"Retrieved {len(hr_emails)} emails from mailing list for HR escalation: {hr_emails}")
+
+        # Send email notification to all HR contacts at once
+        logger.info(f"Sending HR escalation email to all contacts: {hr_emails}")
         email_sent = send_hr_escalation_email(
             escalation_id=escalation_id,
             user_id=user_id,
             chat_id=chat_id,
             user_query=user_query,
             user_description=user_description,
-            hr_email=os.getenv('HR_EMAIL', 'jwwl6424@gmail.com')  # Use env var or fallback
+            hr_emails=hr_emails
         )
-        
         if email_sent:
-            logger.info(f"Email notification sent to HR for escalation {escalation_id}")
+            logger.info(f"Email notifications sent successfully for escalation {escalation_id}")
         else:
-            logger.warning(f"Failed to send email notification for escalation {escalation_id}")
-        
+            logger.warning(f"Failed to send email notifications for escalation {escalation_id}")
+            
         # Store HR escalation in dedicated database table if function is provided
         db_success = False
         if store_hr_escalation_func:
@@ -709,6 +830,10 @@ def execute_meeting_scheduling_tool(
 ) -> Dict[str, Any]:
     """
     Execute meeting scheduling tool with intelligent detail extraction and enhanced response formatting.
+    
+    • Uses LLM-powered extraction to parse meeting details from natural language user input
+    • Generates unique meeting request ID and sends email notifications to coordination team
+    • Returns interactive response with extracted details and user confirmation options (confirm/modify/cancel)
     
     Args:
         user_query (str): The original user query that triggered meeting scheduling
@@ -944,6 +1069,10 @@ def handle_meeting_confirmation_response_2(
 ) -> Dict[str, Any]:
     """
     Handle user response to meeting confirmation (confirm, modify, or cancel).
+    
+    • Processes user responses to meeting confirmation prompts (confirm/modify/cancel actions)
+    • Updates meeting status in CSV records and database based on user decision
+    • Returns formatted responses with next steps and handles unclear user responses with clarification prompts
     
     Args:
         user_response (str): User's response to the meeting confirmation
@@ -1345,3 +1474,73 @@ What would you like to do?"""
             'tool_confidence': f'error - {str(e)}'
         }
 
+from pathlib import Path
+
+def get_vacation_days(user_id: str, filename: str = r"leave.csv") -> int:
+    """
+    Reads leave.csv and returns the number of vacation days for the given user_id.
+    
+    • Parses CSV file to retrieve vacation day balance for specified user ID
+    • Handles file access errors and missing user records gracefully with zero return
+    • Uses UTF-8-sig encoding to handle potential BOM characters in CSV files
+    
+    Assumes columns: user_id, vacation_days
+    """
+    try:
+        logger.info(f"Fetching vacation days for user_id: {user_id} from {filename}")
+        path = Path(filename)
+        if not path.exists():
+            logger.info(f"File does not exist: {filename}")
+            return 0
+
+        with path.open(mode='r', encoding='utf-8-sig') as csvfile:
+            logger.info(f"Reading vacation days from {filename}")
+            reader = csv.DictReader(csvfile)
+            for row in reader:
+                if row.get('user_id') == str(user_id):  # Ensure string match
+                    return int(row.get('vacation_days', 0))
+        return 0  # User not found
+    except Exception as e:
+        logger.error(f"Error reading {filename}: {e}")
+        return 0
+
+def execute_vacation_check_tool(user_query, user_id, chat_id, store_chat_log_updated_func):
+    """
+    Responds to a vacation check query using consistent tool return format.
+    """
+    vacation_days = get_vacation_days(user_id)
+    response_text = f"You have {vacation_days} days of vacation remaining."
+
+    # Logging in same structure as meeting scheduling tool
+    if store_chat_log_updated_func:
+        try:
+            vacation_summary = f"VACATION_CHECK_EXECUTED | Days Remaining: {vacation_days}"
+
+            store_chat_log_updated_func(
+                user_message=user_query, 
+                bot_response=vacation_summary, 
+                query_score=0.0, 
+                relevance_score=2.0, 
+                user_id=user_id, 
+                chat_id=chat_id
+            )
+        except Exception as db_error:
+            logger.error(f"Failed to store vacation check log in database: {db_error}")
+
+    return {
+        'text': response_text,
+        'images': [],
+        'sources': [],
+        'tool_used': True,
+        'tool_identified': 'vacation_check',
+        'tool_confidence': 'executed_successfully',
+        'extracted_details': {
+            'user_id': user_id,
+            'vacation_days': vacation_days,
+            'query': user_query
+        },
+        'vacation_summary': {
+            'days_remaining': vacation_days,
+            'last_updated': 'N/A'
+        }
+    }

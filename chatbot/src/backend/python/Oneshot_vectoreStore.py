@@ -51,7 +51,7 @@ load_dotenv()
 nlp = spacy.load("en_core_web_sm")
 
 # Initialize models
-api_key = os.getenv('GROQ_API_KEY')
+api_key = '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'
 model = "deepseek-r1-distill-llama-70b"
 deepseek = ChatGroq(api_key=api_key, model_name=model)
 deepseek_chain = deepseek | StrOutputParser()
@@ -277,15 +277,7 @@ def unified_document_pipeline_multi(file_paths, embedding_model, faiss_index_pat
     for file_path in file_paths:
         print(f"\n[INFO] Processing document: {file_path}")
         try:
-<<<<<<< HEAD
-            # Read text file directly
-=======
-            
-
-            
-
             # Process the cleaned text into chunks without creating individual FAISS indexes
->>>>>>> b4e493964be6e04590b1e4badc327fed7e8f0e2d
             with open(file_path, 'r', encoding='utf-8') as f:
                 text = f.read().lower()
 
@@ -325,15 +317,7 @@ def unified_document_pipeline_multi(file_paths, embedding_model, faiss_index_pat
                     "images": image_list
                 })
 
-<<<<<<< HEAD
-            results.append({
-                "original_path": file_path,
-                "success": True,
-                "chunks_processed": len(restored_chunks)
-            })
-=======
             
->>>>>>> b4e493964be6e04590b1e4badc327fed7e8f0e2d
 
         except Exception as e:
             error_msg = f"Failed to process {file_path}: {str(e)}"
@@ -374,17 +358,14 @@ if __name__ == "__main__":
         model_kwargs={'device': 'cpu'}
     )
 
-<<<<<<< HEAD
-=======
     images_dir = Path("chatbot/src/backend/python/data/images")
     
     
->>>>>>> b4e493964be6e04590b1e4badc327fed7e8f0e2d
     cleaned_dir = Path("chatbot/src/backend/python/data/cleaned")
     file_paths = list(cleaned_dir.glob("*.txt"))
     
     unified_document_pipeline_multi(
         file_paths=file_paths,
         embedding_model=embedding_model,
-        faiss_index_path="faiss_master_index"
+        faiss_index_path="faiss_master_index3"
     )

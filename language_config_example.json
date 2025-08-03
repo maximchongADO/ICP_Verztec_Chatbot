@@ -1,0 +1,99 @@
+{
+  "supported_languages": {
+    "en": {
+      "name": "English",
+      "is_primary": true
+    },
+    "zh-cn": {
+      "name": "Chinese (Simplified)",
+      "is_primary": false
+    },
+    "zh-tw": {
+      "name": "Chinese (Traditional)", 
+      "is_primary": false
+    },
+    "es": {
+      "name": "Spanish",
+      "is_primary": false
+    },
+    "fr": {
+      "name": "French",
+      "is_primary": false
+    },
+    "de": {
+      "name": "German",
+      "is_primary": false
+    },
+    "ja": {
+      "name": "Japanese",
+      "is_primary": false
+    },
+    "ko": {
+      "name": "Korean",
+      "is_primary": false
+    },
+    "pt": {
+      "name": "Portuguese",
+      "is_primary": false
+    },
+    "it": {
+      "name": "Italian",
+      "is_primary": false
+    }
+  },
+  "common_phrases": {
+    "en": [
+      "hello", "hi", "hey", "thanks", "thank you", "goodbye", "bye",
+      "good morning", "good afternoon", "good evening", "good night",
+      "how are you", "what", "why", "when", "where", "who", "how",
+      "yes", "no", "ok", "okay", "sure", "please", "sorry",
+      "help", "can you", "could you", "would you", "will you",
+      "i need", "i want", "i have", "i am", "i'm", "you are", "you're"
+    ],
+    "zh-cn": [
+      "你好", "谢谢", "再见", "早上好", "晚上好", "什么", "为什么", "怎么",
+      "哪里", "什么时候", "谁", "是的", "不是", "好的", "请", "对不起",
+      "帮助", "我需要", "我想要", "我有", "我是", "你是"
+    ],
+    "es": [
+      "hola", "gracias", "adiós", "buenos días", "buenas noches", "qué", "por qué", "cómo",
+      "dónde", "cuándo", "quién", "sí", "no", "vale", "por favor", "lo siento",
+      "ayuda", "necesito", "quiero", "tengo", "soy", "eres"
+    ],
+    "fr": [
+      "bonjour", "merci", "au revoir", "bonne nuit", "quoi", "pourquoi", "comment",
+      "où", "quand", "qui", "oui", "non", "d'accord", "s'il vous plaît", "désolé",
+      "aide", "j'ai besoin", "je veux", "j'ai", "je suis", "vous êtes"
+    ],
+    "de": [
+      "hallo", "danke", "auf wiedersehen", "gute nacht", "was", "warum", "wie",
+      "wo", "wann", "wer", "ja", "nein", "okay", "bitte", "entschuldigung", 
+      "hilfe", "ich brauche", "ich will", "ich habe", "ich bin", "sie sind"
+    ],
+    "ja": [
+      "こんにちは", "ありがとう", "さようなら", "おはよう", "こんばんは", "何", "なぜ", "どう",
+      "どこ", "いつ", "誰", "はい", "いいえ", "お願いします", "すみません",
+      "助けて", "必要", "欲しい", "持っている", "です", "あります"
+    ],
+    "ko": [
+      "안녕하세요", "감사합니다", "안녕히가세요", "좋은아침", "좋은저녁", "무엇", "왜", "어떻게",
+      "어디", "언제", "누구", "네", "아니오", "괜찮아", "부탁합니다", "죄송합니다",
+      "도움", "필요해", "원해", "가지고", "입니다", "있습니다"
+    ]
+  },
+  "question_starters": {
+    "en": ["what", "why", "when", "where", "who", "how", "can", "could", "would", "will", "do", "does", "did", "is", "are", "was", "were"],
+    "zh-cn": ["什么", "为什么", "怎么", "哪里", "什么时候", "谁", "是否", "可以", "能否", "会不会"],
+    "es": ["qué", "por qué", "cómo", "dónde", "cuándo", "quién", "puede", "podría", "será", "es", "son"],
+    "fr": ["quoi", "pourquoi", "comment", "où", "quand", "qui", "peut", "pourrait", "sera", "est", "sont"],
+    "de": ["was", "warum", "wie", "wo", "wann", "wer", "kann", "könnte", "wird", "ist", "sind"],
+    "ja": ["何", "なぜ", "どう", "どこ", "いつ", "誰", "できる", "かもしれない", "でしょう", "です", "あります"],
+    "ko": ["무엇", "왜", "어떻게", "어디", "언제", "누구", "할 수 있는", "할 수도", "것입니다", "입니다", "있습니다"]
+  },
+  "thresholds": {
+    "short_query_words": 2,
+    "very_short_chars": 10,
+    "confidence_threshold": 0.3,
+    "fallback_language": "en"
+  }
+}
