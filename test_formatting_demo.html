@@ -1,0 +1,198 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Enhanced Chatbot Formatting Demo</title>
+    <link rel="stylesheet" href="chatbot/src/public/styles/main.css" />
+    <link rel="stylesheet" href="chatbot/src/public/styles/chatbot.css" />
+    <link rel="stylesheet" href="chatbot/src/public/styles/enhanced-formatting.css" />
+    <style>
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            background: #f9fafb;
+            padding: 2rem;
+            line-height: 1.6;
+        }
+        .demo-container {
+            max-width: 800px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 16px;
+            box-shadow: 0 4px 16px rgba(0, 0, 0, 0.1);
+            overflow: hidden;
+        }
+        .demo-header {
+            background: linear-gradient(135deg, #d4b24c 0%, #a08a3c 100%);
+            color: white;
+            padding: 2rem;
+            text-align: center;
+        }
+        .demo-content {
+            padding: 2rem;
+        }
+        .example-response {
+            background: #f8f9fa;
+            border: 1px solid #e9ecef;
+            border-radius: 12px;
+            padding: 1.5rem;
+            margin: 1rem 0;
+        }
+        .ai-message {
+            background: none !important;
+            border: none !important;
+            padding: 0 !important;
+            margin: 0 !important;
+        }
+        .before-after {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 2rem;
+            margin: 2rem 0;
+        }
+        .before, .after {
+            padding: 1.5rem;
+            border-radius: 12px;
+        }
+        .before {
+            background: #fee;
+            border: 1px solid #fcc;
+        }
+        .after {
+            background: #efe;
+            border: 1px solid #cfc;
+        }
+        h3 {
+            margin-top: 0;
+            color: #d4b24c;
+        }
+        @media (max-width: 768px) {
+            .before-after {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="demo-container">
+        <div class="demo-header">
+            <h1>Enhanced Chatbot Formatting Demo</h1>
+            <p>See how your chatbot responses now look with professional HTML formatting</p>
+        </div>
+        
+        <div class="demo-content">
+            <h2>✨ What's New</h2>
+            <p>Your chatbot now automatically formats responses with:</p>
+            <ul class="response-list">
+                <li class="bullet-item"><strong>Professional typography</strong> with enhanced readability</li>
+                <li class="bullet-item"><strong>Structured content</strong> with headers, lists, and sections</li>
+                <li class="bullet-item"><strong>Policy formatting</strong> for workplace documents</li>
+                <li class="bullet-item"><strong>Code highlighting</strong> for technical instructions</li>
+                <li class="bullet-item"><strong>Visual emphasis</strong> for important terms</li>
+            </ul>
+
+            <h2>📋 Example: Leave Policy Response</h2>
+            <div class="example-response">
+                <div class="ai-message">
+                    <h2 class="response-header-2">Annual Leave Policy</h2>
+                    
+                    <p class="response-paragraph">Here's everything you need to know about <strong class="text-bold">annual leave entitlements</strong> at Verztec:</p>
+                    
+                    <div class="policy-section">
+                        <span class="policy-label">Policy:</span> All full-time employees are entitled to 21 days of annual leave per year
+                    </div>
+                    
+                    <h3 class="response-header-3">Leave Application Process</h3>
+                    <ol class="response-numbered-list">
+                        <li class="numbered-item">Submit your leave application through the HR portal</li>
+                        <li class="numbered-item">Get <span class="highlight-term">approval</span> from your direct supervisor</li>
+                        <li class="numbered-item">Receive confirmation email within 2 business days</li>
+                    </ol>
+                    
+                    <div class="info-item">
+                        <span class="info-label">Important:</span> 
+                        <span class="info-value">Leave requests must be submitted at least 2 weeks in advance for <span class="highlight-term">approval</span></span>
+                    </div>
+                    
+                    <h3 class="response-header-3">Leave Balance Check</h3>
+                    <p class="response-paragraph">You can check your current leave balance by:</p>
+                    <ul class="response-list">
+                        <li class="bullet-item">Logging into the HR self-service portal</li>
+                        <li class="bullet-item">Contacting HR directly at <code class="inline-code">hr@verztec.com</code></li>
+                        <li class="bullet-item">Using the employee mobile app</li>
+                    </ul>
+                </div>
+            </div>
+
+            <h2>🔧 Technical Example: System Setup</h2>
+            <div class="example-response">
+                <div class="ai-message">
+                    <h2 class="response-header-2">Email Setup Instructions</h2>
+                    
+                    <p class="response-paragraph">Follow these steps to configure your <strong class="text-bold">Verztec email account</strong>:</p>
+                    
+                    <div class="code-block">
+                        <pre><code>IMAP Settings:
+Server: mail.verztec.com
+Port: 993
+Security: SSL/TLS
+Username: your.name@verztec.com</code></pre>
+                    </div>
+                    
+                    <div class="policy-section">
+                        <span class="policy-label">Important:</span> Use your network credentials for authentication
+                    </div>
+                    
+                    <p class="response-paragraph">For additional support, contact IT at <a href="mailto:it@verztec.com" class="response-link">it@verztec.com</a></p>
+                </div>
+            </div>
+
+            <div class="before-after">
+                <div class="before">
+                    <h3>❌ Before (Plain Text)</h3>
+                    <p style="font-family: monospace; color: #666;">
+                        Annual Leave Policy: All employees get 21 days leave. 
+                        Process: 1. Apply through portal 2. Get approval 3. Receive confirmation. 
+                        Important: Submit 2 weeks advance.
+                    </p>
+                </div>
+                
+                <div class="after">
+                    <h3>✅ After (Enhanced HTML)</h3>
+                    <div class="ai-message" style="font-size: 0.9em;">
+                        <strong class="text-bold">Annual Leave Policy</strong>
+                        <p class="response-paragraph">All employees receive <strong class="text-bold">21 days</strong> of leave annually.</p>
+                        <ol class="response-numbered-list">
+                            <li class="numbered-item">Apply through portal</li>
+                            <li class="numbered-item">Get <span class="highlight-term">approval</span></li>
+                            <li class="numbered-item">Receive confirmation</li>
+                        </ol>
+                        <div class="info-item">
+                            <span class="info-label">Important:</span> 
+                            <span class="info-value">Submit 2 weeks in advance</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <h2>🚀 How to Test</h2>
+            <ol class="response-numbered-list">
+                <li class="numbered-item">Start your chatbot server: <code class="inline-code">python main.py</code></li>
+                <li class="numbered-item">Open the chatbot interface</li>
+                <li class="numbered-item">Ask questions like:
+                    <ul class="response-list">
+                        <li class="bullet-item">"What is the leave policy?"</li>
+                        <li class="bullet-item">"How do I set up email?"</li>
+                        <li class="bullet-item">"What are the pantry rules?"</li>
+                    </ul>
+                </li>
+                <li class="numbered-item">Notice the enhanced formatting in responses!</li>
+            </ol>
+
+            <div class="policy-section">
+                <span class="policy-label">Note:</span> The AI will now automatically structure responses with headers, bullet points, and professional formatting based on the content.
+            </div>
+        </div>
+    </div>
+</body>
+</html>
