@@ -316,8 +316,13 @@ const clearChatHistory = async (req, res) => {
 // Handle feedback from user
 const handleFeedback = async (req, res) => {
     try {
+        console.log('Feedback request received:', req.body);
+        console.log('Request user:', req.user);
+        
         const { feedback, chat_id, message_id } = req.body;
         const userId = req.user?.userId || req.user?.id || req.user?.sub;
+
+        console.log('Extracted data:', { feedback, chat_id, userId });
 
         if (!feedback) {
             return res.status(400).json({
@@ -333,32 +338,38 @@ const handleFeedback = async (req, res) => {
         if (chat_id && userId) {
             query = `UPDATE chat_logs
                      SET feedback = ?
-                     WHERE user_id = ? AND chat_id = ? AND sender = 'bot'
+                     WHERE user_id = ? AND chat_id = ? AND bot_response IS NOT NULL AND bot_response != ''
                      ORDER BY timestamp DESC
                      LIMIT 1`;
             params = [feedback, userId, chat_id];
+            console.log('Using query with chat_id and userId:', query, params);
         } else if (userId) {
             query = `UPDATE chat_logs
                      SET feedback = ?
-                     WHERE user_id = ? AND sender = 'bot'
+                     WHERE user_id = ? AND bot_response IS NOT NULL AND bot_response != ''
                      ORDER BY timestamp DESC
                      LIMIT 1`;
             params = [feedback, userId];
+            console.log('Using query with userId only:', query, params);
         } else {
             query = `UPDATE chat_logs
                      SET feedback = ?
-                     WHERE sender = 'bot'
+                     WHERE bot_response IS NOT NULL AND bot_response != ''
                      ORDER BY timestamp DESC
                      LIMIT 1`;
             params = [feedback];
+            console.log('Using query with no user filtering:', query, params);
         }
 
-        await connection.execute(query, params);
+        const result = await connection.execute(query, params);
+        console.log('Update result:', result);
+        
         await connection.end();
 
         res.json({
             success: true,
-            message: 'Feedback recorded successfully'
+            message: 'Feedback recorded successfully',
+            rowsAffected: result[0].affectedRows
         });
 
     } catch (error) {

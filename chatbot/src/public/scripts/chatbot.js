@@ -1814,11 +1814,19 @@ function cancelSpeech() {
 }
 
 function handleFeedback(button, isPositive) {
+    console.log('handleFeedback called:', { button, isPositive });
+    
     const messageContainer = button.closest('.message');
-    if (!messageContainer) return;
+    if (!messageContainer) {
+        console.error('No message container found');
+        return;
+    }
 
     const feedbackGroup = button.closest('.feedback-buttons');
-    if (!feedbackGroup) return;
+    if (!feedbackGroup) {
+        console.error('No feedback group found');
+        return;
+    }
 
     // Disable all buttons in this feedback group to prevent double submission
     feedbackGroup.querySelectorAll('.feedback-btn').forEach(btn => {
@@ -1829,12 +1837,19 @@ function handleFeedback(button, isPositive) {
     // Mark the clicked button as selected
     button.classList.add('selected');
 
+    // Get current chat ID from localStorage/sessionStorage
+    const chat_id = localStorage.getItem("chat_id") || sessionStorage.getItem("chat_id");
+
     // Prepare feedback data
     const feedbackValue = isPositive ? 'helpful' : 'not helpful';
     const feedbackData = {
         feedback: feedbackValue,
-        chat_id: currentChatId || null
+        chat_id: chat_id || null
     };
+
+    console.log('Sending feedback data:', feedbackData);
+    console.log('Current chat ID:', chat_id);
+    console.log('Token exists:', !!localStorage.getItem('token'));
 
     // Show loading state
     const tempMessage = document.createElement('div');
@@ -1851,15 +1866,21 @@ function handleFeedback(button, isPositive) {
         },
         body: JSON.stringify(feedbackData)
     })
-    .then(response => response.json())
+    .then(response => {
+        console.log('Response status:', response.status);
+        return response.json();
+    })
     .then(data => {
+        console.log('Response data:', data);
         if (data.success) {
             // Success feedback
             tempMessage.textContent = isPositive ? 
                 'Thanks for your feedback!' : 
                 'Thank you, we\'ll work to improve!';
             tempMessage.style.color = '#4ade80'; // green color
+            console.log('Feedback submitted successfully. Rows affected:', data.rowsAffected);
         } else {
+            console.error('Feedback submission failed:', data);
             // Error feedback
             tempMessage.textContent = 'Failed to submit feedback. Please try again.';
             tempMessage.style.color = '#ef4444'; // red color
