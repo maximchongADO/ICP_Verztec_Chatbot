@@ -58,7 +58,7 @@ logger = logging.getLogger(__name__)
 # Initialize models and clients
 embedding_model = SentenceTransformer('BAAI/bge-large-en-v1.5')
 load_dotenv()
-api_key='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'
+api_key='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'
 # i love api keyyy
 model = "deepseek-r1-distill-llama-70b" 
 deepseek = ChatGroq(api_key=api_key, model=model, temperature = 0) # type: ignore
@@ -2671,7 +2671,12 @@ def generate_answer_histoy_retrieval(user_query: str, user_id:str, chat_id:str):
                     "I'm unable to find that information in our Verztec knowledge base. I can only assist with Verztec workplace matters. Is there something work-related I can help you with instead?",
                     "That's outside my area of expertise. I'm specifically designed to help with Verztec workplace questions only. How can I assist you with something Verztec-related?",
                     "I don't have access to that information. My knowledge is limited to Verztec workplace topics. What can I help you with regarding your work at Verztec?",
-                    "I'm not able to answer that question as it's not in the Verztec database. I'm here to help with company policies, procedures, and workplace matters. What would you like to know about Verztec?"
+                    "I'm not able to answer that question as it's not in the Verztec database. I'm here to help with company policies, procedures, and workplace matters. What would you like to know about Verztec?",
+                    "Oops! I can't help with that. My knowledge is strictly limited to Verztec workplace assistance. If you have a question about HR policies, IT support, or office procedures, I'm here to help!",
+                    "I can't assist with that topic. My expertise is focused on Verztec workplace matters only. If you have a question about HR, IT, or office procedures, feel free to ask!",
+                    "I'm sorry, but I can't provide information on that topic. My role is to assist with Verztec workplace-related queries only. How can I help you with something work-related?",
+                    "I don't have the information you're looking for. My knowledge is limited to Verztec workplace assistance. Is there something specific about Verztec that I can help you with?",
+                    "Unfortunately, I can't answer that question as it's not related to Verztec workplace matters. I'm here to assist with HR policies, IT support, and office procedures. How can I help you today?"
                 ]
                 selected_reply = random.choice(rand_replies)
                 fallback_prompt=(
